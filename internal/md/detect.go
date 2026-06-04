@@ -11,7 +11,6 @@ import (
 type BufferReader interface {
 	LinesNum() int
 	LineBytes(n int) []byte
-	Line(n int) string
 	State(n int) highlight.State
 }
 
@@ -29,13 +28,9 @@ const (
 // 每个 Segment 标记了它负责的 buffer 行范围和渲染函数。
 // visibleStart/visibleEnd 是 buffer 行号范围（含两端）。
 // buf 是 buffer 引用，用于读取行内容。
-// bufWidth 是渲染区域宽度（列数）。
-//   - Step 0: 透传给 renderer，detect 自身不使用
-//   - Step 1+: detect 用于计算各渲染片的视觉行高，输出到 SegmentMeta 缓存，供 Scroll/Diff 查询
 func DetectSegments(
 	buf BufferReader,
 	visibleStart, visibleEnd int,
-	bufWidth int,
 ) []Segment {
 	segments := []Segment{}
 	state := stateNormal
@@ -77,7 +72,7 @@ func DetectSegments(
 		}
 
 		// ── 非 codeblock 行：字符串匹配 ──
-		line := buf.Line(y)
+		line := string(buf.LineBytes(y))
 		trimmed := strings.TrimSpace(line)
 		reprocess := false
 
@@ -152,10 +147,11 @@ func DetectSegments(
 			}
 		}
 
-		if !reprocess {
-			lastState = curState
+		if reprocess {
+			y-- // 回退：下一轮以 stateNormal 重新处理当前行
+			continue
 		}
-		// reprocess 时 lastState 不变（curState==nil，lastState 也是 nil）
+		lastState = curState
 	}
 
 	// 未闭合的 codeblock

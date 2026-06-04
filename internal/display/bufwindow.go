@@ -32,7 +32,6 @@ type BufWindow struct {
 	drawDivider      bool
 
 	// MicroNeo: MD rendering support
-	IsMD     bool           // 由 BufPane 创建时设置
 	mdConfig md.MDConfig    // MD 渲染配置
 	mdCache  []md.SegmentMeta // 上一帧检测的轻量元数据缓存
 }
@@ -905,7 +904,7 @@ func (w *BufWindow) Display() {
 
 	w.displayStatusLine()
 	w.displayScrollBar()
-	if w.IsMD {
+	if w.Buf.IsMD {
 		w.displayBufferMD()
 	} else {
 		w.displayBuffer()
@@ -943,8 +942,13 @@ func (w *BufWindow) displayBufferMD() {
 		visibleEnd = b.LinesNum() - 1
 	}
 
-	segments := md.DetectSegments(b, visibleStart, visibleEnd, bufWidth)
-	// TODO(Step 3): 将检测结果写入 w.mdCache 供 Scroll/Diff 查询
+	// 每帧清空 mdCache（防止无限增长）
+	w.mdCache = w.mdCache[:0]
+
+	// 读 buffer 上的分类结果（事件驱动算好，content-static）
+	// 注意：非 MD 文件的 b.MDSegments 保持 nil，filterSegmentsToVisible 要处理 nil
+	allSegs := b.MDSegments
+	segments := filterSegmentsToVisible(allSegs, visibleStart, visibleEnd)
 
 	// 2. 渲染管线主循环
 	vY := 0 // 当前 screen 行（相对窗口顶部）
@@ -1028,6 +1032,13 @@ func (w *BufWindow) displayBufferMD() {
 
 			vY++
 		}
+
+		// MicroNeo: 副作用填 w.mdCache（render 后）
+		w.mdCache = append(w.mdCache, md.SegmentMeta{
+			BufStartLine: seg.BufStartLine,
+			BufEndLine:   seg.BufEndLine,
+			RowCounts:    computeRowCounts(rendered),
+		})
 	}
 
 	// 3. 填充剩余空间
@@ -1047,6 +1058,50 @@ func (w *BufWindow) linesFromBuffer(start, end int) []string {
 		lines = append(lines, w.Buf.Line(i))
 	}
 	return lines
+}
+
+// filterSegmentsToVisible 从事件驱动算好的全 buffer segments 中，截出当前可见区域。
+// 非 MD 文件的 segs 为 nil，直接返回 nil（displayBufferMD 不被调用，原生路径处理）。
+// 返回的 segment 列表中 BufStartLine/BufEndLine 已被截断到 [startY, endY]。
+func filterSegmentsToVisible(segs []md.Segment, startY, endY int) []md.Segment {
+	if segs == nil {
+		return nil
+	}
+	var out []md.Segment
+	for _, s := range segs {
+		if s.BufEndLine < startY {
+			continue // 完全在可视范围之上
+		}
+		if s.BufStartLine > endY {
+			continue // 完全在可视范围之下
+		}
+		// 至少部分重叠，截断到可视范围
+		if s.BufStartLine < startY {
+			s.BufStartLine = startY
+		}
+		if s.BufEndLine > endY {
+			s.BufEndLine = endY
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
+// computeRowCounts 计算 render 后的 RenderedSegment 中，每个 buffer 行占几个 screen row。
+// RenderedRow.BufLine：首行是有效 buffer 行号，续行/装饰行为 -1。
+// 所以用 BufLine 变化点切分，统计连续相同 BufLine 的 Row 数。
+func computeRowCounts(rendered *md.RenderedSegment) []int {
+	counts := make([]int, 0, len(rendered.Rows))
+	lastBufLine := -2 // 用 -2 保证首次遇到 BufLine==-1（装饰行）也能起一个计数
+	for _, row := range rendered.Rows {
+		if row.BufLine != lastBufLine {
+			counts = append(counts, 1)
+			lastBufLine = row.BufLine
+		} else {
+			counts[len(counts)-1]++
+		}
+	}
+	return counts
 }
 
 // drawGutterAndLineNumMD 在指定 screen 行绘制 gutter 和行号。

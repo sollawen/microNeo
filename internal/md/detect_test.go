@@ -19,13 +19,6 @@ func (m *mockBuffer) LineBytes(n int) []byte {
 	}
 	return nil
 }
-func (m *mockBuffer) Line(n int) string {
-	if n >= 0 && n < len(m.lines) {
-		return m.lines[n]
-	}
-	return ""
-}
-
 func (m *mockBuffer) State(n int) highlight.State { return nil }
 
 // segmentType 用于标识 segment 的渲染类型（测试用）
@@ -83,7 +76,7 @@ func TestDetectHeading(t *testing.T) {
 		"# Title",
 		"normal text",
 	}}
-	segments := DetectSegments(buf, 0, 1, 80)
+	segments := DetectSegments(buf, 0, 1)
 	if len(segments) != 2 {
 		t.Fatalf("expected 2 segments, got %d", len(segments))
 	}
@@ -104,7 +97,7 @@ func TestDetectMultipleHeadings(t *testing.T) {
 		"### Sub-subtitle",
 		"# Another Title",
 	}}
-	segments := DetectSegments(buf, 0, 3, 80)
+	segments := DetectSegments(buf, 0, 3)
 	if len(segments) != 4 {
 		t.Fatalf("expected 4 segments, got %d", len(segments))
 	}
@@ -124,7 +117,7 @@ func TestDetectCodeBlock(t *testing.T) {
 		"```",
 		"after code",
 	}}
-	segments := DetectSegments(buf, 0, 4, 80)
+	segments := DetectSegments(buf, 0, 4)
 	if len(segments) != 2 {
 		t.Fatalf("expected 2 segments, got %d", len(segments))
 	}
@@ -146,7 +139,7 @@ func TestDetectCodeBlockWithTilde(t *testing.T) {
 		"code",
 		"~~~",
 	}}
-	segments := DetectSegments(buf, 0, 2, 80)
+	segments := DetectSegments(buf, 0, 2)
 	if len(segments) != 1 {
 		t.Fatalf("expected 1 segment, got %d", len(segments))
 	}
@@ -160,7 +153,7 @@ func TestDetectUnclosedCodeBlock(t *testing.T) {
 		"```",
 		"code without closing",
 	}}
-	segments := DetectSegments(buf, 0, 1, 80)
+	segments := DetectSegments(buf, 0, 1)
 	if len(segments) != 1 {
 		t.Fatalf("expected 1 segment, got %d", len(segments))
 	}
@@ -179,7 +172,7 @@ func TestDetectTable(t *testing.T) {
 		"| data1 | data2 |",
 		"after table",
 	}}
-	segments := DetectSegments(buf, 0, 3, 80)
+	segments := DetectSegments(buf, 0, 3)
 	if len(segments) != 2 {
 		t.Fatalf("expected 2 segments, got %d", len(segments))
 	}
@@ -198,7 +191,7 @@ func TestDetectBlockquote(t *testing.T) {
 		"> quote line 2",
 		"after quote",
 	}}
-	segments := DetectSegments(buf, 0, 2, 80)
+	segments := DetectSegments(buf, 0, 2)
 	if len(segments) != 2 {
 		t.Fatalf("expected 2 segments, got %d", len(segments))
 	}
@@ -218,7 +211,7 @@ func TestDetectBlockquoteWithEmptyLines(t *testing.T) {
 		"> more quote",
 		"normal",
 	}}
-	segments := DetectSegments(buf, 0, 3, 80)
+	segments := DetectSegments(buf, 0, 3)
 	// Blockquote with empty lines: lines 0-2 are blockquote (empty lines included)
 	// Line 3 is paragraph
 	if len(segments) != 2 {
@@ -236,7 +229,7 @@ func TestDetectList(t *testing.T) {
 		"- item 3",
 		"after list",
 	}}
-	segments := DetectSegments(buf, 0, 3, 80)
+	segments := DetectSegments(buf, 0, 3)
 	if len(segments) != 2 {
 		t.Fatalf("expected 2 segments, got %d", len(segments))
 	}
@@ -254,7 +247,7 @@ func TestDetectListWithStar(t *testing.T) {
 		"* item 1",
 		"* item 2",
 	}}
-	segments := DetectSegments(buf, 0, 1, 80)
+	segments := DetectSegments(buf, 0, 1)
 	if len(segments) != 1 {
 		t.Fatalf("expected 1 segment, got %d", len(segments))
 	}
@@ -268,7 +261,7 @@ func TestDetectListWithPlus(t *testing.T) {
 		"+ item 1",
 		"+ item 2",
 	}}
-	segments := DetectSegments(buf, 0, 1, 80)
+	segments := DetectSegments(buf, 0, 1)
 	if len(segments) != 1 {
 		t.Fatalf("expected 1 segment, got %d", len(segments))
 	}
@@ -283,7 +276,7 @@ func TestDetectNumberedList(t *testing.T) {
 		"2. second",
 		"10. tenth",
 	}}
-	segments := DetectSegments(buf, 0, 2, 80)
+	segments := DetectSegments(buf, 0, 2)
 	if len(segments) != 1 {
 		t.Fatalf("expected 1 segment, got %d", len(segments))
 	}
@@ -325,7 +318,7 @@ func TestDetectMixedHR(t *testing.T) {
 		"---",
 		"paragraph",
 	}}
-	segments := DetectSegments(buf, 0, 2, 80)
+	segments := DetectSegments(buf, 0, 2)
 	if len(segments) != 3 {
 		t.Fatalf("expected 3 segments, got %d", len(segments))
 	}
@@ -365,7 +358,7 @@ func TestDetectMixedContent(t *testing.T) {
 		"",
 		"Final paragraph",
 	}}
-	segments := DetectSegments(buf, 0, len(buf.lines)-1, 80)
+	segments := DetectSegments(buf, 0, len(buf.lines)-1)
 
 	// Expected segments (15 total):
 	// Empty lines within list/blockquote are included in those structures
@@ -440,7 +433,7 @@ func TestDetectParagraphOnly(t *testing.T) {
 		"Another paragraph here.",
 		"Yet another line.",
 	}}
-	segments := DetectSegments(buf, 0, 2, 80)
+	segments := DetectSegments(buf, 0, 2)
 	if len(segments) != 3 {
 		t.Fatalf("expected 3 segments, got %d", len(segments))
 	}
@@ -458,7 +451,7 @@ func TestDetectCodeBlockWithPipe(t *testing.T) {
 		`{"key": "value", "arr": [1, 2, 3]}`,
 		"```",
 	}}
-	segments := DetectSegments(buf, 0, 2, 80)
+	segments := DetectSegments(buf, 0, 2)
 	if len(segments) != 1 {
 		t.Fatalf("expected 1 segment, got %d", len(segments))
 	}
@@ -476,7 +469,7 @@ func TestDetectEmptyLines(t *testing.T) {
 		"",
 		"line 6",
 	}}
-	segments := DetectSegments(buf, 0, 5, 80)
+	segments := DetectSegments(buf, 0, 5)
 	// Each line (including empty lines) is treated as a paragraph
 	// 6 lines = 6 segments
 	if len(segments) != 6 {
@@ -527,7 +520,7 @@ func TestDetectVisibleRange(t *testing.T) {
 		"# Another Title",
 	}}
 	// Only request visible range 1-3
-	segments := DetectSegments(buf, 1, 3, 80)
+	segments := DetectSegments(buf, 1, 3)
 	if len(segments) != 3 {
 		t.Fatalf("expected 3 segments, got %d", len(segments))
 	}

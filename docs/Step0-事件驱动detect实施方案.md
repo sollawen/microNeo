@@ -197,14 +197,18 @@ type SharedBuffer struct {
 }
 ```
 
-**4.2 `internal/buffer/buffer.go` — `NewBuffer` 末尾设 `b.IsMD`**
+**4.2 `internal/buffer/buffer.go` — `NewBuffer` 中设 `b.IsMD`（在 `UpdateRules` 之前）**
 
-L357 `NewBuffer` 末尾、 return 之前加：
+⚠️ **时序关键**：`b.IsMD` 必须在 `b.UpdateRules()` 之前赋值，否则 `UpdateRules` 启动的异步 goroutine 里 `if b.IsMD` 为 false，detect 不执行，`MDSegments` 永远为空。
+
+在 `NewBuffer` 中，`b.UpdateRules()` 调用之前插入：
 
 ```go
 func NewBuffer(r io.Reader, size int64, path string, btype BufType, cmd Command) *Buffer {
     // ... 现有代码 ...
-    b.IsMD = md.IsMarkdownFile(path)   // ← 新增（单一真源点）
+    b.IsMD = md.IsMarkdownFile(path)   // ← 必须在 UpdateRules 之前
+    b.UpdateRules()
+    // ...
     return b
 }
 ```
@@ -660,6 +664,8 @@ P1/P2 的"bug 仍存在"是**设计上的预期**——这两个阶段都是无 
 4. **更新策略**：Step 0 全量——文件开和编辑均跑 `DetectSegments(b, 0, End.Y)`（P2 任务 5 `UpdateRules` async + 任务 6 `MarkModified`）。增量优化留给后续 step
 5. **mdCache 填充**：render 副作用，display 路径上
 6. **三阶段拆分**：每个阶段独立可编译可测试。P1 数据准备、P2 数据填好、P3 消费切换
+7. **IsMD 赋值时序**：`b.IsMD` 必须在 `b.UpdateRules()` 之前赋值。`UpdateRules` 启动异步 goroutine 跑 detect，如果 `IsMD` 还是 false，detect 不会执行，`MDSegments` 永远为空，屏幕空白
+8. **BufferReader 接口精简**：从接口中删掉 `Line()` 方法，detect 内部改用 `string(buf.LineBytes(y))`。这样 `*SharedBuffer`（嵌入 `*LineArray`）直接满足接口，不需要在 micro 原生 `line_array.go` 上加方法
 
 ### 6.2 待办（不在本次范围）
 

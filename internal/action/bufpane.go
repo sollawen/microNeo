@@ -282,8 +282,7 @@ func NewBufPaneFromBuf(buf *buffer.Buffer, tab *Tab) *BufPane {
 	w := display.NewBufWindow(0, 0, 0, 0, buf)
 
 	// MicroNeo: 设置 MD 标志和配置
-	if md.IsMarkdownFile(buf.Path) {
-		w.IsMD = true
+	if buf.IsMD { // 单一真源（NewBuffer 算了 IsMarkdownFile）
 		w.SetMDConfig(md.MDConfig{
 			MDRender:      config.GetGlobalOption("mdrender").(bool),
 			MDRenderIdle:  config.GetGlobalOption("mdrenderidle").(float64),
