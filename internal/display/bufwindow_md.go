@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unicode/utf8"
 
 	runewidth "github.com/mattn/go-runewidth"
 	"github.com/micro-editor/micro/v2/internal/buffer"
@@ -62,6 +63,13 @@ func (w *BufWindow) renderSegmentMD(
 		}
 	}
 
+	// 预展开稠密 style 数组（在遍历 rows 之前，一次性算好）
+	lineStyles := map[int][]tcell.Style{}
+	for bufLine := seg.BufStartLine; bufLine <= seg.BufEndLine; bufLine++ {
+		line := w.Buf.Line(bufLine)
+		lineStyles[bufLine] = w.expandLineStyles(bufLine, utf8.RuneCountInString(line), config.DefStyle)
+	}
+
 	// 写入 screen
 	for _, row := range rendered.Rows {
 		if vY >= bufHeight {
@@ -72,12 +80,6 @@ func (w *BufWindow) renderSegmentMD(
 		w.drawGutterAndLineNumMD(vY, row.BufLine)
 
 		// 画内容
-		// LineMatch 是稀疏 map：只在语法组变化的起始位置有条目，
-		// 所以需要记住上一次匹配的 group，没命中时继续沿用。
-		var lastFg tcell.Color
-		var lastAttr tcell.AttrMask
-		hasLast := false
-
 		for col, cell := range row.Cells {
 			screenX := w.X + w.gutterOffset + col
 			screenY := w.Y + vY
@@ -85,36 +87,12 @@ func (w *BufWindow) renderSegmentMD(
 				continue
 			}
 			style := cell.Style
+			// 稠密数组查询：只覆盖前景色，保留 renderInline 叠加的背景色和文本属性
 			if cell.BufLine >= 0 && cell.BufX >= 0 {
-				if group, ok := w.Buf.Match(cell.BufLine)[cell.BufX]; ok {
-					s := config.GetColor(group.String())
-					lastFg, _, lastAttr = s.Decompose()
-					hasLast = true
-				}
-				if hasLast {
+				if styles, ok := lineStyles[cell.BufLine]; ok && cell.BufX < len(styles) {
+					fg, _, _ := styles[cell.BufX].Decompose()
 					_, bg, _ := style.Decompose()
-					style = tcell.StyleDefault.Foreground(lastFg).Background(bg)
-					if lastAttr&tcell.AttrBold != 0 {
-						style = style.Bold(true)
-					}
-					if lastAttr&tcell.AttrBlink != 0 {
-						style = style.Blink(true)
-					}
-					if lastAttr&tcell.AttrReverse != 0 {
-						style = style.Reverse(true)
-					}
-					if lastAttr&tcell.AttrUnderline != 0 {
-						style = style.Underline(true)
-					}
-					if lastAttr&tcell.AttrDim != 0 {
-						style = style.Dim(true)
-					}
-					if lastAttr&tcell.AttrItalic != 0 {
-						style = style.Italic(true)
-					}
-					if lastAttr&tcell.AttrStrikeThrough != 0 {
-						style = style.StrikeThrough(true)
-					}
+					style = style.Foreground(fg).Background(bg)
 				}
 			}
 			screen.SetContent(screenX, screenY, cell.Rune, cell.Combining, style)
@@ -756,4 +734,20 @@ func (w *BufWindow) drawGutterAndLineNumMD(vY int, bufLine int) {
 			}
 		}
 	}
+}
+
+// expandLineStyles 将稀疏 Match map 展开为稠密 style 数组。
+// result[i] = 第 i 个 rune 经过 highlighter + colorscheme 之后的完整 style。
+// 用于 renderSegmentMD：预计算稠密数组后，按 BufX 直接查颜色，解决标记隐藏后的锚点丢失问题。
+func (w *BufWindow) expandLineStyles(bufLine int, runeCount int, baseStyle tcell.Style) []tcell.Style {
+	charStyles := make([]tcell.Style, runeCount)
+	match := w.Buf.Match(bufLine)
+	curStyle := baseStyle
+	for i := 0; i < runeCount; i++ {
+		if group, ok := match[i]; ok {
+			curStyle = config.GetColor(group.String())
+		}
+		charStyles[i] = curStyle
+	}
+	return charStyles
 }
