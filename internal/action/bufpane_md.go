@@ -15,6 +15,10 @@ func initMDConfig(buf *buffer.Buffer, w *display.BufWindow) {
 		return
 	}
 	w.SetMDConfig(md.MDConfig{
+		Colorscheme: md.MDColorscheme{
+			DefStyle: config.DefStyle,
+			Styles:   config.Colorscheme,
+		},
 		MDRender:      config.GetGlobalOption("mdrender").(bool),
 		MDRenderIdle:  config.GetGlobalOption("mdrenderidle").(float64),
 		MDTableAlign:  buf.Settings["mdtablealign"].(bool),

@@ -52,7 +52,9 @@ func (w *BufWindow) renderSegmentMD(
 
 	// 将 renderer 输出的相对 BufLine 转为绝对行号
 	for ri := range rendered.Rows {
+		if rendered.Rows[ri].BufLine >= 0 {
 		rendered.Rows[ri].BufLine += seg.BufStartLine
+	}
 		for ci := range rendered.Rows[ri].Cells {
 			if rendered.Rows[ri].Cells[ci].BufLine >= 0 {
 				rendered.Rows[ri].Cells[ci].BufLine += seg.BufStartLine
