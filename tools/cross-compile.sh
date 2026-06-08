@@ -35,38 +35,93 @@ create_artefact_windows()
 	rm microneo-$VERSION/micro.exe
 }
 
-# Linux x64
-echo "Linux x64"
-GOOS=linux GOARCH=amd64 make build
-if ./tools/package-deb.sh $VERSION; then
-	sha256sum microneo-$VERSION-amd64.deb > microneo-$VERSION-amd64.deb.sha
-	mv microneo-$VERSION-amd64.* binaries
+detect_os() {
+	case "$(uname -s)" in
+		Linux) echo "linux" ;;
+		Darwin) echo "darwin" ;;
+		MINGW*|MSYS*|CYGWIN*) echo "windows" ;;
+		*) echo "unknown" ;;
+	esac
+}
+
+HOST_OS=$(detect_os)
+echo "Detected host OS: $HOST_OS"
+
+# Linux builds
+if [ "$HOST_OS" = "linux" ]; then
+	# Linux x64
+	echo "Linux x64"
+	GOOS=linux GOARCH=amd64 make build
+	if ./tools/package-deb.sh $VERSION; then
+		sha256sum microneo-$VERSION-amd64.deb > microneo-$VERSION-amd64.deb.sha
+		mv microneo-$VERSION-amd64.* binaries
+	fi
+	create_artefact_generic "linux64"
+
+	# Linux ARM64
+	echo "Linux ARM64"
+	GOOS=linux GOARCH=arm64 make build
+	create_artefact_generic "linux-arm64"
+
+	# Windows x64
+	echo "Windows x64"
+	GOOS=windows GOARCH=amd64 make build
+	create_artefact_windows "win64"
+
+	# Windows ARM64
+	echo "Windows ARM64"
+	GOOS=windows GOARCH=arm64 make build
+	create_artefact_windows "win-arm64"
 fi
-create_artefact_generic "linux64"
 
-# Linux ARM64
-echo "Linux ARM64"
-GOOS=linux GOARCH=arm64 make build
-create_artefact_generic "linux-arm64"
+# macOS builds
+if [ "$HOST_OS" = "darwin" ]; then
+	# macOS Intel
+	echo "macOS Intel"
+	GOOS=darwin GOARCH=amd64 make build
+	create_artefact_generic "osx"
 
-# macOS Intel
-echo "macOS Intel"
-GOOS=darwin GOARCH=amd64 make build
-create_artefact_generic "osx"
+	# macOS ARM64
+	echo "macOS ARM64"
+	GOOS=darwin GOARCH=arm64 make build
+	create_artefact_generic "macos-arm64"
 
-# macOS ARM64
-echo "macOS ARM64"
-GOOS=darwin GOARCH=arm64 make build
-create_artefact_generic "macos-arm64"
+	# Linux x64
+	echo "Linux x64"
+	GOOS=linux GOARCH=amd64 make build
+	if ./tools/package-deb.sh $VERSION; then
+		sha256sum microneo-$VERSION-amd64.deb > microneo-$VERSION-amd64.deb.sha
+		mv microneo-$VERSION-amd64.* binaries
+	fi
+	create_artefact_generic "linux64"
 
-# Windows x64
-echo "Windows x64"
-GOOS=windows GOARCH=amd64 make build
-create_artefact_windows "win64"
+	# Linux ARM64
+	echo "Linux ARM64"
+	GOOS=linux GOARCH=arm64 make build
+	create_artefact_generic "linux-arm64"
 
-# Windows ARM64
-echo "Windows ARM64"
-GOOS=windows GOARCH=arm64 make build
-create_artefact_windows "win-arm64"
+	# Windows x64
+	echo "Windows x64"
+	GOOS=windows GOARCH=amd64 make build
+	create_artefact_windows "win64"
+
+	# Windows ARM64
+	echo "Windows ARM64"
+	GOOS=windows GOARCH=arm64 make build
+	create_artefact_windows "win-arm64"
+fi
+
+# Windows builds
+if [ "$HOST_OS" = "windows" ]; then
+	# Windows x64
+	echo "Windows x64"
+	GOOS=windows GOARCH=amd64 make build
+	create_artefact_windows "win64"
+
+	# Windows ARM64
+	echo "Windows ARM64"
+	GOOS=windows GOARCH=arm64 make build
+	create_artefact_windows "win-arm64"
+fi
 
 rm -rf microneo-$VERSION
