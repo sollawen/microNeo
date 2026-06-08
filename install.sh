@@ -5,7 +5,7 @@
 set -e
 
 REPO="sollawen/microNeo"
-INSTALL_DIR="/usr/local/bin"
+INSTALL_DIR="$HOME/.local/bin"
 
 # Detect OS
 case "$(uname -s)" in
@@ -81,16 +81,20 @@ if [ -z "$BINARY" ]; then
     exit 1
 fi
 
-# Move binary to install dir
-if [ -w "$INSTALL_DIR" ]; then
-    mv "$BINARY" "$INSTALL_DIR/microneo"
-else
-    echo "Need sudo to install to $INSTALL_DIR"
-    sudo mv "$BINARY" "$INSTALL_DIR/microneo"
-fi
+mkdir -p "$INSTALL_DIR"
+mv "$BINARY" "$INSTALL_DIR/microneo"
+chmod +x "$INSTALL_DIR/microneo"
 
 cd /
 rm -rf "$TEMP_DIR"
 
 echo "microNeo v${VERSION} installed to ${INSTALL_DIR}/microneo"
+
+# Check if install dir is in PATH
+case ":$PATH:" in
+    *":$INSTALL_DIR:"*) ;;
+    *) echo "\nAdd ${INSTALL_DIR} to your PATH:"
+       echo "  echo 'export PATH=\"${INSTALL_DIR}:\$PATH\"' >> ~/.bashrc && source ~/.bashrc" ;;
+esac
+
 echo "Run 'microneo --version' to verify"
