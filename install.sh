@@ -74,12 +74,19 @@ case "${EXT}" in
     zip)     unzip -q "microneo.${EXT}" ;;
 esac
 
+# Find binary (tar/zip extracts into microneo-VERSION/ subdirectory)
+BINARY=$(find . -name microneo -type f | head -1)
+if [ -z "$BINARY" ]; then
+    echo "Error: microneo binary not found in archive"
+    exit 1
+fi
+
 # Move binary to install dir
 if [ -w "$INSTALL_DIR" ]; then
-    mv microneo "$INSTALL_DIR/microneo"
+    mv "$BINARY" "$INSTALL_DIR/microneo"
 else
     echo "Need sudo to install to $INSTALL_DIR"
-    sudo mv microneo "$INSTALL_DIR/microneo"
+    sudo mv "$BINARY" "$INSTALL_DIR/microneo"
 fi
 
 cd /
