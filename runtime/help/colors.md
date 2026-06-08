@@ -101,7 +101,7 @@ Micro's colorschemes are also extremely simple to create. The default ones can
 be found
 [here](https://github.com/micro-editor/micro/tree/master/runtime/colorschemes).
 
-Custom colorschemes should be placed in the `~/.config/micro/colorschemes`
+Custom colorschemes should be placed in the `~/.config/microNeo/colorschemes`
 directory.
 
 A number of custom directives are placed in a `.micro` file. Colorschemes are
@@ -201,7 +201,7 @@ Here is a list of the colorscheme groups that you can use:
 * tab-error (Color of tab vs space errors when `hltaberrors` is enabled)
 * trailingws (Color of trailing whitespaces when `hltrailingws` is enabled)
 
-Colorschemes must be placed in the `~/.config/micro/colorschemes` directory to
+Colorschemes must be placed in the `~/.config/microNeo/colorschemes` directory to
 be used.
 
 ---
@@ -259,7 +259,7 @@ provide ample coverage of the meaningful elements of a language. Micro has
 syntax files built in for over 100 languages now! However, there may be
 situations where you find Micro's highlighting to be insufficient or not to
 your liking. The good news is that you can create your own syntax files, and
-place them in  `~/.config/micro/syntax` and Micro will use those instead.
+place them in  `~/.config/microNeo/syntax` and Micro will use those instead.
 
 ### Filetype definition
 
@@ -404,7 +404,7 @@ default syntax highlighting for it, which highlights just the bare minimum:
 email addresses, URLs etc.
 
 Just like in other cases, you can override the default highlighting by adding
-your own custom `default.yaml` file to `~/.config/micro/syntax`.
+your own custom `default.yaml` file to `~/.config/microNeo/syntax`.
 
 For example, if you work with various config files that use the `#` sign to mark
 the beginning of a comment, you can use the following custom `default.yaml` to

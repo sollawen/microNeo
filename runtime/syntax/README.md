@@ -25,7 +25,7 @@ Note that the tool isn't perfect and though it is unlikely, you may run into som
 # Micro syntax highlighting files
 
 These are the syntax highlighting files for micro. To install them, just
-put all the syntax files in `~/.config/micro/syntax`.
+put all the syntax files in `~/.config/microNeo/syntax`.
 
 They are taken from Nano, specifically from [this repository](https://github.com/scopatz/nanorc).
 Micro syntax files are almost identical to Nano's, except for some key differences:

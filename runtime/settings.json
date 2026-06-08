@@ -1,0 +1,13 @@
+{
+    "basename": true,
+    "colorscheme": "s-light",
+    "diffgutter": true,
+    "matchbracestyle": "highlight",
+    "reload": "auto",
+    "scrollbar": true,
+    "scrollbarchar": "▐",
+    "softwrap": true,
+    "status-separator": "",
+    "statusformatl": "$[special] $(brand) $[dim]$sep $(filename) $[normal]$sep $(modified)$(overwrite) $(position) $(status.paste) | ft:$(opt:filetype) ",
+    "statusformatr": "$(bind:ToggleKeyMenu):keys, $(bind:ToggleHelp):help"
+}

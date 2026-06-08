@@ -10,7 +10,7 @@ See `> help defaultkeys` for a list an explanation of the default keybindings.
 
 ### Settings
 
-In micro, your settings are stored in `~/.config/micro/settings.json`, a file
+In micro, your settings are stored in `~/.config/microNeo/settings.json`, a file
 that is created the first time you run micro. It is a json file which holds all
 the settings and their values. To change an option, you can either change the
 value in the `settings.json` file, or you can type it in directly while using
@@ -46,7 +46,7 @@ If you would like to know more about all the available options, see the
 ### Keybindings
 
 Keybindings work in much the same way as options. You configure them using the
-`~/.config/micro/bindings.json` file.
+`~/.config/microNeo/bindings.json` file.
 
 For example if you would like to bind `Ctrl-r` to redo you could put the
 following in `bindings.json`:
@@ -69,7 +69,7 @@ actions are available, see the `keybindings` help topic (`> help keybindings`).
 ### Configuration with Lua
 
 If you need more power than the json files provide, you can use the `init.lua`
-file. Create it in `~/.config/micro`. This file is a lua file that is run when
+file. Create it in `~/.config/microNeo`. This file is a lua file that is run when
 micro starts and is essentially a one-file plugin. The plugin name is
 `initlua`.
 

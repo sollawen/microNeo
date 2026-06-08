@@ -19,6 +19,7 @@ import (
 
 	"github.com/micro-editor/micro/v2/internal/config"
 	ulua "github.com/micro-editor/micro/v2/internal/lua"
+	"github.com/micro-editor/micro/v2/internal/md"
 	"github.com/micro-editor/micro/v2/internal/screen"
 	"github.com/micro-editor/micro/v2/internal/util"
 	"github.com/micro-editor/micro/v2/pkg/highlight"
@@ -78,6 +79,18 @@ type SharedBuffer struct {
 	AbsPath string
 	// Name of the buffer on the status line
 	name string
+
+	// MicroNeo: 标记该 buffer 是否为 Markdown 文件
+	// 唯一真源；在 NewBuffer 里设一次，之后不变
+	// 用途：MarkModified / UpdateRules 门控 detect，display 读
+	IsMD bool
+
+	// MicroNeo: 检测分类结果，content-static，跟随 buffer 生命周期
+	// P1 阶段：字段已声明、永远为 nil（display 仍 per-frame detect）
+	// P2 阶段：事件驱动更新（开/编辑时跑全 buffer detect，结果存这里）
+	// display 帧帧读
+	// 跟 micro 的 b.Match 同属一类——buffer state 的一部分
+	MDSegments []md.Segment
 
 	toStdout bool
 
@@ -194,6 +207,10 @@ func (b *SharedBuffer) MarkModified(start, end int) {
 			l = util.Max(b.Highlighter.ReHighlightStates(b, i), l)
 		}
 		b.Highlighter.HighlightMatches(b, start, l)
+		// MicroNeo: 事件驱动 detect（Step 0 全量 re-detect）
+		if b.IsMD {
+			b.MDSegments = md.DetectSegments(b, 0, b.LinesNum()-1)
+		}
 	}
 
 	for i := start; i <= end; i++ {
@@ -441,6 +458,9 @@ func NewBuffer(r io.Reader, size int64, path string, btype BufType, cmd Command)
 	case FFDos:
 		b.Settings["fileformat"] = "dos"
 	}
+
+	// MicroNeo: 必须在 UpdateRules 之前设置 IsMD，否则 UpdateRules 的 goroutine 里 IsMD=false
+	b.IsMD = md.IsMarkdownFile(path)
 
 	b.UpdateRules()
 	// we know the filetype now, so update per-filetype settings
@@ -1007,6 +1027,10 @@ func (b *Buffer) UpdateRules() {
 			go func() {
 				b.Highlighter.HighlightStates(b)
 				b.Highlighter.HighlightMatches(b, 0, b.End().Y)
+				// MicroNeo: 事件驱动 detect，仅 MD 文件才进这个分支
+				if b.IsMD {
+					b.MDSegments = md.DetectSegments(b, 0, b.End().Y)
+				}
 				screen.Redraw()
 			}()
 		}
@@ -1474,3 +1498,5 @@ func WriteLog(s string) {
 func GetLogBuf() *Buffer {
 	return LogBuf
 }
+
+

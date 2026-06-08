@@ -7,6 +7,7 @@ import (
 	runewidth "github.com/mattn/go-runewidth"
 	"github.com/micro-editor/micro/v2/internal/buffer"
 	"github.com/micro-editor/micro/v2/internal/config"
+	"github.com/micro-editor/micro/v2/internal/md"
 	"github.com/micro-editor/micro/v2/internal/screen"
 	"github.com/micro-editor/micro/v2/internal/util"
 	"github.com/micro-editor/tcell/v2"
@@ -29,6 +30,11 @@ type BufWindow struct {
 	hasMessage       bool
 	maxLineNumLength int
 	drawDivider      bool
+
+	// MicroNeo: MD rendering support
+	mdConfig md.MDConfig    // MD 渲染配置
+	mdCache  []md.SegmentMeta // 上一帧检测的轻量元数据缓存
+	editMode bool           // Step 1.0：光标所在 segment 回退原生显示；Step 1.1 会接入键盘切换
 }
 
 // NewBufWindow creates a new window at a location in the screen with a width and height
@@ -82,6 +88,12 @@ func (w *BufWindow) GetView() *View {
 // SetView sets the view.
 func (w *BufWindow) SetView(view *View) {
 	w.View = view
+}
+
+// SetEditMode sets the MD edit-mode flag. When true, segments containing a
+// cursor fall back to the native displayBuffer() rendering.
+func (w *BufWindow) SetEditMode(on bool) {
+	w.editMode = on
 }
 
 // Resize resizes this window.
@@ -272,8 +284,21 @@ func (w *BufWindow) LocFromVisual(svloc buffer.Loc) buffer.Loc {
 	if vx < 0 {
 		vx = 0
 	}
+
+	var sloc SLoc
+	if w.Buf.IsMD && w.mdConfig.MDRender {
+		// MicroNeo: 使用 mdCache 将屏幕 Y 偏移正确映射到 buffer 行（跳过装饰行）
+		if bufLine, ok := w.screenOffsetToBufferLine(svloc.Y - w.Y); ok {
+			sloc = SLoc{bufLine, 0} // 非softwrap模式下 Row=0
+		} else {
+			sloc = w.Scroll(w.StartLine, svloc.Y-w.Y) // 回退原始逻辑
+		}
+	} else {
+		sloc = w.Scroll(w.StartLine, svloc.Y-w.Y) // 原始逻辑，完全不动
+	}
+
 	vloc := VLoc{
-		SLoc:    w.Scroll(w.StartLine, svloc.Y-w.Y),
+		SLoc:    sloc,
 		VisualX: vx + w.StartCol,
 	}
 	return w.LocFromVLoc(vloc)
@@ -437,17 +462,6 @@ func (w *BufWindow) displayBuffer() {
 	tabsize := util.IntOpt(b.Settings["tabsize"])
 	colorcolumn := util.IntOpt(b.Settings["colorcolumn"])
 
-	// === New: Detect tables in visible range ===
-	var tableBlocks []TableBlock
-	if b.Settings["mdtablealign"].(bool) {
-		visibleStart := w.StartLine.Line
-		visibleEnd := w.StartLine.Line + w.bufHeight
-		if visibleEnd >= b.LinesNum() {
-			visibleEnd = b.LinesNum() - 1
-		}
-		tableBlocks = DetectTables(b.LineBytes, visibleStart, visibleEnd, b.LinesNum())
-	}
-
 	// this represents the current draw position
 	// within the current window
 	vloc := buffer.Loc{X: 0, Y: 0}
@@ -516,15 +530,6 @@ func (w *BufWindow) displayBuffer() {
 			}
 		} else {
 			vloc.X = w.gutterOffset
-		}
-
-		// === New: Determine if current line is a table and init padding tracker ===
-		var tablePad *tablePadding
-		if tableBlock := findTableBlock(tableBlocks, bloc.Y); tableBlock != nil && w.StartCol == 0 {
-			tablePad = &tablePadding{
-				colWidths:   tableBlock.ColWidths,
-				isSeparator: isSeparatorLine(trimLeadingWhitespace(b.LineBytes(bloc.Y))),
-			}
 		}
 
 		bline := b.LineBytes(bloc.Y)
@@ -780,7 +785,7 @@ func (w *BufWindow) displayBuffer() {
 				}
 
 				// We either stop or we wrap to draw the word in the next line
-				if !softwrap || tablePad != nil {
+				if !softwrap {
 					break
 				} else {
 					vloc.Y++
@@ -792,29 +797,6 @@ func (w *BufWindow) displayBuffer() {
 			}
 
 			for _, r := range word {
-				// ===== New: Table cell padding injection =====
-			if tablePad != nil {
-				if action := tablePad.ProcessRune(r.r, r.width); action != nil {
-					// Padding style: inherit cursor-line background
-					padStyle := config.DefStyle
-					for _, c := range cursors {
-						if b.Settings["cursorline"].(bool) && w.active &&
-							!c.HasSelection() && c.Y == bloc.Y {
-							if s, ok := config.Colorscheme["cursor-line"]; ok {
-								fg, _, _ := s.Decompose()
-								padStyle = padStyle.Background(fg)
-							}
-							break
-						}
-					}
-					for i := 0; i < action.Count; i++ {
-						if vloc.X < maxWidth {
-							screen.SetContent(w.X+vloc.X, w.Y+vloc.Y, action.Char, nil, padStyle)
-							vloc.X++
-						}
-					}
-				}
-			}
 				drawrune, drawstyle, preservebg := getRuneStyle(r.r, r.style, 0, linex, false)
 				draw(drawrune, r.combc, drawstyle, true, true, preservebg)
 
@@ -835,7 +817,7 @@ func (w *BufWindow) displayBuffer() {
 
 			// If we reach the end of the window then we either stop or we wrap for softwrap
 			if vloc.X >= maxWidth {
-				if !softwrap || tablePad != nil {
+				if !softwrap {
 					break
 				} else {
 					vloc.Y++
@@ -942,5 +924,9 @@ func (w *BufWindow) Display() {
 
 	w.displayStatusLine()
 	w.displayScrollBar()
-	w.displayBuffer()
+	if !w.Buf.IsMD || !w.mdConfig.MDRender {
+		w.displayBuffer()
+	} else {
+		w.displayBufferMD(w.editMode)
+	}
 }

@@ -1,0 +1,52 @@
+color-link default "#222222,#fffbee"
+color-link comment "#8E908C,#fffbee"
+color-link identifier "#4271AE,#fafaf0"
+color-link constant "#F5871F,#fffbee"
+color-link constant.string "#718C00,#fffbee"
+color-link statement "#4271AE,#fffbee"
+color-link symbol "#4271AE,#fffbee"
+color-link preproc "#3E999F,#fffbee"
+color-link type "#C82829,#fffbee"
+color-link special "bold #2E69aF,#fffbee"
+color-link underlined "#D33682,#fffbee"
+color-link error "bold #FF4444,#fffbee"
+color-link todo "bold #FF8844,#fffbee"
+color-link hlsearch "#FFFFFF,#B4EC85"
+color-link statusline "#FFFFFF,#999999"
+color-link statusline.special "#d0e0ff,#554433"
+color-link statusline.dim "#FFFFFF,#999999"
+color-link statusline.normal "#CCCCCC,#707070"
+color-link tabbar "#FFFFFF,#4D4D4C"
+color-link indent-char "#D3D3D3,#fffbee"
+color-link line-number "#8E908C,#EEE8D5"
+color-link current-line-number "#4D4D4C,#EEE8D5"
+color-link diff-added "#00AF00,#fffbee"
+color-link diff-modified "#FFAF00,#fffbee"
+color-link diff-deleted "#D70000,#fffbee"
+color-link gutter-error "#FF4444,#fffbee"
+color-link gutter-warning "#EEEE77,#fffbee"
+color-link cursor-line "#f4f3e4"
+color-link color-column "#F0E6D0,#fffbee"
+color-link match-brace "#FFFFFF,#4271AE"
+color-link tab-error "#D75F5F,#fffbee"
+color-link selection "#000000,#ADd8e6"
+color-link trailingws "#D75F5F,#fffbee"
+color-link scrollbar "#c0c0c0,#fffbee"
+
+# Markdown 专用
+color-link md-header "bold #2E69aF,#fffbee"         # ← 原 special
+color-link md-hr "bold #2E69aF,#fffbee"             # ← 原 special
+color-link md-blockquote "#3E999F,#fffbee"          # ← 原 preproc
+color-link md-bold "#000000,#fffbee"                # ← 原 constant.string
+color-link md-italic "#000000,#fffbee"              # ← 原 default
+color-link md-strikethrough "#222222,#fffbee"       # ← 原 default
+color-link md-inline-code "#4080CD,#f0f0e5"         # ← 原 type 背景微调
+color-link md-list "#4271AE,#fffbee"                # ← 原 statement
+color-link md-checkbox "#4271AE,#fffbee"            # ← 原 statement
+color-link md-link "#F5871F,#fffbee"                # ← 原 constant
+color-link md-image "#D33682,#fffbee"
+color-link md-url "#F5871F,#fffbee"                 # ← 原 constant
+color-link md-codeblock "#222222,#f0efe0"           # ← 无语言代码块文字
+color-link md-frame "#B0B0B0,#fffbee"               # ← 新增（装饰边框）
+color-link md-frame-label "#8E908C,#fffbee"         # ← 新增（代码块语言名）
+color-link md-misc "#3E999F,#fffbee"                # ← 原 preproc（特殊符号）

@@ -6,7 +6,7 @@ enable or disable a plugin, look for `Plugin options` in `help options`.
 
 Micro supports creating plugins with a simple Lua system. Plugins are
 folders containing Lua files and possibly other source files placed
-in `~/.config/micro/plug`. The plugin directory (within `plug`) should
+in `~/.config/microNeo/plug`. The plugin directory (within `plug`) should
 contain at least one Lua file and a `repo.json` file. The `repo.json` file
 provides additional information such as the name of the plugin, the
 plugin's website, dependencies, etc.
@@ -14,7 +14,7 @@ plugin's website, dependencies, etc.
 from the go plugin, which has the following file structure:
 
 ```
-~/.config/micro/plug/go-plugin/
+~/.config/microNeo/plug/go-plugin/
     go.lua
     repo.json
     help/

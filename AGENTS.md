@@ -1,0 +1,5 @@
+- 本项目是对micro的升级和改造
+- 所以我们对micro的原生代码的侵入和改动越小越好。不要轻易去修改micro的原生代码
+- 编译本项目时，必须使用 `make build`，不要直接使用 `go build`。如果想快速编译跳过 generate 步骤，可以使用 `make build-quick`
+- 我目前的micro的用户级配置文件：~/.config/microNeo/目录下，coloescheme and markdown.yaml 都在里面
+- plan documents 放到 docs 目录里

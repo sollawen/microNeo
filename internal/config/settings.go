@@ -13,6 +13,7 @@ import (
 
 	"github.com/micro-editor/json5"
 	"github.com/micro-editor/micro/v2/internal/util"
+	rt "github.com/micro-editor/micro/v2/runtime"
 	"github.com/zyedidia/glob"
 	"golang.org/x/text/encoding/htmlindex"
 )
@@ -76,7 +77,6 @@ var defaultCommonSettings = map[string]any{
 	"keepautoindent":  false,
 	"matchbrace":      true,
 	"matchbraceleft":  true,
-	"mdtablealign":    true,
 	"matchbracestyle": "underline",
 	"mkparents":       false,
 	"pageoverlap":     float64(2),
@@ -99,6 +99,7 @@ var defaultCommonSettings = map[string]any{
 	"statusformatl":   "$(filename) $(modified)$(overwrite)($(line),$(col)) $(status.paste)| ft:$(opt:filetype) | $(opt:fileformat) | $(opt:encoding)",
 	"statusformatr":   "$(bind:ToggleKeyMenu): bindings, $(bind:ToggleHelp): help",
 	"statusline":      true,
+	"status-separator": "|",
 	"syntax":          true,
 	"tabmovement":     false,
 	"tabsize":         float64(4),
@@ -237,7 +238,27 @@ func validateParsedSettings() error {
 	return err
 }
 
+func loadRuntimeDefaults() {
+	data, err := rt.Asset("runtime/settings.json")
+	if err != nil {
+		return
+	}
+	var runtimeDefaults map[string]any
+	if err := json5.Unmarshal(data, &runtimeDefaults); err != nil {
+		fmt.Println("Warning: failed to parse runtime/settings.json:", err)
+		return
+	}
+	for k, v := range runtimeDefaults {
+		if _, ok := defaultCommonSettings[k]; ok {
+			defaultCommonSettings[k] = v
+		} else if _, ok := DefaultGlobalOnlySettings[k]; ok {
+			DefaultGlobalOnlySettings[k] = v
+		}
+	}
+}
+
 func ReadSettings() error {
+	loadRuntimeDefaults()
 	parsedSettings = make(map[string]any)
 	filename := filepath.Join(ConfigDir, "settings.json")
 	if _, e := os.Stat(filename); e == nil {

@@ -1,1 +1,4 @@
 include "monokai"
+color-link statusline.special "white,blue"
+color-link statusline.normal "black,white"
+color-link statusline.dim "#666666,#e0e0e0"

@@ -279,6 +279,10 @@ func NewBufPane(buf *buffer.Buffer, win display.BWindow, tab *Tab) *BufPane {
 // creates a buf window.
 func NewBufPaneFromBuf(buf *buffer.Buffer, tab *Tab) *BufPane {
 	w := display.NewBufWindow(0, 0, 0, 0, buf)
+
+	// MicroNeo: 设置 MD 渲染配置（非 MD 文件 no-op）
+	initMDConfig(buf, w)
+
 	h := newBufPane(buf, w, tab)
 	// Postpone finishing initializing the pane until we know the actual geometry
 	// of the buf window.
@@ -524,6 +528,8 @@ func (h *BufPane) HandleEvent(event tcell.Event) {
 			c.NewTrailingWsY = -1
 		}
 	}
+
+	h.observeEditModeToggle(event)
 }
 
 // Bindings returns the current bindings tree for this buffer.

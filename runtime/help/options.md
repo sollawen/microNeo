@@ -1,13 +1,12 @@
 # Options
 
-Micro stores all of the user configuration in its configuration directory.
+MicroNeo stores all of the user configuration in its configuration directory.
 
-Micro uses `$MICRO_CONFIG_HOME` as the configuration directory. If this
-environment variable is not set, it uses `$XDG_CONFIG_HOME/micro` instead. If
-that environment variable is not set, it uses `~/.config/micro` as the
-configuration directory. In the documentation, we use `~/.config/micro` to
-refer to the configuration directory (even if it may in fact be somewhere else
-if you have set either of the above environment variables).
+MicroNeo follows the XDG Base Directory Specification. It uses `$XDG_CONFIG_HOME/microNeo`
+as the configuration directory. If `$XDG_CONFIG_HOME` is not set, it defaults to
+`~/.config/microNeo`. In the documentation, we use `~/.config/microNeo` to refer to the
+configuration directory (even if it may in fact be somewhere else if you have set
+`$XDG_CONFIG_HOME` environment variable).
 
 Here are the available options:
 
@@ -33,7 +32,7 @@ Here are the available options:
     default value: `false`
 
 * `backup`: micro will automatically keep backups of all open buffers. Backups
-   are stored in `~/.config/micro/backups` and are removed when the buffer is
+   are stored in `~/.config/microNeo/backups` and are removed when the buffer is
    closed cleanly. In the case of a system crash or a micro crash, the contents
    of the buffer can be recovered automatically by opening the file that was
    being edited before the crash, or manually by searching for the backup in
@@ -44,7 +43,7 @@ Here are the available options:
 
 * `backupdir`: the directory micro should place backups in. For the default
    value of `""` (empty string), the backup directory will be
-   `ConfigDir/backups`, which is `~/.config/micro/backups` by default. The
+   `ConfigDir/backups`, which is `~/.config/microNeo/backups` by default. The
    directory specified for backups will be created if it does not exist.
 
     default value: `""` (empty string)
@@ -83,7 +82,7 @@ Here are the available options:
    The colorscheme can be either one of the colorschemes that micro comes with
    by default (such as `default`, `solarized` or `solarized-tc`) which are
    embedded in the micro binary, or a custom colorscheme stored in
-   `~/.config/micro/colorschemes/$(option).micro` where `$(option)` is the
+   `~/.config/microNeo/colorschemes/$(option).micro` where `$(option)` is the
    option value. You can read more about micro's colorschemes and see the list
    of default colorschemes in `> help colors`.
 
@@ -358,18 +357,18 @@ Here are the available options:
 
 * `savecursor`: remember where the cursor was last time the file was opened and
    put it there when you open the file again. Information is saved to
-   `~/.config/micro/buffers/`
+   `~/.config/microNeo/buffers/`
 
     default value: `false`
 
 * `savehistory`: remember command history between closing and re-opening
-   micro. Information is saved to `~/.config/micro/buffers/history`.
+   micro. Information is saved to `~/.config/microNeo/buffers/history`.
 
     default value: `true`
 
 * `saveundo`: when this option is on, undo is saved even after you close a file
    so if you close and reopen a file, you can keep undoing. Information is
-   saved to `~/.config/micro/buffers/`.
+   saved to `~/.config/microNeo/buffers/`.
 
     default value: `false`
 
@@ -541,14 +540,14 @@ or disable them:
    recent Git commit rather than the diff since opening the file.
 
 Any option you set in the editor will be saved to the file
-`~/.config/micro/settings.json` so, in effect, your configuration file will be
+`~/.config/microNeo/settings.json` so, in effect, your configuration file will be
 created for you. If you'd like to take your configuration with you to another
 machine, simply copy the `settings.json` to the other machine.
 
 ## Settings.json file
 
 The `settings.json` file should go in your configuration directory (by default
-at `~/.config/micro`), and should contain only options which have been modified
+at `~/.config/microNeo`), and should contain only options which have been modified
 from their default setting. Here is the full list of options in json format,
 so that you can see what the formatting should look like.
 
@@ -642,7 +641,7 @@ so that you can see what the formatting should look like.
 ## Global and local settings
 
 You can set these settings either globally or locally. Locally means that the
-setting won't be saved to `~/.config/micro/settings.json` and that it will only
+setting won't be saved to `~/.config/microNeo/settings.json` and that it will only
 be set in the current buffer. Setting an option globally is the default, and
 will set the option in all buffers. Use the `setlocal` command to set an option
 locally rather than globally.

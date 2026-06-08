@@ -1,49 +1,243 @@
 filetype: markdown
 
 detect:
-    filename: "\\.(livemd|md|mkd|mkdn|markdown)$"
+    filename: "\\.md$"
 
 rules:
-    # Tables (Github extension)
-    - type: ".*[ :]\\|[ :].*"
+    # Headers ATX style (# Heading)
+    - md-header: "^#{1,6}\\s.+$"
 
-      # quotes
-    - statement:  "^>.*"
+    # Code blocks (fenced) - TypeScript
+    - default:
+        start: "^(`{3,}|~{3,})\\s*(typescript|ts|tsx)"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "typescript"
 
-      # Emphasis
-    - type: "(^|[[:space:]])(_[^ ][^_]*_|\\*[^ ][^*]*\\*)"
+    # Code blocks (fenced) - JavaScript
+    - default:
+        start: "^(`{3,}|~{3,})\\s*(javascript|js|jsx|mjs|cjs)"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "javascript"
 
-      # Strong emphasis
-    - type: "(^|[[:space:]])(__[^ ][^_]*__|\\*\\*[^ ][^*]*\\*\\*)"
+    # Code blocks (fenced) - Python
+    - default:
+        start: "^(`{3,}|~{3,})\\s*python"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "python"
 
-      # strike-through
-    - type: "(^|[[:space:]])~~[^ ][^~]*~~"
+    # Code blocks (fenced) - Java
+    - default:
+        start: "^(`{3,}|~{3,})\\s*java"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "java"
 
-      # horizontal rules
-    - special: "^(---+|===+|___+|\\*\\*\\*+)\\s*$"
+    # Code blocks (fenced) - C
+    - default:
+        start: "^(`{3,}|~{3,})\\s*c"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "c"
 
-      # headlines
-    - special:  "^#{1,6}.*"
+    # Code blocks (fenced) - C++
+    - default:
+        start: "^(`{3,}|~{3,})\\s*(cpp|c\\+\\+|cxx)"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "cpp"
 
-      # lists
-    - identifier:   "^[[:space:]]*[\\*+-] |^[[:space:]]*[0-9]+\\. "
+    # Code blocks (fenced) - Rust
+    - default:
+        start: "^(`{3,}|~{3,})\\s*rust"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "rust"
 
-      # misc
-    - preproc:   "(\\(([CcRr]|[Tt][Mm])\\)|\\.{3}|(^|[[:space:]])\\-\\-($|[[:space:]]))"
+    # Code blocks (fenced) - Go
+    - default:
+        start: "^(`{3,}|~{3,})\\s*go"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "go"
 
-      # links
-    - constant: "\\[[^]]+\\]"
-    - constant: "\\[([^][]|\\[[^]]*\\])*\\]\\([^)]+\\)"
+    # Code blocks (fenced) - Ruby
+    - default:
+        start: "^(`{3,}|~{3,})\\s*ruby"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "ruby"
 
-      # images
-    - underlined: "!\\[[^][]*\\](\\([^)]+\\)|\\[[^]]+\\])"
+    # Code blocks (fenced) - Bash/Shell
+    - default:
+        start: "^(`{3,}|~{3,})\\s*(bash|sh|shell|zsh)"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "sh"
 
-      # urls
-    - underlined: "https?://[^ )>]+"
+    # Code blocks (fenced) - CSS
+    - default:
+        start: "^(`{3,}|~{3,})\\s*css"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "css"
 
-    - special: "^```$"
+    # Code blocks (fenced) - HTML
+    - default:
+        start: "^(`{3,}|~{3,})\\s*(html|htm)"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "html"
 
-    - special:
-        start: "`"
-        end: "`"
-        rules: []
+    # Code blocks (fenced) - JSON
+    - default:
+        start: "^(`{3,}|~{3,})\\s*json"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "json"
+
+    # Code blocks (fenced) - YAML
+    - default:
+        start: "^(`{3,}|~{3,})\\s*(yaml|yml)"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "yaml"
+
+    # Code blocks (fenced) - SQL
+    - default:
+        start: "^(`{3,}|~{3,})\\s*sql"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "sql"
+
+    # Code blocks (fenced) - Kotlin
+    - default:
+        start: "^(`{3,}|~{3,})\\s*kotlin"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "kotlin"
+
+    # Code blocks (fenced) - Swift
+    - default:
+        start: "^(`{3,}|~{3,})\\s*swift"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "swift"
+
+    # Code blocks (fenced) - Dart
+    - default:
+        start: "^(`{3,}|~{3,})\\s*dart"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "dart"
+
+    # Code blocks (fenced) - PHP
+    - default:
+        start: "^(`{3,}|~{3,})\\s*php"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "php"
+
+    # Code blocks (fenced) - Scala
+    - default:
+        start: "^(`{3,}|~{3,})\\s*scala"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "scala"
+
+    # Code blocks (fenced) - Lua
+    - default:
+        start: "^(`{3,}|~{3,})\\s*lua"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "lua"
+
+    # Code blocks (fenced) - R
+    - default:
+        start: "^(`{3,}|~{3,})\\s*r"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "r"
+
+    # Code blocks (fenced) - Dockerfile
+    - default:
+        start: "^(`{3,}|~{3,})\\s*(dockerfile|docker)"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "dockerfile"
+
+    # Code blocks (fenced) - GraphQL
+    - default:
+        start: "^(`{3,}|~{3,})\\s*graphql"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "graphql"
+
+    # Code blocks (fenced) - Vue
+    - default:
+        start: "^(`{3,}|~{3,})\\s*vue"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "vue"
+
+    # Code blocks (fenced) - XML
+    - default:
+        start: "^(`{3,}|~{3,})\\s*(xml|svg)"
+        end: "^(`{3,}|~{3,})"
+        rules:
+            - include: "xml"
+
+    # Code blocks (fenced) - other (default)
+    - default:
+        start: "^(`{3,}|~{3,})"
+        end: "^(`{3,}|~{3,})"
+        skip: "^\\s*$"
+
+    # Code blocks (fenced) - fallback for unknown languages
+    - md-codeblock:
+        start: "^(`{3,}|~{3,})"
+        end: "^(`{3,}|~{3,})"
+        skip: "^\\s*$"
+
+    # Code blocks (indented)
+    # - constant.string: "^(    |\t).+$"
+
+    # Inline code
+    - md-inline-code: "`[^`]+`"
+    # - constant.string: "``.+?``"
+
+    # Italic *text* or _text_
+    - md-italic: "\\*[^*]+\\*"
+    # - statement: "_[^_]+_"
+
+    # Bold **text** or __text__
+    - md-bold: "\\*\\*.+?\\*\\*"
+    - md-bold: "__.+?__"
+
+    # Strikethrough ~~text~~
+    - md-strikethrough: "~~.+?~~"
+
+
+    # Blockquotes
+    - md-blockquote: "^>\\s.*$"
+
+    # Task lists (checkboxes)
+    - md-checkbox: "^\\s*[-*+] \\[[ xX]\\] "
+
+    # Unordered lists
+    - md-list: "^[\\s]*[*+-] "
+
+    # Ordered lists
+    - md-list: "^[\\s]*\\d+\\. "
+
+    # Horizontal rules
+    - md-hr: "^(---+|===+|___+|\\*\\*\\*+)\\s*$"
+
+    # Links and images
+    - md-link: "\\[.+?\\]\\(.+?\\)"
+    - md-image: "!\\[.+?\\]\\(.+?\\)"
+
+    # URLs
+    - md-url: "https?://[^\\s]+"

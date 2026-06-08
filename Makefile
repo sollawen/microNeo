@@ -21,20 +21,21 @@ ifeq ($(GOHOSTOS), darwin)
 	CGO_ENABLED = 1
 endif
 
-build: generate build-quick
+build: generate
+	CGO_ENABLED=$(CGO_ENABLED) go build -trimpath -ldflags "-s -w $(GOVARS) $(ADDITIONAL_GO_LINKER_FLAGS)" -o microneo ./cmd/micro
 
 build-quick:
-	CGO_ENABLED=$(CGO_ENABLED) go build -o microneo -trimpath -ldflags "-s -w $(GOVARS) $(ADDITIONAL_GO_LINKER_FLAGS)" ./cmd/micro
+	CGO_ENABLED=$(CGO_ENABLED) go build -trimpath -ldflags "-s -w $(GOVARS) $(ADDITIONAL_GO_LINKER_FLAGS)" -o microneo ./cmd/micro
 
 build-dbg:
-	CGO_ENABLED=$(CGO_ENABLED) go build -o microneo -trimpath -ldflags "$(ADDITIONAL_GO_LINKER_FLAGS) $(DEBUGVAR)" ./cmd/micro
+	CGO_ENABLED=$(CGO_ENABLED) go build -trimpath -ldflags "$(ADDITIONAL_GO_LINKER_FLAGS) $(DEBUGVAR)" -o microneo ./cmd/micro
 
 build-tags: fetch-tags build
 
 build-all: build
 
 install: generate
-	go build -o $(GOBIN)/microneo -ldflags "-s -w $(GOVARS) $(ADDITIONAL_GO_LINKER_FLAGS)" ./cmd/micro
+	go install -ldflags "-s -w $(GOVARS) $(ADDITIONAL_GO_LINKER_FLAGS)" -o microneo ./cmd/micro
 
 install-all: install
 

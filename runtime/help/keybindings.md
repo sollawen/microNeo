@@ -4,14 +4,14 @@ Micro has a plethora of hotkeys that make it easy and powerful to use and all
 hotkeys are fully customizable to your liking.
 
 Custom keybindings are stored internally in micro if changed with the `> bind`
-command or can also be added in the file `~/.config/micro/bindings.json` as
+command or can also be added in the file `~/.config/microNeo/bindings.json` as
 discussed below. For a list of the default keybindings in the json format used
 by micro, please see the end of this file. For a more user-friendly list with
 explanations of what the default hotkeys are and what they do, please see
 `> help defaultkeys` (a json formatted list of default keys is included
 at the end of this document).
 
-If `~/.config/micro/bindings.json` does not exist, you can simply create it.
+If `~/.config/microNeo/bindings.json` does not exist, you can simply create it.
 Micro will know what to do with it.
 
 You can use Ctrl + arrows to move word by word (Alt + arrows for Mac). Alt + left and right
@@ -22,7 +22,7 @@ You can hold shift with all of these movement actions to select while moving.
 
 ## Rebinding keys
 
-The bindings may be rebound using the `~/.config/micro/bindings.json` file.
+The bindings may be rebound using the `~/.config/microNeo/bindings.json` file.
 Each key is bound to an action.
 
 For example, to bind `Ctrl-y` to undo and `Ctrl-z` to redo, you could put the
@@ -41,7 +41,7 @@ as simply `Ctrl` bindings. This means that `CtrlG`, `Ctrl-G`, and `Ctrl-g` all
 mean the same thing. However, for `Alt` this is not the case: `AltG` and `Alt-G`
 mean `Alt-Shift-g`, while `Alt-g` does not require the Shift modifier.
 
-In addition to editing your `~/.config/micro/bindings.json`, you can run
+In addition to editing your `~/.config/microNeo/bindings.json`, you can run
 `>bind <keycombo> <action>` For a list of bindable actions, see below.
 
 You can also chain commands when rebinding. For example, if you want `Alt-s` to
@@ -115,7 +115,7 @@ cursor placement).
 ## Binding Lua functions
 
 You can also bind a key to a Lua function provided by a plugin, or by your own
-`~/.config/micro/init.lua`. For example:
+`~/.config/microNeo/init.lua`. For example:
 
 ```json
 {
@@ -137,7 +137,7 @@ end
 
 See `> help plugins` for more informations on how to write lua functions.
 
-For `~/.config/micro/init.lua` the plugin name is `initlua` (so the keybinding
+For `~/.config/microNeo/init.lua` the plugin name is `initlua` (so the keybinding
 in this example would be `"Alt-q": "lua:initlua.bar"`).
 
 The currently active bufpane is passed to the lua function as the argument. If
