@@ -15,7 +15,7 @@ color-link hlsearch "#FFFFFF,#B4EC85"
 color-link statusline "#FFFFFF,#999999"
 color-link statusline.special "#ffe740,#1a1a2e"
 color-link statusline.dim "#202020,#a9d9ff"
-color-link statusline.normal "#707070,#d0cab9"
+color-link statusline.normal "#707070,#f0ead9"
 color-link message "#6090b0,#fffbee"
 
 color-link tabbar "#FFFFFF,#4D4D4C"
