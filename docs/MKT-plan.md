@@ -1,6 +1,6 @@
 # microNeo Marketing Plan
 
-> Last updated: 2026-06-10
+> Last updated: 2026-06-11
 
 ---
 
@@ -26,7 +26,7 @@
 | 竞品调研（HN 数据、GitHub stars） | ✅ 完成 | 见附录 A |
 | 确定核心卖点：同窗口渲染 + 编辑 | ✅ 完成 | 全网无竞品，验证过 |
 | awesome-tuis PR | ✅ CI 通过，等待 merge | [PR #713](https://github.com/rothgar/awesome-tuis/pull/713)（19.3k ⭐） |
-| awesome-cli-apps PR | ❌ 被关闭（无评论无理由） | [PR #1142](https://github.com/agarrharr/awesome-cli-apps/pull/1142)（19.7k ⭐） |
+| awesome-cli-apps PR | ❌ 被关闭（未使用 PR 模板），需 ≥20 stars + ≥90 天后重新提交 | [PR #1142](https://github.com/agarrharr/awesome-cli-apps/pull/1142)（19.7k ⭐） |
 | awesome-modern-cli PR | ✅ 已提交 | [PR #20](https://github.com/thegdsks/awesome-modern-cli/pull/20)（361 ⭐） |
 | awesome-markdown PR | ✅ 已提交 | [PR #124](https://github.com/BubuAnabelas/awesome-markdown/pull/124)（931 ⭐） |
 | 中国独立开发者列表 PR | ✅ 已提交 | [PR #975](https://github.com/1c7/chinese-independent-developer/pull/975)（48.8k ⭐ 程序员版面） |
@@ -157,7 +157,7 @@ I use Micro to edit Markdown files, and Glow to read them. The constant switchin
 
 Every other solution either can't edit (Glow, frogmouth) or splits your screen in two (vim plugins, GUI editors). Terminal screens aren't wide to begin with — splitting them is painful.
 
-So I forked Micro and added a Markdown rendering layer. Open any .md file, you see it rendered. Click anywhere to edit the source. No split panes.
+So I built microNeo on top of Micro, adding a Markdown rendering layer. Open any .md file, you see it rendered. Click anywhere to edit the source. No split panes.
 
 [截图]
 
@@ -199,7 +199,7 @@ https://github.com/sollawen/microNeo
 ### 待起草
 
 - **V2EX 中文版** — 发在分享创造节点，用中文写
-- **掘金文章** — "I forked Micro to make..." 个人故事角度，Go + 终端工具受众
+- **掘金文章** — "I built a Markdown editor on top of Micro..." 个人故事角度，Go + 终端工具受众
 - **dev.to 文章** — 同掘金，英文版
 
 ---
@@ -219,7 +219,7 @@ https://github.com/sollawen/microNeo
 | 优先级 | 渠道 | 预期效果 | 状态 |
 |--------|------|----------|------|
 | 🔴 P0 | awesome-tuis | 长期每天 10-50 浏览 | ✅ PR 已提交 |
-| 🔴 P0 | awesome-cli-apps | 同上 | ✅ PR 已提交 |
+| 🔴 P0 | awesome-cli-apps | 同上 | ❌ 需 ≥20 stars 后重新提交（PR 模板 + 硬性条件） |
 | 🔴 P0 | HN Show HN | 0-300+ stars | 📋 今晚 20:00 |
 | 🟡 P1 | Reddit r/ClaudeAI | 200k+ 成员，流量大，适合攒 karma | ✅ 已发 2 条评论 |
 | 🟡 P1 | Reddit r/opencode | opencode 用户主场，适合发产品体验帖 | 📋 准备发「Opencode is great」回帖 |
@@ -267,8 +267,7 @@ https://github.com/sollawen/microNeo
 | 语言 | Go | Go | Go | Python | Python |
 | 单二进制 | ✅ | ✅ | ✅ | ❌ | ❌ |
 
-> **microNeo = Micro 的编辑能力 + Glow 的渲染能力，合二为一。**
-> 同窗口渲染 + 可编辑，全网无竞品。
+> **microNeo — 基于 Micro 开发的终端 Markdown 编辑器，同窗口渲染 + 可编辑，全网无竞品。**
 
 ---
 
@@ -277,7 +276,7 @@ https://github.com/sollawen/microNeo
 | 仓库 | Stars | 维护者更新频率 | PR | 加的位置 | Merge 概率 |
 |------|-------|----------------|-----|---------|-----------|
 | rothgar/awesome-tuis | 19.3k | 活跃（最近 merge 6/3） | [#713](https://github.com/rothgar/awesome-tuis/pull/713) | Editors | 高 |
-| ~~agarrharr/awesome-cli-apps~~ | 19.7k | ~~很活跃（6/4~6/7 天天 merge）~~ | [#1142](https://github.com/agarrharr/awesome-cli-apps/pull/1142) | Text Editors + Markdown | ❌ 被关闭，无理由 |
+| ~~agarrharr/awesome-cli-apps~~ | 19.7k | 很活跃（6/8 批量处理 10 个 PR） | [#1142](https://github.com/agarrharr/awesome-cli-apps/pull/1142) | Text Editors + Markdown | ❌ 被关闭（未用模板），需 ≥20 stars + ≥90 天后重提 |
 | thegdsks/awesome-modern-cli | 361 | 月更（最近 merge 5/6） | [#20](https://github.com/thegdsks/awesome-modern-cli/pull/20) | Text Editors | 高 |
 | **1c7/chinese-independent-developer** | **48.8k** | **很活跃（6/5~6/8 天天 merge）** | [**#975**](https://github.com/1c7/chinese-independent-developer/pull/975) | 程序员版面 | ✅ 已 merge（6/9） |
 | **521xueweihan/HelloGitHub** | **160k** | 月刊发布，审核周期 1-4 周 | [**Issue #3335**](https://github.com/521xueweihan/HelloGitHub/issues/3335) | Go 类目投稿 | ⏳ 审核中 |
