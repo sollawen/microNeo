@@ -3,36 +3,229 @@ package action
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/micro-editor/micro/v2/internal/buffer"
 	"github.com/micro-editor/micro/v2/internal/config"
+	"github.com/micro-editor/micro/v2/internal/display"
 	"github.com/micro-editor/micro/v2/internal/screen"
+	"github.com/micro-editor/micro/v2/internal/util"
 	"github.com/micro-editor/tcell/v2"
 )
 
-// NotePane is a floating overlay pane for quick notes
+// NotePane is a floating overlay pane for quick notes.
+// It embeds *BufPane to get full editing capabilities while
+// restricting available actions via a whitelist.
 type NotePane struct {
+	*BufPane
 	isOpen   bool
-	lines []string
-	curLine  int
-	curCol   int
 	x, y     int
-	width int
-	height int
+	width    int
+	height   int
 	noteFile string
-	modified bool
 }
 
 // TheNotePane is the global NotePane instance
 var TheNotePane *NotePane
 
+// NotePaneBindings is the whitelist KeyTree for NotePane
+var NotePaneBindings *KeyTree
+
+// allowedNotePaneActions is the whitelist of allowed action names
+var allowedNotePaneActions = map[string]bool{
+	// Cursor movement
+	"CursorUp": true, "CursorDown": true, "CursorLeft": true, "CursorRight": true,
+	"CursorPageUp": true, "CursorPageDown": true,
+	"CursorStart": true, "CursorEnd": true,
+	"CursorToViewTop": true, "CursorToViewCenter": true, "CursorToViewBottom": true,
+
+	// Selection
+	"SelectUp": true, "SelectDown": true, "SelectLeft": true, "SelectRight": true,
+	"SelectToStart": true, "SelectToEnd": true,
+	"SelectWordRight": true, "SelectWordLeft": true,
+	"SelectSubWordRight": true, "SelectSubWordLeft": true,
+	"SelectLine": true,
+	"SelectToStartOfLine": true, "SelectToStartOfText": true,
+	"SelectToStartOfTextToggle": true, "SelectToEndOfLine": true,
+	"SelectPageUp": true, "SelectPageDown": true,
+	"StartOfText": true, "StartOfTextToggle": true,
+	"StartOfLine": true, "EndOfLine": true,
+
+	// Paragraph navigation
+	"ParagraphPrevious": true, "ParagraphNext": true,
+	"SelectToParagraphPrevious": true, "SelectToParagraphNext": true,
+
+	// Text editing
+	"InsertNewline": true, "Backspace": true, "Delete": true, "InsertTab": true,
+	"DeleteWordRight": true, "DeleteWordLeft": true,
+	"DeleteSubWordRight": true, "DeleteSubWordLeft": true,
+	"IndentLine": true, "OutdentLine": true,
+	"IndentSelection": true, "OutdentSelection": true,
+
+	// Scrolling
+	"PageUp": true, "PageDown": true,
+	"HalfPageUp": true, "HalfPageDown": true,
+	"ScrollUpAction": true, "ScrollDownAction": true,
+	"Center": true, "Start": true, "End": true,
+	"ScrollUp": true, "ScrollDown": true,
+
+	// Clipboard
+	"Copy": true, "CopyLine": true, "Cut": true, "CutLine": true,
+	"Paste": true, "PastePrimary": true,
+	"Duplicate": true, "DuplicateLine": true,
+	"DeleteLine": true, "MoveLinesUp": true, "MoveLinesDown": true,
+
+	// Multi-cursor
+	"SpawnMultiCursor": true, "SpawnMultiCursorUp": true,
+	"SpawnMultiCursorDown": true, "SpawnMultiCursorSelect": true,
+	"RemoveMultiCursor": true, "RemoveAllMultiCursors": true,
+	"SkipMultiCursor": true, "SkipMultiCursorBack": true,
+
+	// Other
+	"JumpToMatchingBrace": true, "SelectAll": true,
+	"Deselect": true, "Escape": true, "ToggleOverwriteMode": true,
+	"ClearInfo": true, "ClearStatus": true, "None": true,
+
+	// Mouse
+	"MousePress": true, "MouseDrag": true, "MouseRelease": true,
+	"MouseMultiCursor": true,
+
+	// Word navigation
+	"WordRight": true, "WordLeft": true,
+	"SubWordRight": true, "SubWordLeft": true,
+}
+
+func init() {
+	NotePaneBindings = NewKeyTree()
+	notePaneMapDefaults(DefaultBindings("buffer"))
+}
+
+// notePaneMapDefaults registers allowed key bindings from defaults into NotePaneBindings.
+// It uses the same mechanism as BufMapEvent but filters by whitelist.
+func notePaneMapDefaults(defaults map[string]string) {
+	for keyStr, actionStr := range defaults {
+		notePaneMapBinding(keyStr, actionStr)
+	}
+}
+
+// notePaneMapBinding maps a key string to action(s), filtering by whitelist.
+// An action string can contain multiple actions separated by & | , (e.g. "Autocomplete|IndentSelection|InsertTab").
+// Only allowed actions are kept; if none are allowed, the binding is skipped entirely.
+func notePaneMapBinding(keyStr, actionStr string) {
+	// Parse the key event
+	ev, err := findEvent(keyStr)
+	if err != nil {
+		return
+	}
+
+	// Split action string by & | , and filter by whitelist
+	filteredActions := filterActions(actionStr)
+	if len(filteredActions) == 0 {
+		return
+	}
+
+	// Rebuild the action string with only allowed actions
+	filteredStr := strings.Join(filteredActions, "|")
+
+	// Use the same binding mechanism as BufMapEvent
+	notePaneRegisterBinding(ev, filteredStr)
+}
+
+// filterActions parses a composite action string (e.g. "Autocomplete|IndentSelection|InsertTab")
+// and returns only the actions that are in the whitelist.
+func filterActions(actionStr string) []string {
+	var result []string
+	for {
+		idx := util.IndexAnyUnquoted(actionStr, "&|,")
+		a := actionStr
+		sep := byte('|')
+		if idx >= 0 {
+			a = actionStr[:idx]
+			sep = actionStr[idx]
+			actionStr = actionStr[idx+1:]
+		} else {
+			actionStr = ""
+		}
+
+		if isActionAllowed(a) {
+			result = append(result, a)
+		}
+
+		if actionStr == "" {
+			break
+		}
+		_ = sep // we rejoin with | regardless
+	}
+	return result
+}
+
+// isActionAllowed checks if an action name is in the whitelist.
+// It also handles "command:" and "lua:" prefixed actions (which are not allowed).
+func isActionAllowed(a string) bool {
+	if strings.HasPrefix(a, "command:") || strings.HasPrefix(a, "command-edit:") || strings.HasPrefix(a, "lua:") {
+		return false
+	}
+	return allowedNotePaneActions[a]
+}
+
+// notePaneRegisterBinding registers a filtered action binding to NotePaneBindings.
+// This mirrors the logic in BufMapEvent but targets NotePaneBindings.
+func notePaneRegisterBinding(k Event, action string) {
+	var actionfns []BufAction
+	for i := 0; ; i++ {
+		if action == "" {
+			break
+		}
+
+		idx := util.IndexAnyUnquoted(action, "&|,")
+		a := action
+		if idx >= 0 {
+			a = action[:idx]
+			action = action[idx+1:]
+		} else {
+			action = ""
+		}
+
+		var afn BufAction
+		if f, ok := BufKeyActions[a]; ok {
+			afn = f
+		} else if f, ok := BufMouseActions[a]; ok {
+			afn = f
+		} else {
+			continue
+		}
+		actionfns = append(actionfns, afn)
+	}
+
+	if len(actionfns) == 0 {
+		return
+	}
+
+	bufAction := func(h *BufPane, te *tcell.EventMouse) bool {
+		for _, a := range actionfns {
+			var success bool
+			h.Buf.SetCurCursor(0)
+			h.Cursor = h.Buf.GetActiveCursor()
+			success = h.execAction(a, "", te)
+			_ = success
+		}
+		return true
+	}
+
+	switch e := k.(type) {
+	case KeyEvent, KeySequenceEvent, RawEvent:
+		NotePaneBindings.RegisterKeyBinding(e, BufKeyActionGeneral(func(h *BufPane) bool {
+			return bufAction(h, nil)
+		}))
+	case MouseEvent:
+		NotePaneBindings.RegisterMouseBinding(e, BufMouseActionGeneral(bufAction))
+	}
+}
+
 // NewNotePane creates a new NotePane instance
 func NewNotePane() *NotePane {
 	n := &NotePane{
-		lines:    []string{""},
-		curLine:  0,
-		curCol:   0,
-		height:   5,
-		modified: false,
+		height: 5,
 	}
 
 	// Set the notes file path
@@ -42,7 +235,24 @@ func NewNotePane() *NotePane {
 	}
 	n.noteFile = filepath.Join(homeDir, ".config", "microNeo", "notes.md")
 
-	n.loadFile()
+	// Ensure directory exists
+	dir := filepath.Dir(n.noteFile)
+	os.MkdirAll(dir, 0755)
+
+	// Load or create the buffer
+	buf, err := buffer.NewBufferFromFile(n.noteFile, buffer.BTDefault)
+	if err != nil {
+		buf = buffer.NewBufferFromString("", n.noteFile, buffer.BTDefault)
+	}
+
+	// Create BufWindow with initial position (will be adjusted in open())
+	win := display.NewBufWindow(0, 0, 80, n.height, buf)
+	win.SetHideStatusLine(true)
+
+	// Create BufPane using newBufPane (lowercase, does not trigger finishInitialize)
+	n.BufPane = newBufPane(buf, win, nil)
+	n.BufPane.bindings = NotePaneBindings
+
 	return n
 }
 
@@ -79,7 +289,6 @@ func (n *NotePane) open() {
 	startLine := view.StartLine
 
 	// Calculate cursor's screen position
-	// Y position: cursor line relative to view start + view Y offset
 	cursorScreenY := bufLoc.Y - startLine.Line + view.Y
 
 	// Position the NotePane below the cursor
@@ -96,191 +305,30 @@ func (n *NotePane) open() {
 		}
 	}
 
+	// Reposition BufWindow to be inside the border
+	bw := n.BufPane.BWindow.(*display.BufWindow)
+	bw.X = n.x + 1
+	bw.Y = n.y + 1
+	n.BufPane.Resize(n.width-2, n.height)
+
 	n.isOpen = true
 }
 
 // close closes the NotePane and saves the file
 func (n *NotePane) close() {
-	if n.modified {
-		n.saveFile()
-	}
+	n.BufPane.Buf.Save()
 	n.isOpen = false
-}
-
-// loadFile loads the notes from the file
-func (n *NotePane) loadFile() {
-	content, err := os.ReadFile(n.noteFile)
-	if err != nil {
-		// File doesn't exist or can't be read, start with empty content
-		n.lines = []string{""}
-		return
-	}
-
-	// Parse content into lines
-	contentStr := string(content)
-	if len(contentStr) == 0 {
-		n.lines = []string{""}
-		return
-	}
-
-	// Split by newline, preserving empty lines
-	n.lines = []string{}
-	start := 0
-	for i := 0; i < len(contentStr); i++ {
-		if contentStr[i] == '\n' {
-			n.lines = append(n.lines, contentStr[start:i])
-			start = i + 1
-		}
-	}
-	// Add last line if no trailing newline
-	if start < len(contentStr) {
-		n.lines = append(n.lines, contentStr[start:])
-	}
-
-	// Ensure at least one line
-	if len(n.lines) == 0 {
-		n.lines = []string{""}
-	}
-
-	n.modified = false
-}
-
-// saveFile saves the notes to the file
-func (n *NotePane) saveFile() {
-	// Ensure directory exists
-	dir := filepath.Dir(n.noteFile)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		screen.TermMessage("Error creating directory:", err)
-		return
-	}
-
-	// Join lines with newline
-	content := ""
-	for i, line := range n.lines {
-		if i > 0 {
-			content += "\n"
-		}
-		content += line
-	}
-
-	if err := os.WriteFile(n.noteFile, []byte(content), 0644); err != nil {
-		screen.TermMessage("Error saving notes:", err)
-		return
-	}
-
-	n.modified = false
 }
 
 // HandleEvent handles keyboard events for the NotePane
 func (n *NotePane) HandleEvent(event tcell.Event) {
-	switch e := event.(type) {
-	case *tcell.EventKey:
-		switch e.Key() {
-		case tcell.KeyRune:
-			// Insert character at current position
-			if e.Modifiers() == 0 {
-				r := e.Rune()
-				line := n.lines[n.curLine]
-				// Insert rune at curCol
-				if n.curCol >= len(line) {
-					n.lines[n.curLine] = line + string(r)
-				} else {
-					n.lines[n.curLine] = line[:n.curCol] + string(r) + line[n.curCol:]
-				}
-				n.curCol++
-				n.modified = true
-			}
-
-		case tcell.KeyBackspace2:
-			// Delete character before cursor
-			if n.curCol > 0 {
-				line := n.lines[n.curLine]
-				n.lines[n.curLine] = line[:n.curCol-1] + line[n.curCol:]
-				n.curCol--
-				n.modified = true
-			} else if n.curLine > 0 {
-				// Merge with previous line
-				prevLine := n.lines[n.curLine-1]
-				currLine := n.lines[n.curLine]
-				n.lines[n.curLine-1] = prevLine + currLine
-				// Remove current line
-				n.lines = append(n.lines[:n.curLine], n.lines[n.curLine+1:]...)
-				n.curLine--
-				n.curCol = len(prevLine)
-				n.modified = true
-			}
-
-		case tcell.KeyEnter:
-			// Split current line at cursor position
-			line := n.lines[n.curLine]
-			before := line[:n.curCol]
-			after := line[n.curCol:]
-			// Insert new line
-			n.lines = append(n.lines[:n.curLine+1], n.lines[n.curLine:]...)
-			n.lines[n.curLine] = before
-			n.lines[n.curLine+1] = after
-			n.curLine++
-			n.curCol = 0
-			n.modified = true
-
-		case tcell.KeyUp:
-			// Move up one line
-			if n.curLine > 0 {
-				n.curLine--
-				// Clamp curCol to line length
-				if n.curCol > len(n.lines[n.curLine]) {
-					n.curCol = len(n.lines[n.curLine])
-				}
-			}
-
-		case tcell.KeyDown:
-			// Move down one line
-			if n.curLine < len(n.lines)-1 {
-				n.curLine++
-				// Clamp curCol to line length
-				if n.curCol > len(n.lines[n.curLine]) {
-					n.curCol = len(n.lines[n.curLine])
-				}
-			}
-
-		case tcell.KeyLeft:
-			// Move left one column
-			if n.curCol > 0 {
-				n.curCol--
-			} else if n.curLine > 0 {
-				// Move to end of previous line
-				n.curLine--
-				n.curCol = len(n.lines[n.curLine])
-			}
-
-		case tcell.KeyRight:
-			// Move right one column
-			if n.curCol < len(n.lines[n.curLine]) {
-				n.curCol++
-			} else if n.curLine < len(n.lines)-1 {
-				// Move to start of next line
-				n.curLine++
-				n.curCol = 0
-			}
-
-		case tcell.KeyHome:
-			// Go to start of line
-			n.curCol = 0
-
-		case tcell.KeyEnd:
-			// Go to end of line
-			n.curCol = len(n.lines[n.curLine])
-
-		default:
-			// Consume all other events (don't propagate)
-		}
-
-	case *tcell.EventResize:
-		// Reposition the NotePane on terminal resize
+	if _, ok := event.(*tcell.EventResize); ok {
 		if n.isOpen {
 			n.open()
 		}
+		return
 	}
+	n.BufPane.HandleEvent(event)
 }
 
 // Display renders the NotePane on the screen
@@ -311,44 +359,13 @@ func (n *NotePane) Display() {
 	}
 	screen.Screen.SetContent(n.x+n.width-1, n.y+n.height+1, bottomRight, nil, config.DefStyle)
 
-	// Draw side borders and content
+	// Draw side borders
 	for row := 0; row < n.height; row++ {
 		screenY := n.y + 1 + row
-		// Left border
 		screen.Screen.SetContent(n.x, screenY, vertical, nil, config.DefStyle)
-		// Right border
 		screen.Screen.SetContent(n.x+n.width-1, screenY, vertical, nil, config.DefStyle)
-
-		// Draw content line
-		if row < len(n.lines) {
-			line := n.lines[row]
-			col := 0
-			for _, r := range line {
-				if col+1 < n.width-1 {
-					screen.Screen.SetContent(n.x+1+col, screenY, r, nil, config.DefStyle)
-				}
-				col++
-				// Stop if line is too long
-				if col >= n.width-2 {
-					break
-				}
-			}
-			// Fill rest of line with spaces
-			for ; col < n.width-2; col++ {
-				screen.Screen.SetContent(n.x+1+col, screenY, ' ', nil, config.DefStyle)
-			}
-		} else {
-			// Fill empty line with spaces
-			for col := 0; col < n.width-2; col++ {
-				screen.Screen.SetContent(n.x+1+col, screenY, ' ', nil, config.DefStyle)
-			}
-		}
 	}
 
-	// Show cursor
-	cursorScreenX := n.x + 1 + n.curCol
-	cursorScreenY := n.y + 1 + n.curLine
-	if cursorScreenX < n.x+n.width-1 {
-		screen.Screen.ShowCursor(cursorScreenX, cursorScreenY)
-	}
+	// Display the BufWindow content (includes cursor)
+	n.BufPane.BWindow.Display()
 }

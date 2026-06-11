@@ -31,6 +31,9 @@ type BufWindow struct {
 	maxLineNumLength int
 	drawDivider      bool
 
+	// MicroNeo: hide status line and divider for embedded panes like NotePane
+	hideStatusLine bool
+
 	// MicroNeo: MD rendering support
 	mdConfig md.MDConfig    // MD 渲染配置
 	mdCache  []md.SegmentMeta // 上一帧检测的轻量元数据缓存
@@ -94,6 +97,11 @@ func (w *BufWindow) SetView(view *View) {
 // cursor fall back to the native displayBuffer() rendering.
 func (w *BufWindow) SetEditMode(on bool) {
 	w.editMode = on
+}
+
+// SetHideStatusLine hides the status line and divider for embedded panes like NotePane
+func (w *BufWindow) SetHideStatusLine(hide bool) {
+	w.hideStatusLine = hide
 }
 
 // Resize resizes this window.
@@ -865,6 +873,11 @@ func (w *BufWindow) displayBuffer() {
 }
 
 func (w *BufWindow) displayStatusLine() {
+	// MicroNeo: skip status line and divider entirely when hidden
+	if w.hideStatusLine {
+		return
+	}
+
 	if w.Buf.Settings["statusline"].(bool) {
 		w.sline.Display()
 	} else if w.drawDivider {
