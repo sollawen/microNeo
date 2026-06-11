@@ -496,6 +496,9 @@ func DoEvent() {
 	}
 	action.MainTab().Display()
 	action.InfoBar.Display()
+	if action.TheNotePane != nil && action.TheNotePane.IsOpen() {
+		action.TheNotePane.Display()
+	}
 	screen.Screen.Show()
 
 	// Check for new events
@@ -534,14 +537,31 @@ func DoEvent() {
 
 	if event != nil {
 		_, resize := event.(*tcell.EventResize)
+
+		// Alt-i toggles NotePane regardless of open/close state
+		if action.TheNotePane != nil && !resize {
+			if e, ok := event.(*tcell.EventKey); ok {
+				if e.Key() == tcell.KeyRune && e.Modifiers() == tcell.ModAlt && e.Rune() == 'i' {
+					action.TheNotePane.Toggle()
+					goto done
+				}
+			}
+		}
+
 		if resize {
 			action.InfoBar.HandleEvent(event)
 			action.Tabs.HandleEvent(event)
+			if action.TheNotePane != nil && action.TheNotePane.IsOpen() {
+				action.TheNotePane.HandleEvent(event)
+			}
+		} else if action.TheNotePane != nil && action.TheNotePane.IsOpen() {
+			action.TheNotePane.HandleEvent(event)
 		} else if action.InfoBar.HasPrompt {
 			action.InfoBar.HandleEvent(event)
 		} else {
 			action.Tabs.HandleEvent(event)
 		}
+	done:
 	}
 
 	err := config.RunPluginFn("onAnyEvent")

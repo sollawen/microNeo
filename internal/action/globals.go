@@ -13,6 +13,7 @@ func InitGlobals() {
 	InfoBar = NewInfoBar()
 	buffer.LogBuf = buffer.NewBufferFromString("", "", buffer.BTLog)
 	buffer.LogBuf.SetName("Log")
+	TheNotePane = NewNotePane()
 }
 
 // GetInfoBar returns the infobar pane
