@@ -1,0 +1,5 @@
+{
+  "name": "eabp-pi",
+  "private": true,
+  "pi": { "extensions": ["./index.ts"] }
+}
