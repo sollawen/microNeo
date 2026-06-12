@@ -14,8 +14,8 @@ import (
 func main() {
 	name := flag.String("name", "", "目标 receiver 的 name（必填）")
 	path := flag.String("file", "", "当前文件绝对路径（必填）")
-	line := flag.Int("line", 0, "光标行（0-based）")
-	col := flag.Int("col", 0, "光标列（0-based）")
+	line := flag.Int("line", 0, "光标行（1-based）")
+	col := flag.Int("col", 0, "光标列（1-based）")
 	msg := flag.String("msg", "", "用户消息（有即「带消息」路径，无即「纯上下文」）")
 	selText := flag.String("sel", "", "选区文本（可选）")
 	selSLine := flag.Int("sel-sl", 0, "选区起点行")

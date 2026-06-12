@@ -11,7 +11,7 @@ type Envelope struct {
 	V       int             `json:"v"`       // 主版本，当前=1
 	Type    string          `json:"type"`    // "context"（v1仅）/ "bye"(预留)
 	Sender  Sender          `json:"sender"`
-	TS      float64         `json:"ts"`      // Unix 浮点秒
+	TS      float64        `json:"ts"`      // Unix 浮点秒
 	Payload json.RawMessage `json:"payload"` // 原样透传；调用方按 Type 自行反序列化
 }
 

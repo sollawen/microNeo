@@ -9,3 +9,4 @@ description: Git commit with Conventional Commits prefix. Use "commit all" to st
 - 只有用户明确命令commit的时候才执行。LLM不要自己决定执行commit
 - Every commit MUST have a Conventional Commits prefix: `feat:`, `fix:`, `docs:`, `style:`, `refactor:`, `perf:`, `test:`, `chore:`, `ci:`, `revert:`, etc.
 - Title in **English**, body is up to LLM
+- commit结束后，禁止自动 `git push`

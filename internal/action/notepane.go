@@ -1,13 +1,17 @@
 package action
 
 import (
+	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/micro-editor/micro/v2/internal/buffer"
 	"github.com/micro-editor/micro/v2/internal/config"
 	"github.com/micro-editor/micro/v2/internal/display"
+	"github.com/micro-editor/micro/v2/internal/eabp"
 	"github.com/micro-editor/micro/v2/internal/screen"
 	"github.com/micro-editor/micro/v2/internal/util"
 	"github.com/micro-editor/tcell/v2"
@@ -18,11 +22,15 @@ import (
 // restricting available actions via a whitelist.
 type NotePane struct {
 	*BufPane
-	isOpen   bool
-	x, y     int
-	width    int
-	height   int
-	noteFile string
+	isOpen        bool
+	x, y          int
+	width         int
+	height        int
+	noteFile      string
+	filePath      string       // main editor buffer.AbsPath
+	fileCursor    buffer.Loc   // captured cursor (X=col, Y=line)
+	fileSelection    *[2]buffer.Loc // nil = no selection
+	fileSelectionText string          // main editor's selected text, captured at open()
 }
 
 // TheNotePane is the global NotePane instance
@@ -86,6 +94,9 @@ var allowedNotePaneActions = map[string]bool{
 	"Deselect": true, "Escape": true, "ToggleOverwriteMode": true,
 	"ClearInfo": true, "ClearStatus": true, "None": true,
 
+	// EABP send
+	"NotePaneSend": true,
+
 	// Mouse
 	"MousePress": true, "MouseDrag": true, "MouseRelease": true,
 	"MouseMultiCursor": true,
@@ -98,6 +109,8 @@ var allowedNotePaneActions = map[string]bool{
 func init() {
 	NotePaneBindings = NewKeyTree()
 	notePaneMapDefaults(DefaultBindings("buffer"))
+	// Bind Alt-Enter to NotePaneSend (fallback Alt-s if Alt-Enter not available in terminal)
+	notePaneMapBinding("Alt-Enter", "NotePaneSend")
 }
 
 // notePaneMapDefaults registers allowed key bindings from defaults into NotePaneBindings.
@@ -281,6 +294,9 @@ func (n *NotePane) open() {
 		return
 	}
 
+	// Capture file path from the main editor buffer
+	n.filePath = pane.Buf.AbsPath
+
 	// Get the pane's view and BufWindow
 	view := pane.BWindow.GetView()
 	bw := pane.BWindow.(*display.BufWindow)
@@ -326,6 +342,94 @@ func (n *NotePane) open() {
 	n.isOpen = true
 }
 
+// NotePaneSend sends the note content via EABP to a receiver.
+// It reads the current notePane buffer as message, discovers receivers,
+// and sends the context payload to the unix socket of the single live receiver.
+func NotePaneSend(h *BufPane) bool {
+	n := TheNotePane
+	if n == nil {
+		return false
+	}
+
+	// 1. Discover receivers
+	receivers, err := eabp.Discover()
+	if err != nil {
+		InfoBar.Message("✗ discover error: " + err.Error())
+		return false
+	}
+	if len(receivers) != 1 {
+		if len(receivers) == 0 {
+			InfoBar.Message("✗ no receiver found")
+		} else {
+			InfoBar.Message("✗ multiple receivers found, need exactly one")
+		}
+		return false
+	}
+	receiver := receivers[0]
+
+	// 2. Build payload
+	// Convert buffer.Loc {X,Y} = {col,row} (0-based) to EABP Position {Line,Col} = {row,col} (1-based)
+	cursorPos := eabp.Position{Line: n.fileCursor.Y + 1, Col: n.fileCursor.X + 1}
+
+	// Read notePane buffer text as message
+	message := string(n.BufPane.Buf.Bytes())
+
+	payload := eabp.ContextPayload{
+		Path:    n.filePath,
+		Cursor:  cursorPos,
+		Message: message,
+	}
+
+	// Selection: pre-captured and normalized at open() time
+	if n.fileSelection != nil {
+		payload.Selection = &eabp.Selection{
+			Start: eabp.Position{Line: n.fileSelection[0].Y + 1, Col: n.fileSelection[0].X + 1},
+			End:   eabp.Position{Line: n.fileSelection[1].Y + 1, Col: n.fileSelection[1].X + 1},
+			Text:  n.fileSelectionText,
+		}
+	}
+
+	// Serialize payload
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		InfoBar.Message("✗ marshal error: " + err.Error())
+		return false
+	}
+
+	// 3. Build envelope
+	env := eabp.Envelope{
+		V:       1,
+		Type:    "context",
+		Sender:  eabp.Sender{PID: os.Getpid(), Name: "microNeo", Instance: "default"},
+		TS:      float64(time.Now().UnixNano()) / 1e9,
+		Payload: payloadJSON,
+	}
+
+	// 4. Dial receiver's unix socket, write JSON line, close
+	c, err := net.Dial("unix", receiver.Socket)
+	if err != nil {
+		InfoBar.Message("✗ send failed: " + err.Error())
+		return false
+	}
+	lineBytes, err := env.MarshalLine()
+	if err != nil {
+		c.Close()
+		InfoBar.Message("✗ marshal error: " + err.Error())
+		return false
+	}
+	if _, err := c.Write(lineBytes); err != nil {
+		c.Close()
+		InfoBar.Message("✗ send failed: " + err.Error())
+		return false
+	}
+	c.Close()
+
+	// 5. Success: close notePane and show confirmation
+	n.close()
+	InfoBar.Message("✓ sent to " + receiver.Name)
+	return false
+}
+
 // locToScreenRow converts a buffer location to its screen row.
 // It correctly handles softwrap by using SLocFromLoc and Diff.
 func (n *NotePane) locToScreenRow(bw *display.BufWindow, view *display.View, loc buffer.Loc) int {
@@ -361,6 +465,25 @@ func (n *NotePane) lowestCursorScreenRow(bw *display.BufWindow, view *display.Vi
 		screenRow := n.locToScreenRow(bw, view, loc)
 		if screenRow > lowestRow {
 			lowestRow = screenRow
+			// Capture cursor position and selection
+			n.fileCursor = loc
+			if cursor.HasSelection() {
+				sel := cursor.CurSelection
+				start, end := sel[0], sel[1]
+				if start.GreaterThan(end) {
+					start, end = end, start
+				}
+				normalized := [2]buffer.Loc{start, end}
+				n.fileSelection = &normalized
+				selText := string(bw.Buf.Substr(start, end))
+				if len(selText) > 2048 {
+					selText = ""
+				}
+				n.fileSelectionText = selText
+			} else {
+				n.fileSelection = nil
+				n.fileSelectionText = ""
+			}
 		}
 	}
 
