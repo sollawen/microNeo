@@ -245,19 +245,24 @@ func (w *BufWindow) Relocate() bool {
 	bStart := SLoc{0, 0}
 	bEnd := w.SLocFromLoc(b.End())
 
-	if c.LessThan(w.Scroll(w.StartLine, scrollmargin)) && c.GreaterThan(w.Scroll(bStart, scrollmargin-1)) {
-		w.StartLine = w.Scroll(c, -scrollmargin)
-		ret = true
-	} else if c.LessThan(w.StartLine) {
-		w.StartLine = c
-		ret = true
-	}
-	if c.GreaterThan(w.Scroll(w.StartLine, height-1-scrollmargin)) && c.LessEqual(w.Scroll(bEnd, -scrollmargin)) {
-		w.StartLine = w.Scroll(c, -height+1+scrollmargin)
-		ret = true
-	} else if c.GreaterThan(w.Scroll(bEnd, -scrollmargin)) && c.GreaterThan(w.Scroll(w.StartLine, height-1)) {
-		w.StartLine = w.Scroll(bEnd, -height+1)
-		ret = true
+	// MicroNeo: MD 走 row 判定（实质逻辑见 bufwindow_md.go），非 MD 走 micro 原生。
+	if w.Buf.IsMD && w.mdConfig.MDRender {
+		ret = w.relocateVerticalMD(c, scrollmargin, height)
+	} else {
+		if c.LessThan(w.Scroll(w.StartLine, scrollmargin)) && c.GreaterThan(w.Scroll(bStart, scrollmargin-1)) {
+			w.StartLine = w.Scroll(c, -scrollmargin)
+			ret = true
+		} else if c.LessThan(w.StartLine) {
+			w.StartLine = c
+			ret = true
+		}
+		if c.GreaterThan(w.Scroll(w.StartLine, height-1-scrollmargin)) && c.LessEqual(w.Scroll(bEnd, -scrollmargin)) {
+			w.StartLine = w.Scroll(c, -height+1+scrollmargin)
+			ret = true
+		} else if c.GreaterThan(w.Scroll(bEnd, -scrollmargin)) && c.GreaterThan(w.Scroll(w.StartLine, height-1)) {
+			w.StartLine = w.Scroll(bEnd, -height+1)
+			ret = true
+		}
 	}
 
 	// horizontal relocation (scrolling)

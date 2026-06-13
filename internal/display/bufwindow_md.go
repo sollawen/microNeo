@@ -1,6 +1,8 @@
 package display
 
 import (
+	"fmt"
+	"os"
 	"strings"
 	"unicode/utf8"
 
@@ -729,8 +731,14 @@ func (w *BufWindow) displayBufferMD(editMode bool) {
 		} else {
 			vY, rowBufLines = w.renderSegmentMD(seg, vY)
 		}
-		// ★ 写入扁平数组
+		// ★ 写入扁平数组（带边界保护：renderSegmentNative 在最后一行 softwrap 时
+		//   可能让 vY 超过 bufHeight，原生 micro 画到窗口外不 panic，但本处的
+		//   viewportRowBufLine 切片操作会越界。截断到 bufHeight 防止崩溃。）
 		startVY := vY - len(rowBufLines)
+		if vY > bufHeight {
+			rowBufLines = rowBufLines[:len(rowBufLines)-(vY-bufHeight)]
+			vY = bufHeight
+		}
 		copy(w.viewportRowBufLine[startVY:vY], rowBufLines)
 	}
 
@@ -850,4 +858,122 @@ func (w *BufWindow) bufferLineToScreenOffset(bufferLine int) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+// relocateVerticalMD 是 Relocate 的 MD 垂直滚动分支（自包含）。
+// 判定基于屏幕行（bufferLineToScreenOffset），动作：向下精确、向上沿用原生算术。
+// 边界场景（首帧 nil / 光标跳出视口 / 精确动作不可行）走 relocateVerticalNativeFallback。
+//
+// 前提：光标所在段原生渲染（bufwindow_md.go:727），c.Line 作为内容行
+// 出现在 viewportRowBufLine 中，反查必中（常规按键场景）。
+func (w *BufWindow) relocateVerticalMD(c SLoc, scrollmargin, height int) bool {
+	n := len(w.viewportRowBufLine)
+	if n == 0 {
+		return w.relocateVerticalNativeFallback(c, scrollmargin, height) // 首帧：尚未渲染，1:1 成立
+	}
+	cursorRow, ok := w.bufferLineToScreenOffset(c.Line)
+	if !ok {
+		w.dumpScroll("FALLBACK(not-in-viewport)", c, scrollmargin, height, cursorRow, 0, 0)
+		return w.relocateVerticalNativeFallback(c, scrollmargin, height) // 光标跳出视口（goto/搜索）
+	}
+
+	botMarginRow := height - 1 - scrollmargin
+	if cursorRow > botMarginRow {
+		// 向下滚：视口上移 delta 行，新 StartLine = 当前屏行 delta 的 buffer 行。
+		delta := cursorRow - botMarginRow
+		if delta >= n || w.viewportRowBufLine[delta] < 0 {
+			reason := "delta-out-of-range"
+			if delta < n {
+				reason = "delta-on-decoration"
+			}
+			w.dumpScroll("FALLBACK("+reason+")", c, scrollmargin, height, cursorRow, botMarginRow, delta)
+			return w.relocateVerticalNativeFallback(c, scrollmargin, height)
+		}
+		w.dumpScroll("DOWN", c, scrollmargin, height, cursorRow, botMarginRow, delta)
+		w.StartLine = SLoc{w.viewportRowBufLine[delta], 0} // 精确：光标落到 botMarginRow
+		return true
+	}
+	if cursorRow < scrollmargin {
+		w.dumpScroll("UP", c, scrollmargin, height, cursorRow, botMarginRow, 0)
+		w.StartLine = w.Scroll(c, -scrollmargin) // 向上：段内 1:1 精确
+		return true
+	}
+	return true // 光标在 margin 内，无需滚动
+}
+
+// dumpScroll 临时调试：打印滚动判定时的 viewport 全貌。
+func (w *BufWindow) dumpScroll(tag string, c SLoc, scrollmargin, height, cursorRow, botMarginRow, delta int) {
+	n := len(w.viewportRowBufLine)
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "\n===== [%s] =====\n", tag)
+	fmt.Fprintf(&sb, "  cursor: bufferLine=%d screenRow=%d  | botMarginRow=%d delta=%d scrollmargin=%d height=%d\n",
+		c.Line, cursorRow, botMarginRow, delta, scrollmargin, height)
+	// 找当前最底内容行（最后一个 >=0 的）
+	botContentLine, botContentRow := -1, -1
+	for i := n - 1; i >= 0; i-- {
+		if w.viewportRowBufLine[i] >= 0 {
+			botContentLine = w.viewportRowBufLine[i]
+			botContentRow = i
+			break
+		}
+	}
+	fmt.Fprintf(&sb, "  current bottom content: screenRow=%d bufferLine=%d\n", botContentRow, botContentLine)
+	fmt.Fprintf(&sb, "  current StartLine.Line=%d\n", w.StartLine.Line)
+	if delta > 0 && delta < n {
+		fmt.Fprintf(&sb, "  viewportRowBufLine[delta=%d] = %d (will be new StartLine)\n", delta, w.viewportRowBufLine[delta])
+	}
+	// dump 全表
+	decorations := []int{}
+	sb.WriteString("  viewport rows (row -> bufLine):\n")
+	for i := 0; i < n; i++ {
+		v := w.viewportRowBufLine[i]
+		var s string
+		if v == -2 {
+			s = "EMPTY"
+		} else if v == -1 {
+			s = "DECORATION"
+			decorations = append(decorations, i)
+		} else {
+			s = fmt.Sprintf("line %d", v)
+		}
+		marker := ""
+		if i == cursorRow {
+			marker = "  <== CURSOR"
+		}
+		if i == botMarginRow {
+			marker += "  <== botMarginRow"
+		}
+		if i == delta && delta > 0 {
+			marker += "  <== delta"
+		}
+		fmt.Fprintf(&sb, "    row %2d: %-12s%s\n", i, s, marker)
+	}
+	fmt.Fprintf(&sb, "  decoration rows: %v (count=%d)\n", decorations, len(decorations))
+	os.Stderr.WriteString(sb.String())
+}
+
+// relocateVerticalNativeFallback 复刻 micro 原生垂直 Relocate（1:1 假设），
+// 供 MD 路径边界场景兜底。
+//
+// ⚠️ 此函数需与 bufwindow.go 中 Relocate 的非 MD 分支保持同步。
+// micro 的 Relocate 垂直逻辑历史稳定，但修改其 else 分支时务必同步本函数。
+func (w *BufWindow) relocateVerticalNativeFallback(c SLoc, scrollmargin, height int) bool {
+	bStart := SLoc{0, 0}
+	bEnd := w.SLocFromLoc(w.Buf.End())
+	ret := false
+	if c.LessThan(w.Scroll(w.StartLine, scrollmargin)) && c.GreaterThan(w.Scroll(bStart, scrollmargin-1)) {
+		w.StartLine = w.Scroll(c, -scrollmargin)
+		ret = true
+	} else if c.LessThan(w.StartLine) {
+		w.StartLine = c
+		ret = true
+	}
+	if c.GreaterThan(w.Scroll(w.StartLine, height-1-scrollmargin)) && c.LessEqual(w.Scroll(bEnd, -scrollmargin)) {
+		w.StartLine = w.Scroll(c, -height+1+scrollmargin)
+		ret = true
+	} else if c.GreaterThan(w.Scroll(bEnd, -scrollmargin)) && c.GreaterThan(w.Scroll(w.StartLine, height-1)) {
+		w.StartLine = w.Scroll(bEnd, -height+1)
+		ret = true
+	}
+	return ret
 }
