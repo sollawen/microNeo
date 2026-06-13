@@ -33,12 +33,12 @@ type BufWindow struct {
 
 	// MicroNeo: MD rendering support
 	mdConfig md.MDConfig // MD 渲染配置
-	// viewportRowBufLine[i] = viewport 第 i 个屏幕行对应的 buffer 行号
-	// -1 = 装饰行（代码块边框、表格分隔线等）
-	// -2 = 空白填充区域（buffer 内容不够填满 viewport）
-	// >=0 = 内容行对应的 buffer 行号
-	// 长度 = bufHeight，每帧 displayBufferMD 开始时重置
-	viewportRowBufLine []int
+	// viewportRowmap[i] = viewport 第 i 个屏幕行对应的视觉行位置
+	// Line = -1: 装饰行（标题下划线、表格 frame 等）
+	// Line = -2: 空白填充区域（buffer 内容不够填满 viewport）
+	// Line >= 0: 内容行；Row = 该屏行是此 buffer 行的第几个 softwrap 段（0-based）
+	// 长度 = bufHeight，每帧 displayBufferMD 开始时重置为 {Line:-2}
+	viewportRowmap []SLoc
 	editMode bool // 光标所在 segment 回退原生显示
 }
 
@@ -297,8 +297,8 @@ func (w *BufWindow) LocFromVisual(svloc buffer.Loc) buffer.Loc {
 
 	var sloc SLoc
 	if w.Buf.IsMD && w.mdConfig.MDRender {
-		// MicroNeo: 使用 viewportRowBufLine 将屏幕 Y 偏移映射到 buffer 行
-		if bufLine, ok := w.screenOffsetToBufferLine(svloc.Y - w.Y); ok {
+		// MicroNeo: 使用 viewportRowmap 将屏幕 Y 偏移映射到 buffer 行
+		if bufLine, ok := w.screenRowToLine(svloc.Y - w.Y); ok {
 			sloc = SLoc{bufLine, 0} // 非softwrap模式下 Row=0
 		} else {
 			sloc = w.Scroll(w.StartLine, svloc.Y-w.Y) // 回退原始逻辑
