@@ -298,7 +298,7 @@ func (w *BufWindow) LocFromVisual(svloc buffer.Loc) buffer.Loc {
 	var sloc SLoc
 	if w.Buf.IsMD {
 		// MicroNeo: 使用 viewportRowmap 将屏幕 Y 偏移映射到 buffer 行
-		if bufLine, ok := w.screenRowToLine(svloc.Y - w.Y); ok {
+		if bufLine, ok := w.ScreenRowToLine(svloc.Y - w.Y); ok {
 			sloc = SLoc{bufLine, 0} // 非softwrap模式下 Row=0
 		} else {
 			sloc = w.Scroll(w.StartLine, svloc.Y-w.Y) // 回退原始逻辑

@@ -834,11 +834,11 @@ func (w *BufWindow) expandLineStyles(bufLine int, runeCount int, baseStyle tcell
 	return charStyles
 }
 
-// screenRowToLine 将屏幕行偏移（相对 viewport 顶部）映射为 buffer 行号。
+// ScreenRowToLine 将屏幕行偏移（相对 viewport 顶部）映射为 buffer 行号。
 // 使用 viewportRowmap 直接查找，O(1)。
 // 装饰行（-1）和空白区域（-2）一视同仁：点击装饰行等于点击空白，返回 (0, false)。
 // 返回 (bufferLine, true) 表示成功映射，(0, false) 表示应回退原始 Scroll 逻辑。
-func (w *BufWindow) screenRowToLine(screenOffset int) (int, bool) {
+func (w *BufWindow) ScreenRowToLine(screenOffset int) (int, bool) {
 	if screenOffset < 0 || screenOffset >= len(w.viewportRowmap) {
 		return 0, false
 	}
@@ -849,9 +849,9 @@ func (w *BufWindow) screenRowToLine(screenOffset int) (int, bool) {
 	return 0, false
 }
 
-// lineToScreenRow 将 (bufferLine, segmentRow) 二元组精确匹配为屏行。
+// LineToScreenRow 将 (bufferLine, segmentRow) 二元组精确匹配为屏行。
 // 用于 Relocate 滚动判定。线性扫描 O(bufHeight)，bufHeight 通常 ≤ 终端高度。
-func (w *BufWindow) lineToScreenRow(line, row int) (int, bool) {
+func (w *BufWindow) LineToScreenRow(line, row int) (int, bool) {
 	for i, v := range w.viewportRowmap {
 		if v.Line == line && v.Row == row {
 			return i, true
@@ -861,7 +861,7 @@ func (w *BufWindow) lineToScreenRow(line, row int) (int, bool) {
 }
 
 // relocateVerticalMD 是 Relocate 的 MD 垂直滚动分支。
-// 判定：lineToScreenRow 精确匹配光标 (Line, Row) → 屏行。
+// 判定：LineToScreenRow 精确匹配光标 (Line, Row) → 屏行。
 // 动作：向下读 viewportRowmap[delta]（含 segmentRow），向上沿用原生算术。
 // 边界场景（首帧 / 光标跳出视口 / delta 落空白尾）走 relocateVerticalNativeFallback。
 func (w *BufWindow) relocateVerticalMD(c SLoc, scrollmargin, height int) bool {
@@ -869,7 +869,7 @@ func (w *BufWindow) relocateVerticalMD(c SLoc, scrollmargin, height int) bool {
 	if n == 0 {
 		return w.relocateVerticalNativeFallback(c, scrollmargin, height) // 首帧
 	}
-	cursorRow, ok := w.lineToScreenRow(c.Line, c.Row)
+	cursorRow, ok := w.LineToScreenRow(c.Line, c.Row)
 	if !ok {
 		return w.relocateVerticalNativeFallback(c, scrollmargin, height) // 光标跳出视口
 	}
