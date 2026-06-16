@@ -833,6 +833,17 @@ func (w *BufWindow) displayToBuffer(startLine SLoc, showCursor bool) {
 		b.LinesNum(), visibleStart, visibleEnd, len(segments), len(b.MDSegments))
 	cursors := b.GetCursors()
 
+	// ★ cursor 可见性预判：若 cursor 不在本批渲染范围 [visibleStart, visibleEnd] 内，
+	//   则把 showCursor 当 false 处理。否则 g2 停止条件（showCursor && !cursorShowed）
+	//   永远无法满足（cursor 段不在 visible → cursorShowed 恒 false），
+	//   渲染循环一路跑到 vY>=cap → overflow=true → showBuffer fallback 到原生 displayBuffer()，
+	//   用户看到原始 markdown 格式（鼠标滚动把 cursor 推出 viewport 时触发）。
+	ac := b.GetActiveCursor()
+	if showCursor && ac != nil && (ac.Y < visibleStart || ac.Y > visibleEnd) {
+		showCursor = false
+		dbgLog("   displayToBuffer: cursor Y=%d 不在 visible[%d..%d] → showCursor=false (避免 overflow fallback)", ac.Y, visibleStart, visibleEnd)
+	}
+
 	// 旧光标段（跨段切换时，旧段从 native 切回 MD，装饰行必须整段渲染）
 	oldSeg := w.findSegmentContaining(w.prevCursorY)
 	// M1 修复：oldSeg 不在本次渲染窗口即视为完成。
@@ -922,6 +933,7 @@ func (w *BufWindow) displayToBuffer(startLine SLoc, showCursor bool) {
 	dbgLog("   displayToBuffer: sb.rows total=%d written(content)=%d firstLine=%d lastLine=%d",
 		len(w.sb.rows), written, firstLine, lastLine)
 	w.sb.nContent = written // ★ 记录有效内容行数，供 coversExtent 判断 viewport 尾部是否超出
+	w.sb.lastLine = lastLine // ★ 记录实际渲染到的最后 buffer 行，供 coversExtent 的 buffer-end 例外判断
 	// 剩余不填满 —— screenBuffer 只渲染实际内容，showBuffer 负责尾部空白填充
 }
 
@@ -942,7 +954,9 @@ func (w *BufWindow) showBuffer(startLine SLoc) {
 	}
 
 	// 范围检查：startLine 超出 sb 覆盖区间，或宽度变化（resize / 切 ruler 等）→ 补渲染
-	covers := w.sb.covers(startLine)
+	// ★ 用 coversExtent（屏幕行精确判断）而非旧 covers（len(rows)=2×bufH），
+	//   与 displayBufferMD 的 needRender 判断保持一致
+	covers := w.sb.coversExtent(startLine, bufHeight, w.Buf.LinesNum())
 	widthOK := w.sb.width == w.gutterOffset+bufWidth
 	dbgLog("   showBuffer: sb.startLine={L:%d,R:%d} sb.width=%d len(rows)=%d covers=%v widthOK=%v",
 		w.sb.startLine.Line, w.sb.startLine.Row, w.sb.width, len(w.sb.rows), covers, widthOK)
@@ -1241,6 +1255,7 @@ type screenBuffer struct {
 	rows      []screenRow // 长度动态，≤ 2*bufHeight
 	startLine SLoc        // 本批 rows 渲染时的起点（case A/C 范围检查用）
 	nContent  int         // 实际有效内容行数（rows 中 line!=-2 的行数）；coversExtent 用它而非 len(rows)
+	lastLine  int         // 实际渲染到的最后一个 buffer 行号（coversExtent 的 buffer-end 例外判断用）
 	blitStart int         // 上次 showBuffer blit 的 rows 起始下标（点击映射用）
 	originX   int         // 渲染窗口原点 X（= w.X），绝对坐标→本地坐标转换
 	originY   int         // 渲染窗口原点 Y（= w.Y）
@@ -1361,27 +1376,41 @@ func (s *screenBuffer) coversLine(line int) bool {
 	return line >= s.startLine.Line && line < s.startLine.Line+len(s.rows)
 }
 
-// coversExtent 判定从 sl 开始的 height 行是否都在 sb 有效内容 [startLine, startLine+nContent) 内。
-// 与 covers/coversLine 的区别：用 nContent（实际写入行数）而非 len(rows)（预分配容量），
-// 且检查整个 viewport [sl, sl+height) 而非仅起点 sl。
+// coversExtent 判定从 sl 开始的 height 行（屏幕行）是否都在 sb 有效内容内。
+// 与 covers/coversLine 的区别：
+//   - 用 nContent（实际写入行数）而非 len(rows)（预分配容量）
+//   - 用屏幕行精确判断（rowIndexOf(sl)+height <= nContent），而非 buffer 行估算
+//     （MD 表格/代码块展开后，buffer 行与屏幕行非 1:1，buffer 行判断会误判）
+//   - buffer-end 例外用 lastLine（实际渲染到的最后 buffer 行）判断，
+//     而非 startLine+nContent（数学超限 ≠ 真正渲染到末尾）
+//
 // 鼠标滚动会把 StartLine 推进到 sb 中部，此时起点 sl 仍在覆盖内，
-// 但 viewport 尾部 sl+height 可能超出实际内容末尾（nContent < len(rows)）→ 需重渲染。
-// buffer 已到末尾时（sb 渲染到最后一行）允许尾部不足 height，因为无更多内容可补。
+// 但 viewport 尾部（startVY+height）可能超出有效内容末尾 → 需重渲染。
 func (s *screenBuffer) coversExtent(sl SLoc, height, bufferLines int) bool {
 	if s == nil || s.nContent == 0 {
 		return false
 	}
-	// 起点必须在有效内容内
-	if sl.Line < s.startLine.Line || sl.Line >= s.startLine.Line+s.nContent {
+	// ★ 起点不能在 sb 之前：鼠标向上回滚时 StartLine 会减小到 sb.startLine 之下，
+	//   此时 sb 内容不含 StartLine，必须重渲染。若放行，rowIndexNearest 会错误返回
+	//   sb 第一行（row 0=sb.startLine），coversExtent 误判 true → 不补渲染 →
+	//   showBuffer 永远 blit sb 第一行内容 → 画面卡住不动。
+	if sl.Line < s.startLine.Line {
 		return false
 	}
-	endNeeded := sl.Line + height
-	endAvailable := s.startLine.Line + s.nContent
-	if endNeeded <= endAvailable {
-		return true // 尾部在覆盖内
+	startVY, ok := s.rowIndexOf(sl)
+	if !ok {
+		// sl 在 sb 范围内但落在装饰行 → nearest 兜底（同区域内向下找内容行，合法）
+		startVY, ok = s.rowIndexNearest(sl)
+		if !ok {
+			return false
+		}
 	}
-	// 尾部超出但 buffer 已到末尾 → sb 已渲染到最后一行，无更多内容可补
-	if endAvailable >= bufferLines {
+	// viewport 屏幕行 [startVY, startVY+height) 必须全在有效内容内
+	if startVY+height <= s.nContent {
+		return true
+	}
+	// 尾部超出有效内容：仅当 sb 已渲染到 buffer 最后一行时允许（EOF 空白，无内容可补）
+	if s.lastLine >= bufferLines-1 {
 		return true
 	}
 	return false
