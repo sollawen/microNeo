@@ -741,8 +741,11 @@ func (w *BufWindow) displayBufferMD(editMode bool) {
 	w.ensureMDConfigReady()
 
 	// 失效检查
+	// ★ 用 coversExtent 而非 covers：covers 用 len(rows)（预分配容量=2×bufH）判断范围，
+	//   但实际有效内容只写 nContent 行（常 < len(rows)）。鼠标滚动把 StartLine 推到 sb 中部时，
+	//   covers(StartLine) 仍 true，但 viewport 尾部超出实际内容末尾 → 显示空白。
 	needRender := w.sb == nil ||
-		!w.sb.covers(w.StartLine) ||
+		!w.sb.coversExtent(w.StartLine, w.bufHeight, w.Buf.LinesNum()) ||
 		w.sb.overflow ||
 		w.sb.width != w.gutterOffset+w.bufWidth ||
 		w.sb.editMode != w.editMode
@@ -918,6 +921,7 @@ func (w *BufWindow) displayToBuffer(startLine SLoc, showCursor bool) {
 	}
 	dbgLog("   displayToBuffer: sb.rows total=%d written(content)=%d firstLine=%d lastLine=%d",
 		len(w.sb.rows), written, firstLine, lastLine)
+	w.sb.nContent = written // ★ 记录有效内容行数，供 coversExtent 判断 viewport 尾部是否超出
 	// 剩余不填满 —— screenBuffer 只渲染实际内容，showBuffer 负责尾部空白填充
 }
 
@@ -1114,18 +1118,22 @@ func (w *BufWindow) relocateVerticalMD(c SLoc, scrollmargin, height int) bool {
 	// 1. 估算渲染起点（cheap 预判，渲染前）
 	var displayStart SLoc
 	caseLabel := "A"
+	// case A：cursor 在上一帧 sb 的第一屏内（连续导航，StartLine 仍有效）
+	// case C：jump 到远处（旧 sb 虽覆盖 cursor 行但 StartLine 已失效）→ 重估 displayStart
+	//   区分依据：cursor 在旧 sb 的 row。连续 ↓ 时 cursor 在 botMarginRow 附近
+	//   （row < height，第一屏内）；jump 时 cursor 跳到旧 sb 第二屏（row >= height）。
 	if w.sb != nil && w.sb.coversLine(c.Line) {
-		displayStart = w.StartLine // case A：cursor 在上一帧 sb 覆盖内
+		curRow, ok := w.sb.rowIndexOf(c)
+		if ok && curRow < height {
+			displayStart = w.StartLine // case A：cursor 在第一屏内
+		} else {
+			displayStart = SLoc{Line: c.Line - scrollmargin, Row: 0}
+			caseLabel = "C"
+			w.StartLine = displayStart
+		}
 	} else {
-		displayStart = SLoc{Line: c.Line - scrollmargin, Row: 0} // case C：跳远，1:1 估算
+		displayStart = SLoc{Line: c.Line - scrollmargin, Row: 0}
 		caseLabel = "C"
-		// ★ case C 必须立即采用 displayStart 作为 StartLine。
-		//   原因：后续渲染以 displayStart 为起点，cursor 在新 sb 中的 cursorRow 是
-		//   相对 displayStart 的偏移。若 cursorRow 落在舒适区 [scrollmargin, botMarginRow]，
-		//   下方 margin 微调分支不触发，w.StartLine 会残留旧值（stale）。
-		//   此时 displayBufferMD 用 stale StartLine blit → viewport 错位、cursor 不可见。
-		//   提前采用 displayStart 后：舒适区保持 displayStart（正确），
-		//   scrollup/scrolldown 分支仍会进一步精修。
 		w.StartLine = displayStart
 	}
 	if displayStart.Line < 0 {
@@ -1232,6 +1240,7 @@ type screenRow struct {
 type screenBuffer struct {
 	rows      []screenRow // 长度动态，≤ 2*bufHeight
 	startLine SLoc        // 本批 rows 渲染时的起点（case A/C 范围检查用）
+	nContent  int         // 实际有效内容行数（rows 中 line!=-2 的行数）；coversExtent 用它而非 len(rows)
 	blitStart int         // 上次 showBuffer blit 的 rows 起始下标（点击映射用）
 	originX   int         // 渲染窗口原点 X（= w.X），绝对坐标→本地坐标转换
 	originY   int         // 渲染窗口原点 Y（= w.Y）
@@ -1294,6 +1303,7 @@ func (s *screenBuffer) reset(capacity, width, ox, oy int) {
 	s.overflow = false
 	s.cursorOK = false
 	s.blitStart = 0
+	s.nContent = 0
 
 	// 容量/宽度变化 → 重建 rows
 	if cap(s.rows) < capacity || s.width != width {
@@ -1349,6 +1359,32 @@ func (s *screenBuffer) coversLine(line int) bool {
 		return false
 	}
 	return line >= s.startLine.Line && line < s.startLine.Line+len(s.rows)
+}
+
+// coversExtent 判定从 sl 开始的 height 行是否都在 sb 有效内容 [startLine, startLine+nContent) 内。
+// 与 covers/coversLine 的区别：用 nContent（实际写入行数）而非 len(rows)（预分配容量），
+// 且检查整个 viewport [sl, sl+height) 而非仅起点 sl。
+// 鼠标滚动会把 StartLine 推进到 sb 中部，此时起点 sl 仍在覆盖内，
+// 但 viewport 尾部 sl+height 可能超出实际内容末尾（nContent < len(rows)）→ 需重渲染。
+// buffer 已到末尾时（sb 渲染到最后一行）允许尾部不足 height，因为无更多内容可补。
+func (s *screenBuffer) coversExtent(sl SLoc, height, bufferLines int) bool {
+	if s == nil || s.nContent == 0 {
+		return false
+	}
+	// 起点必须在有效内容内
+	if sl.Line < s.startLine.Line || sl.Line >= s.startLine.Line+s.nContent {
+		return false
+	}
+	endNeeded := sl.Line + height
+	endAvailable := s.startLine.Line + s.nContent
+	if endNeeded <= endAvailable {
+		return true // 尾部在覆盖内
+	}
+	// 尾部超出但 buffer 已到末尾 → sb 已渲染到最后一行，无更多内容可补
+	if endAvailable >= bufferLines {
+		return true
+	}
+	return false
 }
 
 // rowIndexOf 查找 (line, segRow) 二元组对应的 rows 下标。
