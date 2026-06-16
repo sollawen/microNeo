@@ -48,7 +48,7 @@ color-link md-blockquote "#62B1FE,#100F0F"          # ← 原 preproc
 color-link md-bold "#d4d4d4,#100F0F"                # ← 原 constant.string
 color-link md-italic "#b5b8b6,#100F0F"              # ← 原 default
 color-link md-strikethrough "#b5b8b6,#100F0F"       # ← 原 default
-color-link md-inline-code "#b58654,#1f1a10"         # ← 原 keyword
+color-link md-inline-code "#85b654,#1f1a10"         # ← 原 keyword
 color-link md-list "#96CBFE,#100F0F"                # ← 原 statement
 color-link md-checkbox "#96CBFE,#100F0F"            # ← 原 statement
 color-link md-link "#FF73FD,#100F0F"                # ← 原 constant
