@@ -1,7 +1,10 @@
 package display
 
 import (
+	"fmt"
+	"os"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/mattn/go-runewidth"
@@ -12,6 +15,33 @@ import (
 	"github.com/micro-editor/micro/v2/internal/util"
 	"github.com/micro-editor/tcell/v2"
 )
+
+// ===== 临时诊断日志（定位 showstopper：只显示第一行）=====
+// microNeoDebug = true 时，dbgLog 追加写 /tmp/microNeo_debug.log。
+// 定位后改回 false 即零开销，无需删埋点代码。
+const microNeoDebug = true
+
+func dbgLog(format string, args ...any) {
+	if !microNeoDebug {
+		return
+	}
+	f, err := os.OpenFile("/tmp/microNeo_debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	ts := time.Now().Format("15:04:05.000")
+	f.WriteString(ts + " " + fmt.Sprintf(format, args...) + "\n")
+}
+
+// segRangeStr 返回 segment 的 [Start..End] 字符串，nil 返回 "nil"
+func segRangeStr(s *md.Segment) string {
+	if s == nil {
+		return "nil"
+	}
+	return fmt.Sprintf("[seg L%d..L%d]", s.BufStartLine, s.BufEndLine)
+}
+
 
 // SetMDConfig 设置 MD 渲染配置。
 func (w *BufWindow) SetMDConfig(cfg md.MDConfig) {
@@ -57,12 +87,12 @@ func hasCursorInside(seg md.Segment, cursors []*buffer.Cursor) bool {
 }
 
 // renderSegmentMD 渲染单个 MD segment 到 screen。
-// 返回签名只返回 newVY，viewportRowmap 在渲染时直接写入。
+// 返回签名只返回 newVY，元数据同源写入 sb.setRowMeta（方案B 单一数据源）。
 func (w *BufWindow) renderSegmentMD(
 	seg md.Segment, vY int,
 ) (newVY int) {
 	bufWidth := w.bufWidth
-	bufHeight := w.bufHeight
+	renderLimit := w.renderLimit() // displayToBuffer 模式下为 2×
 
 	// ★ 注入 Buf 到 MDConfig，renderer 通过 cfg.Buf 自行取 lines
 	w.mdConfig.Buf = w.Buf
@@ -102,12 +132,13 @@ func (w *BufWindow) renderSegmentMD(
 		}
 	}
 
-	// ★ 写入 screen + viewportRowmap：根据 VisibleStart/VisibleEnd 过滤
+	// ★ 渲染 cells（写入 sb） + 元数据（写入 sb.rows[vY].line/segRow）：
+	//     根据 VisibleStart/VisibleEnd 过滤
 	lastBufLine := -1
 	lastContentBufLine := -1 // 追踪最近的内容行，用于装饰行可见性判断
 	segRow := 0              // segmentRow：同一 buffer 行的第几个 softwrap 段
 	for _, row := range rendered.Rows {
-		if vY >= bufHeight {
+		if vY >= renderLimit {
 			break
 		}
 
@@ -129,18 +160,17 @@ func (w *BufWindow) renderSegmentMD(
 			continue
 		}
 
-		// ★ 直接写 viewportRowmap（用 row.BufLine，非 effectiveLine）
+		// ★ 只写 sb.setRowMeta（方案B同源生成；viewportRowmap 已迁移到 sb 查询）
 		// effectiveLine 逻辑仅用于可见性判断
-		if vY >= 0 && vY < bufHeight {
-			if row.BufLine < 0 {
-				w.viewportRowmap[vY] = SLoc{Line: -1, Row: -1} // 装饰行
-			} else if row.BufLine == lastBufLine {
-				segRow++ // 同一 buffer 行的续段
-				w.viewportRowmap[vY] = SLoc{Line: row.BufLine, Row: segRow}
-			} else {
-				segRow = 0 // 新 buffer 行
-				w.viewportRowmap[vY] = SLoc{Line: row.BufLine, Row: 0}
-			}
+		// sb.setRowMeta 内部有 bounds 检查，无需外层 vY 条件
+		if row.BufLine < 0 {
+			w.sb.setRowMeta(vY, -1, -1) // 装饰行
+		} else if row.BufLine == lastBufLine {
+			segRow++ // 同一 buffer 行的续段
+			w.sb.setRowMeta(vY, row.BufLine, segRow)
+		} else {
+			segRow = 0 // 新 buffer 行
+			w.sb.setRowMeta(vY, row.BufLine, 0)
 		}
 
 		// 更新追踪
@@ -192,7 +222,7 @@ func (w *BufWindow) renderSegmentMD(
 			if attrs&tcell.AttrStrikeThrough != 0 {
 				style = style.StrikeThrough(true)
 			}
-			screen.SetContent(screenX, screenY, cell.Rune, cell.Combining, style)
+			w.setCell(screenX, screenY, cell.Rune, cell.Combining, style)
 		}
 
 		vY++
@@ -206,12 +236,12 @@ func (w *BufWindow) renderSegmentMD(
 // renderSegmentNative 用原生逻辑渲染一个 segment 到 BufWindow。
 // seg 必须已经过 filterSegmentsToVisible 裁剪（BufStartLine/BufEndLine 在可见区内）。
 // 不修改 displayBuffer()，从那里复制主循环并按需调整。
-// 返回签名只返回 newVY，viewportRowmap 在渲染时直接写入。
+// 返回签名只返回 newVY，元数据同源写入 sb.setRowMeta（方案B 单一数据源）。
 func (w *BufWindow) renderSegmentNative(
 	seg md.Segment, startVY int,
 ) (newVY int) {
 	b := w.Buf
-	bufHeight := w.bufHeight
+	renderLimit := w.renderLimit() // displayToBuffer 模式下为 2×
 
 	maxWidth := w.gutterOffset + w.bufWidth
 
@@ -314,7 +344,7 @@ func (w *BufWindow) renderSegmentNative(
 	}
 
 	// ★ 循环条件用 seg.VisibleEnd 替代 seg.BufEndLine
-	for ; vloc.Y < w.bufHeight && bloc.Y <= seg.VisibleEnd; vloc.Y++ {
+	for ; vloc.Y < renderLimit && bloc.Y <= seg.VisibleEnd; vloc.Y++ {
 		// [MOD 5] 记录当前行起始 vY（行内 wrap 时用于差值）
 		lineStartVY := vloc.Y
 
@@ -517,12 +547,12 @@ func (w *BufWindow) renderSegmentNative(
 				}
 			}
 
-			screen.SetContent(w.X+vloc.X, w.Y+vloc.Y, r, combc, style)
+			w.setCell(w.X+vloc.X, w.Y+vloc.Y, r, combc, style)
 
 			if showcursor {
 				for _, c := range cursors {
 					if c.X == bloc.X && c.Y == bloc.Y && !c.HasSelection() {
-						w.showCursor(w.X+vloc.X, w.Y+vloc.Y, c.Num == 0)
+						w.setShowCursor(w.X+vloc.X, w.Y+vloc.Y, c.Num == 0)
 					}
 				}
 			}
@@ -606,7 +636,7 @@ func (w *BufWindow) renderSegmentNative(
 					break
 				} else {
 					vloc.Y++
-					if vloc.Y >= w.bufHeight {
+					if vloc.Y >= renderLimit {
 						break
 					}
 					wrap()
@@ -638,7 +668,7 @@ func (w *BufWindow) renderSegmentNative(
 					break
 				} else {
 					vloc.Y++
-					if vloc.Y >= w.bufHeight {
+					if vloc.Y >= renderLimit {
 						break
 					}
 					wrap()
@@ -664,7 +694,7 @@ func (w *BufWindow) renderSegmentNative(
 					curStyle = style.Background(fg)
 				}
 			}
-			screen.SetContent(i+w.X, vloc.Y+w.Y, ' ', nil, curStyle)
+			w.setCell(i+w.X, vloc.Y+w.Y, ' ', nil, curStyle)
 		}
 
 		if vloc.X != maxWidth {
@@ -673,12 +703,13 @@ func (w *BufWindow) renderSegmentNative(
 			draw(drawrune, nil, drawstyle, true, true, preservebg)
 		}
 
-		// ★ 直接写 viewportRowmap（§5.2 segmentRow 公式）
+		// ★ 只写 sb.setRowMeta（方案B同源生成）
 		// 不需要 rowOffset 分支：vloc.Y -= w.StartLine.Row 让 lineStartVY 可能为负，
 		// screenRow - lineStartVY 天然从 StartLine.Row 开始
+		// sb.setRowMeta 内部有 bounds 检查，跳过越界 screenRow
 		for screenRow := lineStartVY; screenRow <= vloc.Y; screenRow++ {
-			if screenRow >= 0 && screenRow < bufHeight {
-				w.viewportRowmap[screenRow] = SLoc{Line: bloc.Y, Row: screenRow - lineStartVY}
+			if screenRow >= 0 {
+				w.sb.setRowMeta(screenRow, bloc.Y, screenRow-lineStartVY)
 			}
 		}
 
@@ -695,62 +726,34 @@ func (w *BufWindow) renderSegmentNative(
 }
 
 // displayBufferMD 是 displayBuffer 的 MD 渲染版本。
-// Step 1.0 实现：editMode=true 时，光标所在 segment 回退原生 displayBuffer 渲染，
-// 其余 segment 继续走 MD 渲染管线。
+// 方案B：薄包装，调 displayToBuffer + showBuffer + updatePrevCursor。
+// StartLine 已由上一轮 Relocate 算好；sb 失效则补渲染。
+// 失效条件：
+//   (1) 首帧 nil
+//   (2) StartLine 不在 sb 覆盖区间
+//   (3) overflow
+//   (4) 宽度变化（resize / 切 ruler·diffgutter·scrollbar 改变 gutterOffset+bufWidth）
 func (w *BufWindow) displayBufferMD(editMode bool) {
-	b := w.Buf
 	if w.Height <= 0 || w.Width <= 0 {
+		dbgLog("displayBufferMD: early return Height=%d Width=%d", w.Height, w.Width)
 		return
 	}
 	w.ensureMDConfigReady()
 
-	bufWidth := w.bufWidth
-	bufHeight := w.bufHeight
-
-	// 1. 检测可见区域
-	visibleStart := w.StartLine.Line
-	visibleEnd := visibleStart + bufHeight // 超过也行，detect 会截断
-	if visibleEnd >= b.LinesNum() {
-		visibleEnd = b.LinesNum() - 1
+	// 失效检查
+	needRender := w.sb == nil ||
+		!w.sb.covers(w.StartLine) ||
+		w.sb.overflow ||
+		w.sb.width != w.gutterOffset+w.bufWidth ||
+		w.sb.editMode != w.editMode
+	dbgLog("=== displayBufferMD === editMode=%v StartLine={L:%d,R:%d} needRender=%v sbNil=%v",
+		editMode, w.StartLine.Line, w.StartLine.Row, needRender, w.sb == nil)
+	if needRender {
+		w.displayToBuffer(w.StartLine, true) // Display 主路径：希望看到 cursor
 	}
 
-	// 懒分配：确保容量足够（resize 后 bufHeight 可能变化）
-	if cap(w.viewportRowmap) < bufHeight {
-		w.viewportRowmap = make([]SLoc, bufHeight)
-	}
-	w.viewportRowmap = w.viewportRowmap[:bufHeight]
-	// 重置为 {Line:-2}（空白）
-	for i := range w.viewportRowmap {
-		w.viewportRowmap[i] = SLoc{Line: -2}
-	}
-
-	// 读 buffer 上的分类结果（事件驱动算好，content-static）
-	// 注意：非 MD 文件的 b.MDSegments 保持 nil，filterSegmentsToVisible 要处理 nil
-	allSegs := b.MDSegments
-	segments := filterSegmentsToVisible(allSegs, visibleStart, visibleEnd)
-
-	cursors := b.GetCursors()
-
-
-	// 2. 渲染管线主循环
-	vY := 0 // 当前 screen 行（相对窗口顶部）
-
-	for _, seg := range segments {
-		if editMode && hasCursorInside(seg, cursors) {
-			vY = w.renderSegmentNative(seg, vY)
-		} else {
-			vY = w.renderSegmentMD(seg, vY)
-		}
-	}
-
-	// 3. 填充剩余空间
-	defStyle := config.DefStyle
-	for ; vY < bufHeight; vY++ {
-		w.drawGutterAndLineNumMD(vY, -1, false) // 空行，不显示行号
-		for col := 0; col < bufWidth; col++ {
-			screen.SetContent(w.X+w.gutterOffset+col, w.Y+vY, ' ', nil, defStyle)
-		}
-	}
+	w.showBuffer(w.StartLine)
+	w.updatePrevCursor()
 }
 
 // filterSegmentsToVisible 从事件驱动算好的全 buffer segments 中，筛选当前可见区域。
@@ -783,6 +786,239 @@ func filterSegmentsToVisible(segs []md.Segment, startY, endY int) []md.Segment {
 	return out
 }
 
+// displayToBuffer 从 startLine 渲染到 screenBuffer，单一数据源。
+// showCursor: 是否把光标段走 native（按 call site 固定取值）。
+//
+// 阶段3：主体实现（不接线，可单测）；displayBufferMD 尚未调用本函数。
+func (w *BufWindow) displayToBuffer(startLine SLoc, showCursor bool) {
+	b := w.Buf
+	if w.Height <= 0 || w.Width <= 0 {
+		dbgLog("displayToBuffer: early return Height=%d Width=%d", w.Height, w.Width)
+		return
+	}
+	w.ensureMDConfigReady()
+
+	bufWidth, bufHeight := w.bufWidth, w.bufHeight
+	cap := 2 * bufHeight // 2× 吸收跨段展开增量
+	dbgLog(">> displayToBuffer ENTER startLine={L:%d,R:%d} showCursor=%v bufH=%d bufW=%d gutterOff=%d cap=%d prevCursorY=%d editMode=%v",
+		startLine.Line, startLine.Row, showCursor, bufHeight, bufWidth, w.gutterOffset, cap, w.prevCursorY, w.editMode)
+
+	// 初始化 screenBuffer（2× 容量，行宽含 gutter）
+	if w.sb == nil {
+		w.sb = &screenBuffer{}
+	}
+	w.sb.reset(cap, w.gutterOffset+bufWidth, w.X, w.Y)
+	w.sb.startLine = startLine
+	w.sb.cursorOK = false
+	w.sb.editMode = w.editMode
+
+	// 切 sink（renderer 和 gutter 走 screenBuffer）
+	w.sink = w.sb
+	defer func() { w.sink = nil }() // 防御性复位（sink=nil 时 setCell 走真屏）
+
+	// 可见段（沿用现状 filter）
+	visibleStart := startLine.Line
+	visibleEnd := visibleStart + cap
+	if visibleEnd >= b.LinesNum() {
+		visibleEnd = b.LinesNum() - 1
+	}
+	if visibleStart >= b.LinesNum() {
+		return // buffer 末尾后，无内容
+	}
+	segments := filterSegmentsToVisible(b.MDSegments, visibleStart, visibleEnd)
+	dbgLog("   displayToBuffer: LinesNum=%d visibleStart=%d visibleEnd=%d filteredSegs=%d totalSegs=%d",
+		b.LinesNum(), visibleStart, visibleEnd, len(segments), len(b.MDSegments))
+	cursors := b.GetCursors()
+
+	// 旧光标段（跨段切换时，旧段从 native 切回 MD，装饰行必须整段渲染）
+	oldSeg := w.findSegmentContaining(w.prevCursorY)
+	// M1 修复：oldSeg 不在本次渲染窗口即视为完成。
+	// PageDown 把 StartLine 推到 oldSeg 之下后按 ↓（case A），oldSeg 整体在 startLine 之上，
+	// 循环永远遇不到 oldSeg → 三目的凑不齐 → 一路渲染到 overflow。
+	scrollmargin := int(b.Settings["scrollmargin"].(float64))
+	oldSegDone := oldSeg == nil ||
+		oldSeg.BufEndLine < startLine.Line ||
+		oldSeg.BufStartLine > startLine.Line+bufHeight+scrollmargin
+	// oldSeg 用 BufStartLine 作 key 与迭代段比较（range 返回副本，无法比指针）
+	oldSegKey := -1
+	if oldSeg != nil {
+		oldSegKey = oldSeg.BufStartLine
+	}
+
+	cursorShowed := false
+
+	vY := 0
+	iter := 0
+	for _, seg := range segments {
+		iter++
+		// 兜底：2×bufHeight 强制退出
+		if vY >= cap {
+			w.sb.overflow = true
+			dbgLog("   [iter%d] BREAK: vY=%d >= cap=%d → overflow", iter, vY, cap)
+			break
+		}
+
+		curY := -1
+		if ac := b.GetActiveCursor(); ac != nil {
+			curY = ac.Y
+		}
+		dbgLog("   [iter%d] top vY=%d seg=[L%d..L%d] vis=[%d..%d] cursorY=%d editMode=%v", iter, vY, seg.BufStartLine, seg.BufEndLine, seg.VisibleStart, seg.VisibleEnd, curY, w.editMode)
+
+		vYBefore := vY
+		// ★ 同源写入 line/segRow + cells（renderer 内部完成）
+		if showCursor && w.editMode && hasCursorInside(seg, cursors) {
+			vY = w.renderSegmentNative(seg, vY) // cursorShowed 在 renderer 内置标记
+			cursorShowed = true
+			dbgLog("   [iter%d] renderSegmentNative → vY %d→%d (Δ=%d)", iter, vYBefore, vY, vY-vYBefore)
+		} else {
+			vY = w.renderSegmentMD(seg, vY)
+			dbgLog("   [iter%d] renderSegmentMD → vY %d→%d (Δ=%d)", iter, vYBefore, vY, vY-vYBefore)
+		}
+		if seg.BufStartLine == oldSegKey {
+			oldSegDone = true
+		}
+
+		// 三目的停止条件（忠于需求文档伪代码）
+		canBreak := true
+		g1, g2, g3 := true, true, true
+		// 目的1：旧光标段必须完整渲染（跨段切换，旧段装饰行不能截断）
+		if !oldSegDone {
+			canBreak = false
+			g1 = false
+		}
+		// 目的2（showCursor=true）：cursor 段必须已渲染
+		if showCursor && !cursorShowed {
+			canBreak = false
+			g2 = false
+		}
+		// 目的3：必须渲染到 viewport 底边以下，留足 Relocate 微调余量
+		if vY < bufHeight+scrollmargin {
+			canBreak = false
+			g3 = false
+		}
+		dbgLog("   [iter%d] canBreak=%v (g1oldSegDone=%v g2cursorShowed=%v g3vY<bufH+margin: %d<%d=%v) oldSeg=%v",
+			iter, canBreak, g1, g2, vY, bufHeight+scrollmargin, g3, segRangeStr(oldSeg))
+		if canBreak {
+			break
+		}
+	}
+	dbgLog("<< displayToBuffer EXIT loop ended at vY=%d overflow=%v oldSegDone=%v cursorShowed=%v",
+		vY, w.sb.overflow, oldSegDone, cursorShowed)
+	// 统计实际写入的行（line != -2 的）
+	written := 0
+	firstLine, lastLine := -999, -999
+	for _, r := range w.sb.rows {
+		if r.line != -2 {
+			written++
+			if firstLine == -999 {
+				firstLine = r.line
+			}
+			lastLine = r.line
+		}
+	}
+	dbgLog("   displayToBuffer: sb.rows total=%d written(content)=%d firstLine=%d lastLine=%d",
+		len(w.sb.rows), written, firstLine, lastLine)
+	// 剩余不填满 —— screenBuffer 只渲染实际内容，showBuffer 负责尾部空白填充
+}
+
+// showBuffer 把 screenBuffer 从 startLine 起的一段 blit 到真屏。
+// 职责单一：copy + 边界处理，不做 dirty 判定。
+func (w *BufWindow) showBuffer(startLine SLoc) {
+	bufHeight := w.bufHeight
+	bufWidth := w.bufWidth
+	dbgLog(">> showBuffer ENTER startLine={L:%d,R:%d} bufH=%d bufW=%d gutterOff=%d",
+		startLine.Line, startLine.Row, bufHeight, bufWidth, w.gutterOffset)
+
+	// overflow 兜底：走原生 displayBuffer
+	if w.sb.overflow {
+		dbgLog("   showBuffer: OVERFLOW → displayBuffer() fallback")
+		// ⚠️ 已知限制：对 .md 会画带 # / | 的原始字符（仅单 segment > 2×bufHeight 触发）
+		w.displayBuffer()
+		return
+	}
+
+	// 范围检查：startLine 超出 sb 覆盖区间，或宽度变化（resize / 切 ruler 等）→ 补渲染
+	covers := w.sb.covers(startLine)
+	widthOK := w.sb.width == w.gutterOffset+bufWidth
+	dbgLog("   showBuffer: sb.startLine={L:%d,R:%d} sb.width=%d len(rows)=%d covers=%v widthOK=%v",
+		w.sb.startLine.Line, w.sb.startLine.Row, w.sb.width, len(w.sb.rows), covers, widthOK)
+	if !covers || !widthOK {
+		dbgLog("   showBuffer: 补渲染 displayToBuffer(showCursor=false)")
+		w.displayToBuffer(startLine, false) // 滚动场景：showCursor=false
+	}
+
+	// 找 startLine 在 sb.rows 中的起点 vY
+	startVY, ok := w.sb.rowIndexOf(startLine)
+	dbgLog("   showBuffer: rowIndexOf → startVY=%d ok=%v", startVY, ok)
+	if !ok {
+		// startLine 落装饰行/边界：向下找首个内容行
+		startVY, ok = w.sb.rowIndexNearest(startLine)
+		dbgLog("   showBuffer: rowIndexNearest → startVY=%d ok=%v", startVY, ok)
+		if !ok {
+			dbgLog("   showBuffer: rowIndexNearest 失败 → return（不画任何内容！）")
+			return
+		}
+	}
+	w.sb.blitStart = startVY // 记录，供点击映射
+
+	// blit，处理尾部不足
+	endVY := startVY + bufHeight
+	if endVY > len(w.sb.rows) {
+		endVY = len(w.sb.rows)
+	}
+	blitCount := endVY - startVY
+	dbgLog("   showBuffer: BLIT startVY=%d endVY=%d rows=%d bufH=%d → 将画 %d 行内容（其余尾部空白）",
+		startVY, endVY, len(w.sb.rows), bufHeight, blitCount)
+	if blitCount <= 1 {
+		dbgLog("   ⚠⚠⚠ showBuffer: blitCount=%d 极少！前 10 行 rows.line:", blitCount)
+		for i := 0; i < 10 && i < len(w.sb.rows); i++ {
+			dbgLog("      rows[%d].line=%d segRow=%d", i, w.sb.rows[i].line, w.sb.rows[i].segRow)
+		}
+	}
+
+	defStyle := config.DefStyle
+	for vY := 0; vY < bufHeight; vY++ {
+		srcRow := startVY + vY
+		if srcRow >= endVY {
+			// 尾部空白填充
+			w.drawGutterAndLineNumMD(vY, -1, false)
+			for col := 0; col < bufWidth; col++ {
+				w.setCell(w.X+w.gutterOffset+col, w.Y+vY, ' ', nil, defStyle)
+			}
+			continue
+		}
+		row := &w.sb.rows[srcRow]
+		// 整行 blit（gutter + content）
+		// 防御性边界：cells 长度与 gutterOffset+bufWidth 不一致时只 blit 实际存在的 cell
+		blitW := w.gutterOffset + bufWidth
+		for col := 0; col < blitW; col++ {
+			if col >= len(row.cells) {
+				w.setCell(w.X+col, w.Y+vY, ' ', nil, defStyle)
+				continue
+			}
+			c := row.cells[col]
+			w.setCell(w.X+col, w.Y+vY, c.r, c.combc, c.style)
+		}
+	}
+
+	// 同步光标位置到 terminal
+	// ★ cursorY 是 sb 绝对行号（从 sb.startLine 算起），
+	//   但可见窗口从 startVY 开始 blit，必须减去 startVY 才是屏幕行。
+	//   不减会导致光标画低 startVY 行（scrollup 后光标错位 / 消失到 statusLine 下）。
+	if w.sb.cursorOK {
+		curScreenY := w.sb.cursorY - startVY
+		if curScreenY >= 0 && curScreenY < bufHeight {
+			w.showCursor(w.X+w.sb.cursorX, w.Y+curScreenY, true)
+		}
+	}
+
+	// 注意：cells 不置 nil。Plan §3.1 推荐“showBuffer blit 后置 nil”以释放内存，
+	// 但 §4.4 的“skip displayToBuffer”优化依赖 sb.cells 仍可 blit。
+	// StartLine 不变时（如 idle 、同段内移动）跳过 displayToBuffer，若此时 cells=nil
+	// 则下一帧 showBuffer 会画空。安全策略：保持 cells 存活，依赖 reset 复用底层数组的 GC
+	// 压力优化（§3.1 reset 设计）仅在 displayToBuffer 入口触发。
+}
+
 // computeRowCounts 已删除，使用 computeVisibleRowCounts 替代。
 
 // drawGutterAndLineNumMD 在指定 screen 行绘制 gutter 和行号。
@@ -810,7 +1046,7 @@ func (w *BufWindow) drawGutterAndLineNumMD(vY int, bufLine int, softwrapped bool
 		} else {
 			// 续行/空行/装饰行：行号位留空
 			for vloc.X < w.gutterOffset {
-				screen.SetContent(w.X+vloc.X, w.Y+vY, ' ', nil, lineNumStyle)
+				w.setCell(w.X+vloc.X, w.Y+vY, ' ', nil, lineNumStyle)
 				vloc.X++
 			}
 		}
@@ -835,25 +1071,32 @@ func (w *BufWindow) expandLineStyles(bufLine int, runeCount int, baseStyle tcell
 }
 
 // ScreenRowToLine 将屏幕行偏移（相对 viewport 顶部）映射为 buffer 行号。
-// 使用 viewportRowmap 直接查找，O(1)。
+// 方案B：从 sb.rows[sb.blitStart + screenOffset] 查 line。
 // 装饰行（-1）和空白区域（-2）一视同仁：点击装饰行等于点击空白，返回 (0, false)。
 // 返回 (bufferLine, true) 表示成功映射，(0, false) 表示应回退原始 Scroll 逻辑。
 func (w *BufWindow) ScreenRowToLine(screenOffset int) (int, bool) {
-	if screenOffset < 0 || screenOffset >= len(w.viewportRowmap) {
+	if w.sb == nil {
 		return 0, false
 	}
-	if w.viewportRowmap[screenOffset].Line >= 0 {
-		return w.viewportRowmap[screenOffset].Line, true
+	idx := w.sb.blitStart + screenOffset
+	if screenOffset < 0 || idx >= len(w.sb.rows) {
+		return 0, false
+	}
+	if w.sb.rows[idx].line >= 0 {
+		return w.sb.rows[idx].line, true
 	}
 	// 装饰行（-1）和空白区域（-2）一视同仁：没有对应 buffer 行
 	return 0, false
 }
 
 // LineToScreenRow 将 (bufferLine, segmentRow) 二元组精确匹配为屏行。
-// 用于 Relocate 滚动判定。线性扫描 O(bufHeight)，bufHeight 通常 ≤ 终端高度。
+// 方案B：从 sb.rows 扫，O(2×bufHeight)。
 func (w *BufWindow) LineToScreenRow(line, row int) (int, bool) {
-	for i, v := range w.viewportRowmap {
-		if v.Line == line && v.Row == row {
+	if w.sb == nil {
+		return 0, false
+	}
+	for i, r := range w.sb.rows {
+		if r.line == line && r.segRow == row {
 			return i, true
 		}
 	}
@@ -861,41 +1104,80 @@ func (w *BufWindow) LineToScreenRow(line, row int) (int, bool) {
 }
 
 // relocateVerticalMD 是 Relocate 的 MD 垂直滚动分支。
-// 判定：LineToScreenRow 精确匹配光标 (Line, Row) → 屏行。
-// 动作：向下读 viewportRowmap[delta]（含 segmentRow），向上沿用原生算术。
-// 边界场景（首帧 / 光标跳出视口 / delta 落空白尾）走 relocateVerticalNativeFallback。
+// 方案B：入口 displayToBuffer 拿 fresh sb（唯一一次渲染），随后查询微调。
+// case A（方向键）与 case C（goto/search/pageup/pagedown）统一逻辑，
+// 唯一区别是渲染起点选择（覆盖上帧 sb 则用上帧起点 = case A，否则 1:1 估算 = case C）。
 func (w *BufWindow) relocateVerticalMD(c SLoc, scrollmargin, height int) bool {
-	n := len(w.viewportRowmap)
-	if n == 0 {
-		return w.relocateVerticalNativeFallback(c, scrollmargin, height) // 首帧
-	}
-	cursorRow, ok := w.LineToScreenRow(c.Line, c.Row)
-	if !ok {
-		return w.relocateVerticalNativeFallback(c, scrollmargin, height) // 光标跳出视口
-	}
+	dbgLog(">>> relocateVerticalMD ENTER c={L:%d,R:%d} curStartLine={L:%d,R:%d} scrollmargin=%d height=%d",
+		c.Line, c.Row, w.StartLine.Line, w.StartLine.Row, scrollmargin, height)
 
+	// 1. 估算渲染起点（cheap 预判，渲染前）
+	var displayStart SLoc
+	caseLabel := "A"
+	if w.sb != nil && w.sb.coversLine(c.Line) {
+		displayStart = w.StartLine // case A：cursor 在上一帧 sb 覆盖内
+	} else {
+		displayStart = SLoc{Line: c.Line - scrollmargin, Row: 0} // case C：跳远，1:1 估算
+		caseLabel = "C"
+		// ★ case C 必须立即采用 displayStart 作为 StartLine。
+		//   原因：后续渲染以 displayStart 为起点，cursor 在新 sb 中的 cursorRow 是
+		//   相对 displayStart 的偏移。若 cursorRow 落在舒适区 [scrollmargin, botMarginRow]，
+		//   下方 margin 微调分支不触发，w.StartLine 会残留旧值（stale）。
+		//   此时 displayBufferMD 用 stale StartLine blit → viewport 错位、cursor 不可见。
+		//   提前采用 displayStart 后：舒适区保持 displayStart（正确），
+		//   scrollup/scrolldown 分支仍会进一步精修。
+		w.StartLine = displayStart
+	}
+	if displayStart.Line < 0 {
+		displayStart.Line = 0
+	}
+	dbgLog("    relocate: case=%s displayStart={L:%d,R:%d}", caseLabel, displayStart.Line, displayStart.Row)
+
+	// 2. 唯一一次渲染（showCursor=true：导航场景，希望看到 cursor 行）
+	w.displayToBuffer(displayStart, true)
+
+	// 3. 查询微调（非渲染）：让 cursor 落在期望 margin
+	if w.sb.overflow {
+		dbgLog("    relocate: overflow=true → fallback")
+		return w.relocateVerticalNativeFallback(c, scrollmargin, height) // 极端兑底
+	}
+	cursorRow, ok := w.sb.rowIndexOf(c)
+	if !ok {
+		dbgLog("    relocate: rowIndexOf({L:%d,R:%d})=nil → fallback", c.Line, c.Row)
+		return w.relocateVerticalNativeFallback(c, scrollmargin, height)
+	}
 	botMarginRow := height - 1 - scrollmargin
+	dbgLog("    relocate: cursorRow=%d botMarginRow=%d (sbRows=%d)", cursorRow, botMarginRow, len(w.sb.rows))
 	if cursorRow > botMarginRow {
 		delta := cursorRow - botMarginRow
-		if delta >= n {
-			return w.relocateVerticalNativeFallback(c, scrollmargin, height)
-		}
-		loc := w.viewportRowmap[delta]
-		// delta 落装饰/空白：向下找首个内容行作为新视口顶
-		for loc.Line < 0 && delta+1 < n {
-			delta++
-			loc = w.viewportRowmap[delta]
-		}
-		if loc.Line < 0 {
-			return w.relocateVerticalNativeFallback(c, scrollmargin, height)
+		loc, ok := w.sb.slocAt(delta)
+		dbgLog("    relocate: SCROLLUP branch delta=%d slocAt(%d)={L:%d,R:%d} ok=%v", delta, delta, loc.Line, loc.Row, ok)
+		if !ok || loc.Line < 0 {
+			// delta 落装饰行：向下找首个内容行
+			for d := delta + 1; d < len(w.sb.rows); d++ {
+				if l, ok := w.sb.slocAt(d); ok && l.Line >= 0 {
+					loc = l
+					dbgLog("    relocate: decor-skip → rows[%d]={L:%d,R:%d}", d, loc.Line, loc.Row)
+					break
+				}
+			}
+			if loc.Line < 0 {
+				dbgLog("    relocate: decor-skip failed → fallback")
+				return w.relocateVerticalNativeFallback(c, scrollmargin, height)
+			}
 		}
 		w.StartLine = loc
+		dbgLog("<<< relocateVerticalMD EXIT scrollup newStartLine={L:%d,R:%d} (was {L:%d,R:%d}, delta=%d)",
+			w.StartLine.Line, w.StartLine.Row, displayStart.Line, displayStart.Row, delta)
 		return true
 	}
 	if cursorRow < scrollmargin {
-		w.StartLine = w.Scroll(c, -scrollmargin) // 向上：段内 1:1
+		w.StartLine = w.Scroll(c, -scrollmargin) // 向上：段内 1:1（沿用现状）
+		dbgLog("<<< relocateVerticalMD EXIT scrolldown newStartLine={L:%d,R:%d}", w.StartLine.Line, w.StartLine.Row)
 		return true
 	}
+	dbgLog("<<< relocateVerticalMD EXIT nochange (case=%s cursorRow=%d in [%d,%d] startLine={L:%d,R:%d})",
+		caseLabel, cursorRow, scrollmargin, botMarginRow, w.StartLine.Line, w.StartLine.Row)
 	return true
 }
 
@@ -923,4 +1205,242 @@ func (w *BufWindow) relocateVerticalNativeFallback(c SLoc, scrollmargin, height 
 		ret = true
 	}
 	return ret
+}
+
+// ============================================================================
+// MicroNeo (方案B): screenBuffer 数据结构 + cellSink 接口
+// 阶段1：基础设施。本阶段不修改现有行为，只新增类型与方法。
+// 编译目标：make build-quick 通过；非 MD 文件 sink 恒为 realScreenSink，行为不变。
+// ============================================================================
+
+// mdCell 是 screenBuffer 里一个显示单元（rune + 合字 + 样式）。
+type mdCell struct {
+	r     rune
+	combc []rune
+	style tcell.Style
+}
+
+// screenRow 是 screenBuffer 的一行：line 元数据 + cells 显示数据【同源生成】。
+// cells 覆盖整行宽度（gutterOffset + bufWidth），gutter 区也纳入，供 showBuffer 整行 blit。
+type screenRow struct {
+	line   int      // 对应 buffer 行（绝对）；-1=装饰行，-2=空白填充。供查询
+	segRow int      // softwrap 段号（同 SLoc.Row）。供查询
+	cells  []mdCell // 显示数据；showBuffer blit 后置 nil 释放
+}
+
+// screenBuffer 是 MD 渲染的离屏单一数据源：既是渲染结果，又是 line↔vY 查询地图。
+type screenBuffer struct {
+	rows      []screenRow // 长度动态，≤ 2*bufHeight
+	startLine SLoc        // 本批 rows 渲染时的起点（case A/C 范围检查用）
+	blitStart int         // 上次 showBuffer blit 的 rows 起始下标（点击映射用）
+	originX   int         // 渲染窗口原点 X（= w.X），绝对坐标→本地坐标转换
+	originY   int         // 渲染窗口原点 Y（= w.Y）
+	width     int         // 每行 cell 宽度（= gutterOffset + bufWidth）
+	overflow  bool        // 2×bufHeight 兜底触发标记（→ fallback）
+	cursorX   int         // 光标在 sb 坐标系的位置（showBuffer 同步用）
+	cursorY   int
+	cursorOK  bool // 是否记录到有效光标
+	editMode  bool // 本次 render 时的 editMode，供 displayBufferMD 跨帧比较
+}
+
+// cellSink 是渲染目标抽象。SetContent 签名与 screen.SetContent 对齐（绝对坐标）。
+type cellSink interface {
+	SetContent(x, y int, mainc rune, combc []rune, style tcell.Style)
+}
+
+// realScreenSink 包装 screen.SetContent，原生路径行为字节级不变。
+type realScreenSink struct{}
+
+func (realScreenSink) SetContent(x, y int, mainc rune, combc []rune, style tcell.Style) {
+	screen.SetContent(x, y, mainc, combc, style)
+}
+
+// SetContent 是 screenBuffer 的 sink 实现：绝对坐标 → 本地 (row, cell)。
+// 越界丢弃（screenBuffer 是 2× cap，渲染可能溢出尾部）。
+func (s *screenBuffer) SetContent(x, y int, mainc rune, combc []rune, style tcell.Style) {
+	if s == nil {
+		return
+	}
+	row := y - s.originY
+	col := x - s.originX
+	if row < 0 || row >= len(s.rows) || col < 0 || col >= s.width {
+		return
+	}
+	rowData := &s.rows[row]
+	if col >= len(rowData.cells) {
+		// cells 长度不足（width 改变后旧 cells 复用）：忽略本 cell
+		// displayToBuffer 入口 reset 会保证 cells 长度匹配
+		return
+	}
+	rowData.cells[col] = mdCell{r: mainc, combc: combc, style: style}
+}
+
+// ShowCursor 记录光标位置（cells 坐标系）。
+func (s *screenBuffer) ShowCursor(x, y int, main bool) {
+	if s == nil {
+		return
+	}
+	// 转为本地坐标
+	s.cursorX = x - s.originX
+	s.cursorY = y - s.originY
+	s.cursorOK = true
+}
+
+// reset 重置 screenBuffer；复用底层 slice，仅在容量/宽度变化时重建。
+func (s *screenBuffer) reset(capacity, width, ox, oy int) {
+	s.originX = ox
+	s.originY = oy
+	s.width = width
+	s.overflow = false
+	s.cursorOK = false
+	s.blitStart = 0
+
+	// 容量/宽度变化 → 重建 rows
+	if cap(s.rows) < capacity || s.width != width {
+		s.rows = make([]screenRow, capacity)
+		for i := range s.rows {
+			s.rows[i].cells = make([]mdCell, width)
+			s.rows[i].line = -2
+			s.rows[i].segRow = -1
+		}
+		return
+	}
+
+	// 复用：截短到 capacity 并清零元数据 + cells
+	s.rows = s.rows[:capacity]
+	for i := range s.rows {
+		s.rows[i].line = -2
+		s.rows[i].segRow = -1
+		// cells 必须长度匹配；宽度变化时上面已重建
+		if len(s.rows[i].cells) < width {
+			s.rows[i].cells = make([]mdCell, width)
+		} else {
+			// 复用底层：清零 cells 内容
+			cells := s.rows[i].cells[:width]
+			for j := range cells {
+				cells[j] = mdCell{}
+			}
+			s.rows[i].cells = cells
+		}
+	}
+}
+
+// setRowMeta 写入某行的 line/segRow 元数据（同源填充，不写 cells）。
+func (s *screenBuffer) setRowMeta(vY, line, segRow int) {
+	if s == nil || vY < 0 || vY >= len(s.rows) {
+		return
+	}
+	s.rows[vY].line = line
+	s.rows[vY].segRow = segRow
+}
+
+// covers 判定 startLine 是否在 screenBuffer 的内容行覆盖范围内。
+// 范围 = [startLine.Line, startLine.Line + capacity)。
+func (s *screenBuffer) covers(sl SLoc) bool {
+	if s == nil || len(s.rows) == 0 {
+		return false
+	}
+	return sl.Line >= s.startLine.Line && sl.Line < s.startLine.Line+len(s.rows)
+}
+
+// coversLine 判定 buffer line 是否在 screenBuffer 的覆盖范围内。
+func (s *screenBuffer) coversLine(line int) bool {
+	if s == nil || len(s.rows) == 0 {
+		return false
+	}
+	return line >= s.startLine.Line && line < s.startLine.Line+len(s.rows)
+}
+
+// rowIndexOf 查找 (line, segRow) 二元组对应的 rows 下标。
+// 线性扫 rows，O(len(rows))；bufHeight 通常 ≤ 终端高度，开销可忽略。
+func (s *screenBuffer) rowIndexOf(sl SLoc) (int, bool) {
+	if s == nil {
+		return 0, false
+	}
+	for i, r := range s.rows {
+		if r.line == sl.Line && r.segRow == sl.Row {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+// rowIndexNearest 当 rowIndexOf 落装饰行/边界时，向下找首个内容行。
+func (s *screenBuffer) rowIndexNearest(sl SLoc) (int, bool) {
+	if s == nil {
+		return 0, false
+	}
+	if idx, ok := s.rowIndexOf(sl); ok {
+		return idx, true
+	}
+	for i, r := range s.rows {
+		if r.line >= 0 {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+// slocAt 从 rows[vY] 还原 SLoc（line, segRow）。
+func (s *screenBuffer) slocAt(vY int) (SLoc, bool) {
+	if s == nil || vY < 0 || vY >= len(s.rows) {
+		return SLoc{}, false
+	}
+	r := s.rows[vY]
+	return SLoc{Line: r.line, Row: r.segRow}, true
+}
+
+// findSegmentContaining 返回包含 line 的 Segment 指针（非拷贝，确保 == 稳定）。
+// line < 0 → 返回 nil（prevCursorY=-1 sentinel 边界保护）。
+func (w *BufWindow) findSegmentContaining(line int) *md.Segment {
+	if line < 0 {
+		return nil
+	}
+	segs := w.Buf.MDSegments
+	for i := range segs {
+		if segs[i].BufStartLine <= line && line <= segs[i].BufEndLine {
+			return &segs[i]
+		}
+	}
+	return nil
+}
+
+// renderLimit 返回 renderer 内部循环的上限。
+// displayToBuffer 模式下为 2×bufHeight（吸纳跨段展开增量的余量）；
+// 其他场景与 bufHeight 一致（保证 native / 旧调用路径行为不变）。
+func (w *BufWindow) renderLimit() int {
+	if w.sink != nil && w.sb != nil {
+		return 2 * w.bufHeight
+	}
+	return w.bufHeight
+}
+
+// setCell 是渲染写屏的 BufWindow 统一入口。
+// 转发到当前 sink（realScreenSink 或 screenBuffer）。
+func (w *BufWindow) setCell(x, y int, mainc rune, combc []rune, style tcell.Style) {
+	if w.sink == nil {
+		// 防御性：未初始化的 sink 走真屏（不应发生，但保证不 panic）
+		screen.SetContent(x, y, mainc, combc, style)
+		return
+	}
+	w.sink.SetContent(x, y, mainc, combc, style)
+}
+
+// setShowCursor 转发到当前 sink 或原生 showCursor。
+func (w *BufWindow) setShowCursor(x, y int, main bool) {
+	if _, ok := w.sink.(*screenBuffer); ok {
+		if w.sb != nil {
+			w.sb.ShowCursor(x, y, main)
+		}
+	} else {
+		w.showCursor(x, y, main)
+	}
+}
+
+// updatePrevCursor 更新上一帧光标行号，供下一帧 displayToBuffer 的 oldSeg 停止条件用。
+// c 是 *buffer.Cursor，其 Y 是 buffer 行号（非屏幕行），与 segment.BufStartLine/BufEndLine 同坐标系。
+func (w *BufWindow) updatePrevCursor() {
+	if c := w.Buf.GetActiveCursor(); c != nil {
+		w.prevCursorY = c.Y
+	}
 }
