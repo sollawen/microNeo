@@ -35,41 +35,17 @@
 - 导致按原有数据计算后scrollup 的row数量不够，光标就跑出底部了
 
 ## 方案A，preRender
-**修改MD文件的 Relocate()**, 当cursor所在的Line发生了 +1 的变化的时候，
-- 做一次preRender，重新计算viewport的row->line的对应关系, 存放在某个变量里
-- 然后根据 这个变量 and cursor所在的line，重新计算startLine
-
-**修改所有的render**, 都提供一个接口函数 preRender() return 渲染出来的是几个row，这些row和line的对应关系
-
-# 三，micro原生的时序
-
-因为micro原生代码，是一个line editor，所以除了softwrap之外，根本不存在render的事情，line/row是精确的一一对应的关系。因为，micro原生代码做了一个非常简洁的处理
+**修改MD文件的 Relocate()**, 
 ```
-	while true {
-	    display(startLine)            // 每帧都从头重算：从 startLine 开始逐行扫 buffer，算 tab/wrap/高亮，填入屏幕
-	    screen.Show()
-	    event = <-screen.Events
-	    handleEvent(event) {
-	        case A: 状态变更（编辑 / 移动光标 / 跳转）
-	            → 改 buffer 或光标
-	            → 调 Relocate()
-	            → Relocate 判断光标是否出安全区：
-	                出界 → 改 startLine
-	                在安全区 → startLine 不变（这是常态）
-	        case B: 纯视口（scroll / page / center / start / end）
-	            → 直接设 startLine（必然变）
-	            → 不碰 buffer / 光标，不调 Relocate
-	    }
+func Relocate() {
+	if cursor所在的Line发生了+1 and 新line与旧line不是同一个segment {
+		做一次preRender，重新计算viewportRowmap
 	}
+	根据vewportRowmap and cursor所在的新line，重新计算startLine
+}
 ```
 
-**关键观察：原生 display 是一个纯函数 `f(startLine, buffer) → 屏幕内容`，每帧全量重算，没有任何缓存。** 所以用户连按三次右键，就会从头重算三次——这对 line editor 来说既便宜又正确（buffer 一改，下一帧自动反映，完全不用操心同步）。
+**修改所有的render**, 
+- 都提供一个driRun的方式 渲染出来的是几个row，这些row和line的对应关系
+- preRender时使用dryRun
 
-## markdown 文件的特别之处
-markdown文件渲染后，line/row之间不再是精确的一一对应关系了，某些segment会产生不同数量的装饰行。所以md文件需要有好几个不同的render来计算 buffer.line变成显示后的数据是什么样子
-
-因此，方案B需要引入一个 preRenderedMap，记录viewport从第一个row开始，到光标所在line为止，每个row对应的line的关系
-- 从startLine开始，调用preRender, 生成 preRenderedMap
-
-
-## 四、方案A的伪代码
