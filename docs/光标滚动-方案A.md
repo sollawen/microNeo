@@ -45,7 +45,38 @@ func Relocate() {
 }
 ```
 
-**修改所有的render**, 
-- 都提供一个driRun的方式 渲染出来的是几个row，这些row和line的对应关系
-- preRender时使用dryRun
+preRender：可以不新增这个新函数，而是使用displayBufferMD()的dryRun模式
+```
+func preRender(光标的新位置) {
+	从startLine开始
+	render 每个line into viewportRowmap
+		- 有的是用microNeo的render
+		- 有的是用native的代码。原生代码里有一个计算一个line经过softwrap后是多少row的函数
+	一直到退出条件达到为止
+}
+```
+
+preRender里面退出循环的三个条件
+1. 光标行 + scrollmargin 已渲染，
+2. 旧光标段已整段渲染
+3. viewport 已填满
+
+停止条件 = 三个目的全部达成。
+
+
+## “触发判定”的问题
+
+场景
+
+- 肯定是因为光标向下移动了，从oldLine移动到newLine, 且newLine=oldLine+1
+- oldLine原先是处在原生编辑状态的（这是必然的，100%肯定，都不需要if判断）
+- newLine是要进入原生编辑状态了，这也是必然的，不需要判断
+- newLine和oldLine不属于同一个segment（渲染片）
+    - 因为如果是同一个segment，那说明oldLine是需要仍然保持原生编辑状态的，不需要展开渲染
+      ，viewportRowmap没有变化，也就根本不需要preRender了
+    - 符合这个条件的，就是 table, code block, list
+- 这里要注意的是：
+    - 即使 oldline and newline 都是同一个renderType，但也有可能需要重新计算viewportRowmap
+    - 举例：line10是标题，line11也是标题。cursor从10移动到11，这时line10也是需要重新展开渲染的
+      。因为line10/line11不属于同一个segment渲染片
 
