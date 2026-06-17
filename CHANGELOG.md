@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] - 2026-06-17
+
+### Changed
+- Align the MD diagnostic log with micro's native `util.Debug` switch. `dbgLog` now writes `/tmp/microNeo_debug.log` only when `util.Debug == "ON"` (i.e. `make build-dbg`). Release builds via `make build` / `make build-quick` default to `OFF`, so the log is fully disabled with near-zero overhead. Previously the switch was a hardcoded `const microNeoDebug = true`, so every build unconditionally appended to the log.
+
+### Fixed
+- Pressing Enter to add a new line at the end of the buffer no longer triggers an erroneous screen relocate. After Enter, the cursor lands on the newly appended buffer line, but the previous frame's `screenBuffer` had not rendered that line yet, so `rowIndexOf(c)` returned `(0, false)`. This caused `relocateVerticalMD`'s caseJudge to misfire as case C, jumping `StartLine` to `c.Line - scrollmargin` and collapsing the screen to only the last 4 lines. Fix: when `rowIndexOf(c)` fails but `c.Line == sb.lastLine+1` (the typical Enter / continuous ↓ case), estimate `curRow = lastRow + 1` and keep judging against the visible viewport via case A, so continuous ↓ / Enter now produces a smooth scrollup of `delta=1`.
+
 ## [1.0.6] - 2026-06-17
 
 ### Added

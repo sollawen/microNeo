@@ -16,13 +16,11 @@ import (
 	"github.com/micro-editor/tcell/v2"
 )
 
-// ===== 临时诊断日志（定位 showstopper：只显示第一行）=====
-// microNeoDebug = true 时，dbgLog 追加写 /tmp/microNeo_debug.log。
-// 定位后改回 false 即零开销，无需删埋点代码。
-const microNeoDebug = true
-
+// ===== 诊断日志 =====
+// 对齐 micro 原生 util.Debug 机制：仅当 util.Debug == "ON"（即 `make build-dbg`）时
+// 追加写 /tmp/microNeo_debug.log；release 构建默认 OFF，零开销。
 func dbgLog(format string, args ...any) {
-	if !microNeoDebug {
+	if util.Debug != "ON" {
 		return
 	}
 	f, err := os.OpenFile("/tmp/microNeo_debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
