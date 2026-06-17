@@ -93,7 +93,8 @@ var allowedNotePaneActions = map[string]bool{
 	"ClearInfo": true, "ClearStatus": true, "None": true,
 
 	// EABP send
-	"NotePaneSend": true,
+	"NotePaneSend":  true,
+	"NotePaneClose": true,
 
 	// Mouse
 	"MousePress": true, "MouseDrag": true, "MouseRelease": true,
@@ -104,11 +105,31 @@ var allowedNotePaneActions = map[string]bool{
 	"SubWordRight": true, "SubWordLeft": true,
 }
 
+// notePaneActions 是 notePane 专属 action 的私有注册表。
+// notePaneRegisterBinding() 优先查它，找不到再 fallback 到全局 BufKeyActions。
+// 这样 notePane 专属 action 不必污染 bufpane.go 的 BufKeyActions（原生文件零侵入）。
+var notePaneActions = map[string]BufKeyAction{
+	"NotePaneSend":  NotePaneSend,
+	"NotePaneClose": notePaneClose,
+}
+
+// notePaneClose 关闭 notePane（不发送任何内容，符合 TUI "Esc = 取消" 约定）。
+// 复用已有 (*NotePane).close()，不重写。
+func notePaneClose(h *BufPane) bool {
+	if n := TheNotePane; n != nil && n.IsOpen() {
+		n.close()
+	}
+	return true
+}
+
 func init() {
 	NotePaneBindings = NewKeyTree()
 	notePaneMapDefaults(DefaultBindings("buffer"))
 	// Bind Alt-Enter to NotePaneSend (fallback Alt-s if Alt-Enter not available in terminal)
 	notePaneMapBinding("Alt-Enter", "NotePaneSend")
+	// Bind Esc to NotePaneClose (cancel draft without sending — TUI convention).
+	// 依赖 KeyTree 覆盖语义（后注册覆盖前注册），无需 DeleteBinding。
+	notePaneMapBinding("Esc", "NotePaneClose")
 }
 
 // notePaneMapDefaults registers allowed key bindings from defaults into NotePaneBindings.
@@ -198,7 +219,9 @@ func notePaneRegisterBinding(k Event, action string) {
 		}
 
 		var afn BufAction
-		if f, ok := BufKeyActions[a]; ok {
+		if f, ok := notePaneActions[a]; ok {   // notePane 专属 action 优先
+			afn = f
+		} else if f, ok := BufKeyActions[a]; ok {
 			afn = f
 		} else if f, ok := BufMouseActions[a]; ok {
 			afn = f
