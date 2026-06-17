@@ -66,7 +66,7 @@
 | V2EX 发帖 | 分享创造节点 |
 | 掘金文章 | Go + 终端工具受众 |
 | Homebrew formula 提交 | 提升发现性 |
-| dev.to 文章 | "I forked Micro to make..." 个人故事角度 |
+| dev.to 文章 | "I built a terminal Markdown editor that renders in place" 独立产品角度 |
 | awesome 列表跟进 | 4 个 PR 中已 merge 1 个（awesome-tuis #713），其余继续跟进 |
 
 ---
@@ -82,7 +82,7 @@ I use Micro to edit Markdown files, and Glow to read them. The constant switchin
 
 Every other solution either can't edit (Glow, frogmouth) or splits your screen in two (vim plugins, GUI editors). Terminal screens aren't wide to begin with — splitting them is painful.
 
-So I forked Micro and added a Markdown rendering layer. Open any .md file, you see it rendered. Click anywhere to edit the source. No split panes.
+So I built microNeo: a standalone terminal Markdown editor that renders and edits in the same window. Open any .md file, you see it rendered. Click anywhere to edit the source. No split panes.
 
 [截图]
 
@@ -124,7 +124,7 @@ https://github.com/sollawen/microNeo
 ### 待起草
 
 - **V2EX 中文版** — 发在分享创造节点，用中文写
-- **掘金文章** — "I forked Micro to make..." 个人故事角度，Go + 终端工具受众
+- **掘金文章** — "从 Micro 分叉到独立：我做了一个同窗口渲染的终端 Markdown 编辑器" 个人故事角度，Go + 终端工具受众
 - **dev.to 文章** — 同掘金，英文版
 
 ---

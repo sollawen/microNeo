@@ -79,9 +79,9 @@ Press `Ctrl-E` and type `help` for more commands.
 
 ## Relationship with Micro
 
-microNeo is an independent fork of [Micro](https://github.com/micro-editor/micro). It inherits all of Micro's strengths — zero dependencies, intuitive operation, Lua plugins, mouse support — and adds a Markdown rendering layer on top.
+microNeo originated from a fork of [Micro](https://github.com/micro-editor/micro) and is **no longer a fork** — the GitHub relationship was officially severed. The codebase still inherits from Micro's editor architecture (zero dependencies, intuitive operation, Lua plugins, mouse support) and adds a Markdown rendering layer on top.
 
-microNeo aims to develop independently — like NeoVim to Vim — to fundamentally improve the Markdown experience in the terminal.
+microNeo is now developed independently, with the goal of becoming the best Markdown experience in the terminal.
 
 ---
 Reach me via sollawen@gmail.com
