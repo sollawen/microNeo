@@ -879,12 +879,16 @@ func (w *BufWindow) displayToBuffer(startLine SLoc, showCursor bool) {
 		vYBefore := vY
 		// ★ 同源写入 line/segRow + cells（renderer 内部完成）
 		if showCursor && w.editMode && hasCursorInside(seg, cursors) {
-			vY = w.renderSegmentNative(seg, vY) // cursorShowed 在 renderer 内置标记
-			cursorShowed = true
+			vY = w.renderSegmentNative(seg, vY)
 			dbgLog("   [iter%d] renderSegmentNative → vY %d→%d (Δ=%d)", iter, vYBefore, vY, vY-vYBefore)
 		} else {
 			vY = w.renderSegmentMD(seg, vY)
 			dbgLog("   [iter%d] renderSegmentMD → vY %d→%d (Δ=%d)", iter, vYBefore, vY, vY-vYBefore)
+		}
+		// ★ 光标段渲染完成即满足 g2（无论走 native 还是 MD）。
+		//   ESC 阅读模式下 cursor 段走 MD，此处置位避免 overflow 兜底误触发整屏原生回退。
+		if showCursor && hasCursorInside(seg, cursors) {
+			cursorShowed = true
 		}
 		if seg.BufStartLine == oldSegKey {
 			oldSegDone = true
