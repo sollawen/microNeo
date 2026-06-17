@@ -1090,7 +1090,9 @@ func (w *BufWindow) expandLineStyles(bufLine int, runeCount int, baseStyle tcell
 
 // ScreenRowToLine 将屏幕行偏移（相对 viewport 顶部）映射为 buffer 行号。
 // 方案B：从 sb.rows[sb.blitStart + screenOffset] 查 line。
-// 装饰行（-1）和空白区域（-2）一视同仁：点击装饰行等于点击空白，返回 (0, false)。
+// 装饰行（-1）向下映射到紧邻的内容行（符合从上往下读的直觉）；若下方已无内容行
+// （装饰行位于 sb 渲染末尾，如文件尾的表格底框），则映射到文件 last line。
+// 空白区域（-2，sb 尾部预填充）真正无内容，返回 (0, false) 回退原生 Scroll 逻辑。
 // 返回 (bufferLine, true) 表示成功映射，(0, false) 表示应回退原始 Scroll 逻辑。
 func (w *BufWindow) ScreenRowToLine(screenOffset int) (int, bool) {
 	if w.sb == nil {
@@ -1103,7 +1105,17 @@ func (w *BufWindow) ScreenRowToLine(screenOffset int) (int, bool) {
 	if w.sb.rows[idx].line >= 0 {
 		return w.sb.rows[idx].line, true
 	}
-	// 装饰行（-1）和空白区域（-2）一视同仁：没有对应 buffer 行
+	if w.sb.rows[idx].line == -1 {
+		// 装饰行（表格框/标题下划线/代码块边框）：向下找首个内容行
+		for i := idx + 1; i < len(w.sb.rows); i++ {
+			if w.sb.rows[i].line >= 0 {
+				return w.sb.rows[i].line, true
+			}
+		}
+		// 装饰行下方无内容行（装饰行在 sb 渲染末尾）→ 定位到文件 last line
+		return w.Buf.LinesNum() - 1, true
+	}
+	// 空白填充（-2，sb 尾部预分配）：真正无内容，回退原生 Scroll
 	return 0, false
 }
 
@@ -1138,14 +1150,17 @@ func (w *BufWindow) relocateVerticalMD(c SLoc, scrollmargin, height int) bool {
 	//   （row < height，第一屏内）；jump 时 cursor 跳到旧 sb 第二屏（row >= height）。
 	if w.sb != nil && w.sb.coversLine(c.Line) {
 		curRow, ok := w.sb.rowIndexOf(c)
-		// ★ 用可见视口 [startVY, startVY+height) 判断，而非 sb 绝对第一屏 [0, height)。
+		// ★ 用可见视口 [startVY, startVY+height] 判断（左闭右闭），而非 sb 绝对第一屏 [0, height)。
 		//   scrollup 后 StartLine 在 sb 内部推进，blit startVY>0，
 		//   可见窗口随之上移，[0, height) 不再代表可见区。
+		//   右端用 <= 而非 <：cursor 刚好越出底部 1 行（如点击屏幕最底装饰行，
+		//   ScreenRowToLine 向下映射到紧邻内容行）时，应走 case A 小幅 scrollup，
+		//   而非 case C 跳跃（Bug #8）。
 		startVY, startOk := w.sb.rowIndexOf(w.StartLine)
-		dbgLog("    relocate: caseJudge curRow=%d startVY=%d(startOk=%v) visibleWin=[%d,%d) height=%d",
+		dbgLog("    relocate: caseJudge curRow=%d startVY=%d(startOk=%v) visibleWin=[%d,%d] height=%d",
 			curRow, startVY, startOk, startVY, startVY+height, height)
-		if ok && startOk && curRow >= startVY && curRow < startVY+height {
-			displayStart = w.StartLine // case A：cursor 在可见视口内
+		if ok && startOk && curRow >= startVY && curRow <= startVY+height {
+			displayStart = w.StartLine // case A：cursor 在可见视口内（含刚越出底部 1 行）
 		} else {
 			displayStart = SLoc{Line: c.Line - scrollmargin, Row: 0}
 			caseLabel = "C"
