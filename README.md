@@ -5,7 +5,6 @@
 [![Go Version](https://img.shields.io/badge/Go-1.19+-00ADD8.svg)](https://golang.org/)
 [![Single Binary](https://img.shields.io/badge/single%20binary-yes-green.svg)]()
 [![awesome-tuis](https://awesome.re/mentioned-badge.svg)](https://github.com/rothgar/awesome-tuis)
-[![Featured in chinese-independent-developer](https://img.shields.io/badge/featured%20in-chinese--independent--developer-ff6b6b)](https://github.com/1c7/chinese-independent-developer)
 
 **The only terminal Markdown editor that renders and edits in the same window.**
 
