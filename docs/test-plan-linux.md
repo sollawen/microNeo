@@ -79,7 +79,7 @@ check "T2.v1.0.5-exit" "0" "$EXITCODE"
 check "T2.v1.0.5-lines" "13" "$(wc -l < /tmp/test-v1.0.5.md)"
 # 期望包含关键内容
 grep -q "End-of-file panic" /tmp/test-v1.0.5.md && check "T2.content-panic" "yes" "yes" || check "T2.content-panic" "yes" "no"
-grep -q "view portRowmap" /tmp/test-v1.0.5.md && check "T2.content-viewport" "yes" "yes" || check "T2.content-viewport" "yes" "no"
+grep -q "viewportRowmap" /tmp/test-v1.0.5.md && check "T2.content-viewport" "yes" "yes" || check "T2.content-viewport" "yes" "no"
 grep -q "microNeo-debug.log" /tmp/test-v1.0.5.md && check "T2.content-debug" "yes" "yes" || check "T2.content-debug" "yes" "no"
 
 # --- Test 3: v1.0.4 ---

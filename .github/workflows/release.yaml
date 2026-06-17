@@ -25,12 +25,19 @@ jobs:
     - name: Build
       run: tools/cross-compile.sh
 
+    - name: Extract changelog
+      run: |
+        # Tag 形如 v1.0.6，脚本要的是 1.0.6
+        VERSION="${GITHUB_REF_NAME#v}"
+        tools/extract-changelog.sh "$VERSION" /tmp/release-notes.md
+
     - name: Publish
       uses: softprops/action-gh-release@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         files: binaries/*
+        body_path: /tmp/release-notes.md
         generate_release_notes: true
 
     - name: Cleanup
