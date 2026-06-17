@@ -1,6 +1,6 @@
 # microNeo Marketing Plan
 
-> Last updated: 2026-06-09
+> Last updated: 2026-06-17
 
 ---
 
@@ -17,6 +17,15 @@
 
 ---
 
+## 🎉 里程碑
+
+| 日期 | 事件 | 意义 |
+|------|------|------|
+| 2026-06-09 | chinese-independent-developer PR #975 | ✅ 已 merge（48.8k ⭐ 中文开发者社区收录） |
+| 2026-06-16 | **awesome-tuis PR #713 merge** | ✅ 已 merge（19.3k ⭐，由 Justin Garrison 合并）。**第一个英文 awesome 列表收录** |
+
+---
+
 ## 执行进度
 
 ### ✅ Day 1 — 2026-06-08（周日）
@@ -25,7 +34,7 @@
 |------|------|-----------|
 | 竞品调研（HN 数据、GitHub stars） | ✅ 完成 | 见附录 A |
 | 确定核心卖点：同窗口渲染 + 编辑 | ✅ 完成 | 全网无竞品，验证过 |
-| awesome-tuis PR | ✅ 已提交 | [PR #713](https://github.com/rothgar/awesome-tuis/pull/713)（19.3k ⭐） |
+| awesome-tuis PR | ✅ **已 merge** | [PR #713](https://github.com/rothgar/awesome-tuis/pull/713)（19.3k ⭐，6/16 由 Justin Garrison merge） |
 | awesome-cli-apps PR | ✅ 已提交 | [PR #1142](https://github.com/agarrharr/awesome-cli-apps/pull/1142)（19.7k ⭐） |
 | awesome-modern-cli PR | ✅ 已提交 | [PR #20](https://github.com/thegdsks/awesome-modern-cli/pull/20)（361 ⭐） |
 | awesome-markdown PR | ✅ 已提交 | [PR #124](https://github.com/BubuAnabelas/awesome-markdown/pull/124)（931 ⭐） |
@@ -58,7 +67,7 @@
 | 掘金文章 | Go + 终端工具受众 |
 | Homebrew formula 提交 | 提升发现性 |
 | dev.to 文章 | "I forked Micro to make..." 个人故事角度 |
-| awesome 列表跟进 | 检查 4 个 PR 是否被 merge |
+| awesome 列表跟进 | 4 个 PR 中已 merge 1 个（awesome-tuis #713），其余继续跟进 |
 
 ---
 
@@ -134,7 +143,7 @@ https://github.com/sollawen/microNeo
 
 | 优先级 | 渠道 | 预期效果 | 状态 |
 |--------|------|----------|------|
-| 🔴 P0 | awesome-tuis | 长期每天 10-50 浏览 | ✅ PR 已提交 |
+| 🔴 P0 | awesome-tuis | 长期每天 10-50 浏览 | ✅ PR 已 merge |
 | 🔴 P0 | awesome-cli-apps | 同上 | ✅ PR 已提交 |
 | 🔴 P0 | HN Show HN | 0-300+ stars | 📋 今晚 20:00 |
 | 🟡 P1 | Reddit r/commandline | 50-200 浏览 | 📋 今晚同步 |
@@ -189,7 +198,7 @@ https://github.com/sollawen/microNeo
 
 | 仓库 | Stars | 维护者更新频率 | PR | 加的位置 | Merge 概率 |
 |------|-------|----------------|-----|---------|-----------|
-| rothgar/awesome-tuis | 19.3k | 活跃（最近 merge 6/3） | [#713](https://github.com/rothgar/awesome-tuis/pull/713) | Editors | 高 |
+| rothgar/awesome-tuis | 19.3k | 活跃（最近 merge 6/3） | [#713](https://github.com/rothgar/awesome-tuis/pull/713) | Editors | ✅ **已 merge (6/16)** |
 | **agarrharr/awesome-cli-apps** | 19.7k | 很活跃（6/4~6/7 天天 merge） | [#1142](https://github.com/agarrharr/awesome-cli-apps/pull/1142) | Text Editors + Markdown | 中高 |
 | thegdsks/awesome-modern-cli | 361 | 月更（最近 merge 5/6） | [#20](https://github.com/thegdsks/awesome-modern-cli/pull/20) | Text Editors | 高 |
 | **1c7/chinese-independent-developer** | **48.8k** | **很活跃（6/5~6/8 天天 merge）** | [**#975**](https://github.com/1c7/chinese-independent-developer/pull/975) | 程序员版面 | ✅ 已 merge（6/9） |
