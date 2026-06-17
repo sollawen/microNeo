@@ -14,7 +14,7 @@ color-link error "bold #FF4444,#100F0F"
 color-link todo "bold #FF8844,#100F0F"
 color-link hlsearch "#000000,#B4EC85"
 color-link statusline "#c0c0c0,#303030"
-color-link statusline.special "#101010,#cbac21"
+color-link statusline.special "#101010,#db7c41"
 color-link statusline.dim "#f0f0f0,#4070a0"
 color-link statusline.normal "#a0a0a0,#404040"
 color-link tabbar "#100F0F,#C5C8C6"
@@ -48,7 +48,7 @@ color-link md-blockquote "#62B1FE,#100F0F"          # ← 原 preproc
 color-link md-bold "#d4d4d4,#100F0F"                # ← 原 constant.string
 color-link md-italic "#b5b8b6,#100F0F"              # ← 原 default
 color-link md-strikethrough "#b5b8b6,#100F0F"       # ← 原 default
-color-link md-inline-code "#b58654,#1f1a10"         # ← 原 keyword
+color-link md-inline-code "#85b654,#1f1a10"         # ← 原 keyword
 color-link md-list "#96CBFE,#100F0F"                # ← 原 statement
 color-link md-checkbox "#96CBFE,#100F0F"            # ← 原 statement
 color-link md-link "#FF73FD,#100F0F"                # ← 原 constant

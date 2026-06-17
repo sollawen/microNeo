@@ -13,7 +13,7 @@ description: Handles git commit operations. Use when user explicitly asks to com
 ### Requirements
 
 #### title
-- Use English
+- commti title Use English
 - Follow GitHub conventional commit prefixes:
   - `feat:`, `fix:`, `docs:`, `style:`, `refactor:`, `perf:`, `test:`, `chore:`, etc.
 

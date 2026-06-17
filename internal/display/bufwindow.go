@@ -36,13 +36,19 @@ type BufWindow struct {
 
 	// MicroNeo: MD rendering support
 	mdConfig md.MDConfig // MD 渲染配置
-	// viewportRowmap[i] = viewport 第 i 个屏幕行对应的视觉行位置
-	// Line = -1: 装饰行（标题下划线、表格 frame 等）
-	// Line = -2: 空白填充区域（buffer 内容不够填满 viewport）
-	// Line >= 0: 内容行；Row = 该屏行是此 buffer 行的第几个 softwrap 段（0-based）
-	// 长度 = bufHeight，每帧 displayBufferMD 开始时重置为 {Line:-2}
-	viewportRowmap []SLoc
+	// viewportRowmap 已迁移到 screenBuffer（单一数据源）。查询接口
+	// ScreenRowToLine / LineToScreenRow 从 sb.rows 取值，不再读 BufWindow 字段。
 	editMode bool // 光标所在 segment 回退原生显示
+
+	// MicroNeo (方案B): screenBuffer + cellSink
+	// sb 是 MD 渲染的离屏单一数据源：既是渲染结果，又是 line↔vY 查询地图。
+	// sink 是当前渲染目标；默认 realScreenSink，displayToBuffer 期间切到 sb。
+	sb   *screenBuffer // MD 离屏缓冲（nil = 首帧未初始化）
+	sink cellSink      // 当前渲染目标；默认 realScreenSink，displayToBuffer 期间切到 sb
+	// prevCursorY 上一帧光标所在 buffer 行号（=activeCursor.Y，micro Cursor 嵌入 Loc，
+	// Y 直接就是 buffer 行号而非屏幕行）。与 segment.BufStartLine/BufEndLine 同坐标系，
+	// 供 findSegmentContaining 查旧段。-1 = 未初始化。
+	prevCursorY int
 }
 
 // NewBufWindow creates a new window at a location in the screen with a width and height
@@ -52,6 +58,9 @@ func NewBufWindow(x, y, width, height int, buf *buffer.Buffer) *BufWindow {
 	w.X, w.Y, w.Width, w.Height = x, y, width, height
 	w.SetBuffer(buf)
 	w.active = true
+
+	// MicroNeo (方案B): 初始 prevCursorY = -1 sentinel，确保首帧 findSegmentContaining 返回 nil
+	w.prevCursorY = -1
 
 	w.sline = NewStatusLine(w)
 
@@ -305,7 +314,7 @@ func (w *BufWindow) LocFromVisual(svloc buffer.Loc) buffer.Loc {
 
 	var sloc SLoc
 	if w.Buf.IsMD {
-		// MicroNeo: 使用 viewportRowmap 将屏幕 Y 偏移映射到 buffer 行
+		// MicroNeo (方案B): ScreenRowToLine 从 sb.rows[sb.blitStart + offset] 查询
 		if bufLine, ok := w.ScreenRowToLine(svloc.Y - w.Y); ok {
 			sloc = SLoc{bufLine, 0} // 非softwrap模式下 Row=0
 		} else {
@@ -333,7 +342,7 @@ func (w *BufWindow) drawGutter(vloc *buffer.Loc, bloc *buffer.Loc) {
 		}
 	}
 	for i := 0; i < 2 && vloc.X < w.gutterOffset; i++ {
-		screen.SetContent(w.X+vloc.X, w.Y+vloc.Y, char, nil, s)
+		w.setCell(w.X+vloc.X, w.Y+vloc.Y, char, nil, s)
 		vloc.X++
 	}
 }
@@ -366,7 +375,7 @@ func (w *BufWindow) drawDiffGutter(backgroundStyle tcell.Style, softwrapped bool
 		style = style.Foreground(foreground)
 	}
 
-	screen.SetContent(w.X+vloc.X, w.Y+vloc.Y, symbol, nil, style)
+	w.setCell(w.X+vloc.X, w.Y+vloc.Y, symbol, nil, style)
 	vloc.X++
 }
 
@@ -382,22 +391,22 @@ func (w *BufWindow) drawLineNum(lineNumStyle tcell.Style, softwrapped bool, vloc
 
 	// Write the spaces before the line number if necessary
 	for i := 0; i < w.maxLineNumLength-len(lineNum) && vloc.X < w.gutterOffset; i++ {
-		screen.SetContent(w.X+vloc.X, w.Y+vloc.Y, ' ', nil, lineNumStyle)
+		w.setCell(w.X+vloc.X, w.Y+vloc.Y, ' ', nil, lineNumStyle)
 		vloc.X++
 	}
 	// Write the actual line number
 	for i := 0; i < len(lineNum) && vloc.X < w.gutterOffset; i++ {
 		if softwrapped || (w.bufWidth == 0 && w.Buf.Settings["softwrap"] == true) {
-			screen.SetContent(w.X+vloc.X, w.Y+vloc.Y, ' ', nil, lineNumStyle)
+			w.setCell(w.X+vloc.X, w.Y+vloc.Y, ' ', nil, lineNumStyle)
 		} else {
-			screen.SetContent(w.X+vloc.X, w.Y+vloc.Y, lineNum[i], nil, lineNumStyle)
+			w.setCell(w.X+vloc.X, w.Y+vloc.Y, lineNum[i], nil, lineNumStyle)
 		}
 		vloc.X++
 	}
 
 	// Write the extra space
 	if vloc.X < w.gutterOffset {
-		screen.SetContent(w.X+vloc.X, w.Y+vloc.Y, ' ', nil, lineNumStyle)
+		w.setCell(w.X+vloc.X, w.Y+vloc.Y, ' ', nil, lineNumStyle)
 		vloc.X++
 	}
 }

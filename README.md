@@ -1,5 +1,10 @@
 
-<img src="./assets/microNeo-logo.svg" width="400px" align="center"/>
+# <img src="./assets/microNeo-logo-mark.svg" width="48" alt="microNeo logo" align="absmiddle"/> microNeo
+
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Go Version](https://img.shields.io/badge/Go-1.19+-00ADD8.svg)](https://golang.org/)
+[![Single Binary](https://img.shields.io/badge/single%20binary-yes-green.svg)]()
+[![awesome-tuis](https://awesome.re/mentioned-badge.svg)](https://github.com/rothgar/awesome-tuis)
 
 **The only terminal Markdown editor that renders and edits in the same window.**
 
@@ -16,10 +21,6 @@ Terminal screens aren't wide to begin with. **microNeo renders and edits in the 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/install.sh | sh
 ```
-
-[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Go Version](https://img.shields.io/badge/Go-1.19+-00ADD8.svg)](https://golang.org/)
-[![Single Binary](https://img.shields.io/badge/single%20binary-yes-green.svg)]()
 
 ---
 
@@ -78,9 +79,9 @@ Press `Ctrl-E` and type `help` for more commands.
 
 ## Relationship with Micro
 
-microNeo is an independent fork of [Micro](https://github.com/micro-editor/micro). It inherits all of Micro's strengths — zero dependencies, intuitive operation, Lua plugins, mouse support — and adds a Markdown rendering layer on top.
+microNeo originated from a fork of [Micro](https://github.com/micro-editor/micro) and is **no longer a fork** — the GitHub relationship was officially severed. The codebase still inherits from Micro's editor architecture (zero dependencies, intuitive operation, Lua plugins, mouse support) and adds a Markdown rendering layer on top.
 
-microNeo aims to develop independently — like NeoVim to Vim — to fundamentally improve the Markdown experience in the terminal.
+microNeo is now developed independently, with the goal of becoming the best Markdown experience in the terminal.
 
 ---
 Reach me via sollawen@gmail.com
