@@ -1138,8 +1138,14 @@ func (w *BufWindow) relocateVerticalMD(c SLoc, scrollmargin, height int) bool {
 	//   （row < height，第一屏内）；jump 时 cursor 跳到旧 sb 第二屏（row >= height）。
 	if w.sb != nil && w.sb.coversLine(c.Line) {
 		curRow, ok := w.sb.rowIndexOf(c)
-		if ok && curRow < height {
-			displayStart = w.StartLine // case A：cursor 在第一屏内
+		// ★ 用可见视口 [startVY, startVY+height) 判断，而非 sb 绝对第一屏 [0, height)。
+		//   scrollup 后 StartLine 在 sb 内部推进，blit startVY>0，
+		//   可见窗口随之上移，[0, height) 不再代表可见区。
+		startVY, startOk := w.sb.rowIndexOf(w.StartLine)
+		dbgLog("    relocate: caseJudge curRow=%d startVY=%d(startOk=%v) visibleWin=[%d,%d) height=%d",
+			curRow, startVY, startOk, startVY, startVY+height, height)
+		if ok && startOk && curRow >= startVY && curRow < startVY+height {
+			displayStart = w.StartLine // case A：cursor 在可见视口内
 		} else {
 			displayStart = SLoc{Line: c.Line - scrollmargin, Row: 0}
 			caseLabel = "C"
