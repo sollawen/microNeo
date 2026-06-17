@@ -1150,6 +1150,17 @@ func (w *BufWindow) relocateVerticalMD(c SLoc, scrollmargin, height int) bool {
 	//   （row < height，第一屏内）；jump 时 cursor 跳到旧 sb 第二屏（row >= height）。
 	if w.sb != nil && w.sb.coversLine(c.Line) {
 		curRow, ok := w.sb.rowIndexOf(c)
+		// ★ Bug fix: 回车新增行 / 连续 ↓ 场景。cursor 行是 buffer 刚扩展的新行，
+		//   sb（上一帧）尚未渲染到 → rowIndexOf 必失败。
+		//   当 c.Line 紧贴 sb.lastLine 之后（c.Line == sb.lastLine+1），
+		//   估算 curRow = lastRow + 1，仍按 case A 判断可见视口，
+		//   避免误判 case C 导致屏幕跳到 c.Line - scrollmargin。
+		if !ok && w.sb.lastLine >= 0 && c.Line == w.sb.lastLine+1 {
+			if lastRow, lastOk := w.sb.rowIndexOf(SLoc{Line: w.sb.lastLine, Row: 0}); lastOk {
+				curRow = lastRow + 1
+				ok = true
+			}
+		}
 		// ★ 用可见视口 [startVY, startVY+height] 判断（左闭右闭），而非 sb 绝对第一屏 [0, height)。
 		//   scrollup 后 StartLine 在 sb 内部推进，blit startVY>0，
 		//   可见窗口随之上移，[0, height) 不再代表可见区。
