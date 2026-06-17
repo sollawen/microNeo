@@ -856,6 +856,7 @@ var BufKeyActions = map[string]BufKeyAction{
 	"JumpLine":                  (*BufPane).JumpLine,
 	"Deselect":                  (*BufPane).Deselect,
 	"ClearInfo":                 (*BufPane).ClearInfo,
+	"NotePaneOpen":              notePaneOpen,
 	"None":                      (*BufPane).None,
 	// This was changed to InsertNewline but I don't want to break backwards compatibility
 	"InsertEnter": (*BufPane).InsertNewline,

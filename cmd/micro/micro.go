@@ -538,16 +538,6 @@ func DoEvent() {
 	if event != nil {
 		_, resize := event.(*tcell.EventResize)
 
-		// Alt-i toggles NotePane regardless of open/close state
-		if action.TheNotePane != nil && !resize {
-			if e, ok := event.(*tcell.EventKey); ok {
-				if e.Key() == tcell.KeyRune && e.Modifiers() == tcell.ModAlt && e.Rune() == 'i' {
-					action.TheNotePane.Toggle()
-					goto done
-				}
-			}
-		}
-
 		if resize {
 			action.InfoBar.HandleEvent(event)
 			action.Tabs.HandleEvent(event)
@@ -561,7 +551,6 @@ func DoEvent() {
 		} else {
 			action.Tabs.HandleEvent(event)
 		}
-	done:
 	}
 
 	err := config.RunPluginFn("onAnyEvent")

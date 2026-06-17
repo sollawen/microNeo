@@ -122,6 +122,16 @@ func notePaneClose(h *BufPane) bool {
 	return true
 }
 
+// notePaneOpen 从主编辑器打开 NotePane。
+// 注册为主编辑器的 BufKeyAction，可走标准 bindings.json 机制覆盖默认键位。
+// 守卫：notePane 已开态下重复触发是 no-op。
+func notePaneOpen(h *BufPane) bool {
+	if TheNotePane != nil && !TheNotePane.IsOpen() {
+		TheNotePane.open()
+	}
+	return true
+}
+
 func init() {
 	NotePaneBindings = NewKeyTree()
 	notePaneMapDefaults(DefaultBindings("buffer"))
@@ -278,15 +288,6 @@ func NewNotePane() *NotePane {
 	n.BufPane.bindings = NotePaneBindings
 
 	return n
-}
-
-// Toggle opens or closes the NotePane
-func (n *NotePane) Toggle() {
-	if n.isOpen {
-		n.close()
-	} else {
-		n.open()
-	}
 }
 
 // IsOpen returns whether the NotePane is currently open

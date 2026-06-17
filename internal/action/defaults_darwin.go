@@ -28,6 +28,7 @@ var bufdefaults = map[string]string{
 	"Alt-{":          "ParagraphPrevious",
 	"Alt-}":          "ParagraphNext",
 	"Enter":          "InsertNewline",
+	"Alt-Enter":      "NotePaneOpen",
 	"CtrlH":          "Backspace",
 	"Backspace":      "Backspace",
 	"OldBackspace":   "Backspace",
