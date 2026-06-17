@@ -34,6 +34,11 @@ type NotePane struct {
 // TheNotePane is the global NotePane instance
 var TheNotePane *NotePane
 
+// MaxSelectionLines 是 selection 文字内联发送的行数上限。
+// 超过此行数，selection.Text 不发送（仅发 Start/End 位置），
+// 接收端 fallback 到 @path :lineA-lineB 让 LLM 自己读文件。
+const MaxSelectionLines = 30
+
 // NotePaneBindings is the whitelist KeyTree for NotePane
 var NotePaneBindings *KeyTree
 
@@ -388,6 +393,15 @@ func NotePaneSend(h *BufPane) bool {
 		return false
 	}
 
+	// 0. 空内容拦截（决策 1）：用户没写东西就按 Alt-Enter → 提示 + 直接关闭，不发送。
+	// "打开 pane + 不写 + 发送" 无合理用户意图，避免空 message 走完整 eabp 链路。
+	message := string(n.BufPane.Buf.Bytes())
+	if strings.TrimSpace(message) == "" {
+		InfoBar.Message("✗ 内容为空,未发送")
+		n.close()
+		return false
+	}
+
 	// 1. Discover receivers
 	receivers, err := eabp.Discover()
 	if err != nil {
@@ -408,9 +422,7 @@ func NotePaneSend(h *BufPane) bool {
 	// Convert buffer.Loc {X,Y} = {col,row} (0-based) to EABP Position {Line,Col} = {row,col} (1-based)
 	cursorPos := eabp.Position{Line: n.fileCursor.Y + 1, Col: n.fileCursor.X + 1}
 
-	// Read notePane buffer text as message
-	message := string(n.BufPane.Buf.Bytes())
-
+	// message 已在守卫里读取（TrimSpace 判空后必非空）
 	payload := eabp.ContextPayload{
 		Path:    n.filePath,
 		Cursor:  cursorPos,
@@ -513,7 +525,8 @@ func (n *NotePane) lowestCursorScreenRow(bw *display.BufWindow, view *display.Vi
 				normalized := [2]buffer.Loc{start, end}
 				n.fileSelection = &normalized
 				selText := string(bw.Buf.Substr(start, end))
-				if len(selText) > 2048 {
+				lineSpan := end.Y - start.Y + 1
+				if lineSpan > MaxSelectionLines {
 					selText = ""
 				}
 				n.fileSelectionText = selText

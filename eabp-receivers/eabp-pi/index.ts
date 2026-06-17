@@ -65,8 +65,18 @@ export default function (pi: ExtensionAPI) {
   }
 
   function formatText(p: any): string {
-    const focus = p.selection
-      ? `line${p.selection.start.line}-line${p.selection.end.line}`
+    const sel = p.selection;
+    const selText = sel?.text && sel.text.length > 0 ? sel.text : "";
+
+    if (sel && selText) {
+      // 有选区且文字未截断：内联文字（用自然语言标位置，不用 @ 语法 → 不触发 LLM 读文件）
+      const header = `来自 ${p.path} 第 ${sel.start.line}-${sel.end.line} 行的选中内容：`;
+      return p.message ? `${header}\n\n${selText}\n\n${p.message}` : `${header}\n\n${selText}`;
+    }
+
+    // 无选区 / 选区文字被截断（超过 MaxSelectionLines）：走 @ 引用，让 LLM 自己读
+    const focus = sel
+      ? `line${sel.start.line}-${sel.end.line}`
       : `${p.cursor.line}`;
     const base = `@${p.path} :line${focus}`;
     return p.message ? `${base}\n\n${p.message}` : base;
