@@ -271,17 +271,18 @@ func (n *NotePane) IsOpen() bool {
 	return n.isOpen
 }
 
-// open opens the NotePane and positions it below the cursor
+// open opens the NotePane and positions it below the cursor.
+// 防御深度：已在开态下重复调用是 no-op。
 func (n *NotePane) open() {
-	// Get the current active BufPane
+	if n.isOpen {
+		return
+	}
 	pane := MainTab().CurPane()
 	if pane == nil {
 		return
 	}
 
 	// 兑现"打开 = 全新"承诺：关掉旧 buffer（如有），建新的
-	// close() 不再销毁 buffer（避免 BufPane.HandleEvent 内 nil 访问 panic）
-	// 这里统一处理"开新"
 	if n.BufPane.Buf != nil {
 		n.BufPane.Buf.Close()      // 从 OpenBuffers 移除 + 调 Fini 清理
 	}
@@ -290,6 +291,25 @@ func (n *NotePane) open() {
 	nbw := n.BufPane.BWindow.(*display.BufWindow)
 	nbw.SetBuffer(buf)             // 切 BufWindow.Buf + 装 OptionCallback
 	n.BufPane.Buf = buf            // 同步 BufPane.Buf 引用
+
+	// Calculate position via reposition
+	n.reposition()
+
+	n.isOpen = true
+}
+
+// reposition 重新计算 NotePane 在屏幕上的位置。
+// 不修改 buffer 内容，可在已开态下重复调用（用于 resize）。
+// 内部从 MainTab().CurPane() 取主编辑器 pane。
+func (n *NotePane) reposition() {
+	pane := MainTab().CurPane()
+	if pane == nil {
+		return
+	}
+	// 防御：主编辑器 buffer 被关（如最后一个 tab 关闭）时 pane.Buf 为 nil
+	if pane.Buf == nil {
+		return
+	}
 
 	// Capture file path from the main editor buffer
 	n.filePath = pane.Buf.AbsPath
@@ -327,15 +347,12 @@ func (n *NotePane) open() {
 		}
 	}
 
-	// 4. Set NotePane position
+	// 4. Reposition BufWindow
 	n.y = notePaneTopBorder
-
-	// 5. Reposition BufWindow to be inside the border
+	nbw := n.BufPane.BWindow.(*display.BufWindow)
 	nbw.X = n.x + 1
 	nbw.Y = n.y + 1
 	n.BufPane.Resize(n.width-2, n.height)
-
-	n.isOpen = true
 }
 
 // NotePaneSend sends the note content via EABP to a receiver.
@@ -500,7 +517,7 @@ func (n *NotePane) close() {
 func (n *NotePane) HandleEvent(event tcell.Event) {
 	if _, ok := event.(*tcell.EventResize); ok {
 		if n.isOpen {
-			n.open()
+			n.reposition()  // ← changed from n.open()
 		}
 		return
 	}
