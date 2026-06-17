@@ -1,176 +1,189 @@
-# 合并分析：dev2 ← master 的冲突与迁移方案
+# 合并分析：dev2 ← master（方案B 版，v2）
 
-> 背景：`v1.0.5` 发布后，把 master 合并进 dev2，产生 2 处 git 标记的冲突和 2 处未标记的编译 breakage。
-> 本文分析冲突根因，并给出"用 master 的 2D 坐标算法 + dev2 的无 MDRender 世界观"的统一处理方案。
+> 本文档取代旧文 `docs/合并分析-dev2合并master.md`。旧文基于 **v1.0.5（viewportRowmap）**
+> 阶段写就，预言了 2 处代码冲突 + 4 处编译 breakage；但此后 master 演进到 **方案B（screenBuffer
+> 单一数据源）**，合并基也随之前移，那些冲突已自然消解。本文是 **2026-06-17 基于当前两分支
+> HEAD 的实测结果**，不是推演。
 >
-> 关联文档：
-> - master 的 2D 方案详见 `docs/C4-光标滚动-row判定方案.md`
-> - dev2 删除 MDRender 的决策详见 `docs/plan-remove-mdrender.md`
+> 关联：master 的方案详见 `docs/方案B-实施总结.md`（master 分支）。
 
-## 1. 分支拓扑与演进方向
+---
+
+## 0. TL;DR
+
+| 维度 | 结论 |
+|------|------|
+| **代码（.go）冲突** | **0 处** ✅ |
+| **代码编译** | `go build ./...` **通过**（exit 0）✅ |
+| **方案B 测试** | `go test ./internal/display/...` **ok**（master 的新测试全过）✅ |
+| **文档冲突（git 标记）** | **2 处**：`docs/MKT-plan.md`（内容）、`docs/plan-viewport-row-map.md`（rename/delete）|
+| **API 兼容性** | dev2 的 notePane 调 `LineToScreenRow(line,row)` ↔ master 导出同名同签名函数，**完全对齐** ✅ |
+| **合并整体风险** | **低**。解完 2 个文档冲突即可合并，代码无需手工干预 |
+
+**一句话**：代码层零冲突、能编译、测试过；只剩两个文档要手动合一下。
+
+---
+
+## 1. 分支拓扑与合并基
 
 ```
-          v1.0.4 (3d3e722b) ← dev2 从这里分叉
-              │
-    ┌─────────┴─────────┐
-   master               dev2
-    │                    │
-  C4 光标滚动重构         删除 MDRender 配置 + notePane/EABP 新功能
-  (57fdb847, f8d9e461)   (4eb6b7c2 等)
-    │                    │
-    └────────► merge ◄───┘  ← 当前位置
+   884108c7  refactor(display): export LineToScreenRow and ScreenRowToLine   ← 合并基
+       │
+       ├──► master：在 exported API 之上重写为方案B（screenBuffer 单源）
+       │    （9c2c8203 … 6b3306f5，共 27 个提交）
+       │
+       └──► dev2：消费 exported API 做 notePane / EABP / hideStatusLine
+            （cf61d416 … aabbc43d，共 35 个提交）
 ```
 
-两边在 `internal/display/bufwindow*.go` 的**同一块代码**上各自演进，但改的是**两个正交维度**，于是纠缠成 git 无法自动合并的冲突。
+**关键洞察**：合并基 `884108c7` 恰恰就是"导出 `LineToScreenRow` / `ScreenRowToLine`"
+那个提交。也就是说，**两条分支从同一个 API 契约出发各自演进**：
 
-## 2. 三条正交的改动轴线
+- master 把这俩函数的**内部实现**从 viewportRowmap 升级到 screenBuffer，但**对外签名保持不变**；
+- dev2 的 notePane 只消费这俩函数的**对外签名**，不关心内部实现。
 
-把改动按维度拆开看，冲突就不再混乱：
+→ 这是合并能零代码冲突的根本原因。契约稳定，实现替换不破坏调用方。
 
-| 轴线 | 方向 | 哪边做了 | 与另一边关系 |
-|------|------|---------|-------------|
-| **A. 屏幕坐标精度** | 1D（只记行号）→ 2D（记 Line+Row） | master（C4） | dev2 没动，需要"升级"到 2D |
-| **B. MDRender 配置开关** | 保留 → 删除（IsMD 即渲染）| dev2 | master 仍保留，需要"统一删除" |
-| **C. notePane / EABP / hideStatusLine** | 新功能（三分屏、agent 通信）| dev2 | master 完全没有，纯增量，**零冲突** |
+---
 
-**轴线 C 完全是 dev2 的增量**（`notepane.go` 554 行、`eabp/`、`bufwindow.go` 的 `hideStatusLine` 字段等），git 全部自动合并成功，不需要处理。真正纠缠的只有 **A 和 B 两条轴**。
+## 2. 自合并基以来，两边各改了什么
 
-> 同意这个判断：屏幕坐标的判断，master是更好的，应该使用master的变量和逻辑，删除dev2里面旧的代码。删除MDRender，dev2是正确的。
+### 2.1 master 改动的 .go 文件（仅 3 个，全在 `internal/display/`）
 
-## 3. display 层逐点对照
+| 文件 | 性质 |
+|------|------|
+| `internal/display/bufwindow.go` | 方案B：`viewportRowmap` 字段 → `sb *screenBuffer` + `sink cellSink` + `prevCursorY`；displayBuffer 内多处 `screen.SetContent` → `w.setCell` |
+| `internal/display/bufwindow_md.go` | 方案B 全部新逻辑（screenBuffer / coversExtent / relocateVerticalMD / renderSegmentMD …）。**dev2 自合并基起未触碰此文件** → master 版本整体套用 |
+| `internal/display/bufwindow_md_test.go` | 方案B 测试覆盖。dev2 同样未触碰 → 整体套用 |
 
-### 3.1 数据结构（字段）
+### 2.2 dev2 改动的 .go 文件
 
-| | dev2 | master | 合并后（git 自动取 master）|
-|---|------|--------|------|
-| 屏幕行→buffer 映射 | `viewportRowBufLine []int` | `viewportRowmap []SLoc` | `viewportRowmap []SLoc` ✅ |
+| 文件 | 性质 | 是否与 master 冲突 |
+|------|------|----|
+| `internal/display/bufwindow.go` | 加 `hideStatusLine` 字段 + `SetHideStatusLine()` + statusLine 跳过 | **同文件但不同区域**，3-way 自动合并成功 |
+| `internal/action/notepane.go`（新增 554 行） | notePane 浮窗，调 `bw.LineToScreenRow(sloc.Line, sloc.Row)` | 无（master 没动）|
+| `internal/action/bufpane.go`、`globals.go` | 各 +1 行（notePane 接入）| 无 |
+| `internal/config/settings_md.go` | ±2 行 | 无（master 没动）|
+| `cmd/micro/micro.go` | +20 行（notePane/EABP 接入）| 无（master 没动）|
+| `internal/eabp/*`、`eabp-receivers/*`、`proto/eabp-sender/*` | 全新文件 | 无（纯增量）|
 
-字段已经是 master 的 2D 版本（`SLoc{Line, Row}`）。**任何还引用旧 `viewportRowBufLine` 的代码都会编译失败。**
+### 2.3 唯一同改的代码文件：`bufwindow.go`
 
-### 3.2 四个反查/映射函数
+`git merge-file`（即标准 3-way 合并）结果：**exit 0，无冲突标记**。
 
-| 函数 | 方向 | dev2 | master | 合并后状态 |
-|------|------|------|--------|------|
-| 屏幕行→buffer行 | 正向 1D | `screenOffsetToBufferLine` | `screenRowToLine` | 已自动取 master 名 ✅ |
-| buffer行→屏幕行 | **反向** | `BufferLineToScreenOffset(line)`（导出）| `lineToScreenRow(line, row)`（未导出）| ⚠️ **冲突 ②** |
-| 光标滚动判定 | — | 无 | `relocateVerticalMD` | 已自动合并 ✅ |
-| 原生兜底 | — | 无 | `relocateVerticalNativeFallback` | 已自动合并 ✅ |
+- dev2 的改动集中在：struct 字段（line 34）、`SetHideStatusLine` 方法、statusLine 绘制条件、statusLine 早退；
+- master 的改动集中在：struct 字段（line 36–48）、`NewBufWindow` 初始化、`LocFromVisual`、displayBuffer 内 `SetContent→setCell`。
 
-### 3.3 调用点与 breakage
+两边**改的是同一文件的不同区域**，git 自动拼合。合并后 struct 同时含 `hideStatusLine`（dev2）与
+`sb`/`sink`/`prevCursorY`（master），逻辑互不干扰。
 
-| 位置 | dev2 调用 | master 调用 | 当前状态 |
-|------|----------|------------|---------|
-| `bufwindow.go:257` (Relocate) | `w.Buf.IsMD`（无 MDRender）| `w.Buf.IsMD && w.mdConfig.MDRender` | ⚠️ 自动合并成 master 的，**引用了已删除的 MDRender 字段** → 编译失败（**雷1**）|
-| `bufwindow.go:312` (LocFromVisual) | `w.Buf.IsMD` + `screenOffsetToBufferLine` | `w.Buf.IsMD && mdConfig.MDRender` + `screenRowToLine` | ⚠️ **冲突 ①** |
-| `bufwindow.go:Display` | `!w.Buf.IsMD` | `!w.Buf.IsMD \|\| !mdConfig.MDRender` | 已自动取 dev2 ✅ |
-| `notepane.go:433` | `BufferLineToScreenOffset(loc.Y)` | — | ⚠️ 引用旧函数 → 编译失败（**雷2**）|
+---
 
-## 4. 四处 breakage 的修法
+## 3. 代码层验证（实测）
 
-合并后即使解完两处冲突标记，仍有 4 个点要改才能编译通过：
+在 `/tmp` 重建合并树（dev2 全树 + master 的 `bufwindow_md.go` / `bufwindow_md_test.go` + 3-way 合并后的 `bufwindow.go`），不动用户仓库：
 
-| # | 位置 | 问题 | 修法 |
-|---|------|------|------|
-| 冲突① | `bufwindow.go:307-315` | 条件 + API 纠缠 | **混合解**：条件取 dev2（`w.Buf.IsMD`），API 取 master（`screenRowToLine`）|
-| 冲突② | `bufwindow_md.go:852-865` | 函数名 + 签名 + 字段纠缠 | 取 master 的 `lineToScreenRow`；**另加导出 wrapper `LocToScreenRow`** 供 notePane（见第 5 节）|
-| 雷1 | `bufwindow.go:257`（非冲突区，自动合并进来）| `w.mdConfig.MDRender` 字段已被 dev2 删除 → 编译失败 | 删掉 `&& w.mdConfig.MDRender`，改成 `if w.Buf.IsMD {` |
-| 雷2 | `notepane.go:433` | 调用已不存在的 `BufferLineToScreenOffset` | 改成 `bw.LocToScreenRow(loc)`（配合冲突②的 wrapper）|
-
-**只有上面 4 个点要改。** 轴线 C 的 `hideStatusLine`、notePane 主体、EABP 等都是干净自动合并的，不用动。
-
-## 5. notePane 能否复用 master 的 2D API？
-
-> 结论：**能，而且迁移后位置更精确。** 推荐新增一个导出的高层 wrapper `LocToScreenRow`。
-
-### 5.1 当前 notePane 用法
-
-```go
-// notepane.go:431
-func (n *NotePane) locToScreenRow(bw, view, loc buffer.Loc) int {
-    if bw.Buf.IsMD {
-        if offset, ok := bw.BufferLineToScreenOffset(loc.Y); ok {  // ← 只用 loc.Y
-            return offset
-        }
-    }
-    // 非 MD 兜底
-    sloc := bw.SLocFromLoc(loc)
-    row := bw.Diff(view.StartLine, sloc)
-    return row + view.Y
-}
+```
+$ go build ./...            → exit 0   ✅
+$ go test ./internal/display/...  → ok 0.535s   ✅（master 方案B 测试全过）
 ```
 
-用途：`lowestCursorScreenRow` 找所有光标里**最低的屏幕行**，决定 notePane 浮窗上边框 `y` 坐标，确保浮窗不挡住光标。
+### 3.1 API 对齐点（旧文担心的"雷1/雷2/冲突①②"已全部不存在）
 
-### 5.2 1D vs 2D 的语义差异（关键）
+| 调用方（dev2 `notepane.go:434`） | 被调方（master `bufwindow_md.go:1122`） |
+|------|------|
+| `bw.LineToScreenRow(sloc.Line, sloc.Row)` | `func (w *BufWindow) LineToScreenRow(line, row int) (int, bool)` ✅ 同名同签名 |
 
-**旧函数 `BufferLineToScreenOffset(bufferLine)`（1D）**：
-- **倒序遍历**，返回该 buffer 行对应的**最后一个（最底部）屏幕行**
-- softwrap 时一个 buffer 行占屏幕第 5、6、7 行，光标实际在第 6 行 → 返回 **7**
-- 结果：边框放在光标下方 1 行，**偏了，但安全**（不会盖住光标）
+| 调用方（合并后 `bufwindow.go` LocFromVisual） | 被调方 |
+|------|------|
+| `w.ScreenRowToLine(svloc.Y - w.Y)` | `func (w *BufWindow) ScreenRowToLine(screenOffset int) (int, bool)` ✅ |
 
-**master 新函数 `lineToScreenRow(line, row)`（2D）**：
-- **正序遍历**，精确匹配 `(Line, Row)` 二元组
-- 同样场景光标在第 6 行 → 返回 **6**
-- 结果：**精确**，边框紧贴光标下方
+并且 **`MDRender` 在两边的 `internal/`、`cmd/` 里都无任何引用**（master 也已演进过这关），
+旧文担心的"`&& w.mdConfig.MDRender` 引用已删字段"已不成立。
 
-| 场景（softwrap，光标在 buffer 行的第 2 视觉行）| 旧 1D | 新 2D |
-|---|---|---|
-| 返回屏幕行 | 第 3 行（行底）| 第 2 行（精确）|
-| 边框位置 | 偏低 1 行 | 紧贴 |
-| 是否盖住光标 | 不会 | 不会 |
+### 3.2 `go vet` 的警告与本次合并**无关**
 
-### 5.3 `SLocFromLoc` 是现成的桥梁
+vet 退出码非 0，但逐条核对：
 
-notePane 手里是 `buffer.Loc{X, Y}`，而 `lineToScreenRow` 要 `(line, row)`。中间缺的"segment row"恰好能由 `SLocFromLoc` 补上：
+| 警告 | 来源 | 是否合并引入 |
+|------|------|----|
+| `internal/md/render_table_test.go:381` `makeTableSeparator` 参数数不符 | **dev2 自带**（dev2 的测试文件调 4 参，dev2 自己的函数要 5 参）；master 未改 `internal/md` | ❌ 否，合并前就存在 |
+| 大量 `unkeyed fields` / `copies lock` | micro 上游既有风格警告 | ❌ 否，两分支独立存在 |
 
-```go
-// softwrap 关闭：SLocFromLoc 返回 {loc.Y, 0}      → row = 0
-// softwrap 开启：SLocFromLoc 内部 getVLocFromLoc 算出真实 Row
-sloc := bw.SLocFromLoc(loc)   // {Line: loc.Y, Row: <段内行>}
-screenRow, ok := bw.lineToScreenRow(sloc.Line, sloc.Row)
+→ 无一条 vet 警告由合并产生。`internal/md` 的测试签名问题是 dev2 历史遗留，建议另开 issue 修，
+但**不阻塞本次合并**（`go build` 与 display 测试都不涉及它）。
+
+---
+
+## 4. 两个文档冲突（git 会标记，需手工解）
+
+### 4.1 `docs/MKT-plan.md` —— 内容冲突
+
+- base 196 行 → dev2 284 行 / master 205 行，**两边都实质性扩写**，3-way 合并产生 **7 处冲突块**。
+- 性质：营销计划文档，无技术风险，**手工合议内容**即可（建议以 dev2 版为底，并入 master 的徽章/品牌更新）。
+- 解法：`git merge` 后编辑器里逐块取舍。
+
+### 4.2 `docs/plan-viewport-row-map.md` —— rename/delete 冲突
+
+- master **删除**了它（commit `3170a288` 清理过时滚动方案文档）；
+- dev2 把它**原样移动**到 `docs/agent-comm/plan-viewport-row-map.md`（内容与 base 逐字节一致，纯 rename）。
+- 两种合理解法（择一）：
+  - **跟 master 删**：`git rm docs/plan-viewport-row-map.md`（文档已过时，方案B 已取代 viewportRowmap）；
+  - **跟 dev2 留**：`git add docs/agent-comm/plan-viewport-row-map.md` 并 `git rm` 旧路径（作为历史参考归档到 agent-comm）。
+- 推荐：**跟 dev2 留**（成本为零，agent-comm 本就是归档目录，保留 viewportRowmap 方案的历史脉络对理解方案B 演进有帮助）。
+
+---
+
+## 5. 为什么这次比旧分析干净这么多
+
+旧文（commit `f0f533cd`）预言的 4 处 breakage 全部消失，原因是**两分支自然演进消解了 API 错配**：
+
+1. 旧文写于 master = **v1.0.5 viewportRowmap**、dev2 刚删 MDRender 的时点，那时 `LocFromVisual`/`Relocate` 的条件与 API 确实纠缠；
+2. 此后 master 升级到 **方案B**，但**保留并稳定了 `LineToScreenRow` / `ScreenRowToLine` 的对外签名**；
+3. 合并基前移到 `884108c7`（正是"导出这俩函数"的提交）——这一步**对齐了契约**；
+4. dev2 的 notePane 又恰好只用这俩函数的签名层。
+
+→ 旧文已**整体过时**，可保留作历史记录，但**不要再据它执行合并**。
+
+---
+
+## 6. 执行清单（按顺序）
+
+1. `git checkout dev2 && git merge master`
+2. 解 `docs/MKT-plan.md`：逐块取舍内容（以 dev2 版为底，并入 master 的品牌/徽章段落）
+3. 解 `docs/plan-viewport-row-map.md`：`git rm docs/plan-viewport-row-map.md` 并 `git add docs/agent-comm/plan-viewport-row-map.md`（推荐留 dev2 的归档版）
+4. `git commit` 完成合并
+5. `make build-quick` 验证（预期通过）
+6. `make build`（走完整 generate 流程，作为最终验证）
+7. 手测：MD 文件光标滚动（方案B 8 个 bug 的回归场景）+ notePane 浮窗定位 + 三分屏/EABP
+
+> 步骤 5–7 预计全部通过：步骤 5 已在 /tmp 等价验证过（`go build ./...` + display 测试 ok）。
+> 步骤 7 是运行期语义验证——合并本身不会破坏，但要确认 dev2 的 notePane 在方案B 的 sb 语义下
+> 浮窗定位仍精确（旧文 §5 论证过：2D 比 1D 更精确，预期更好）。
+
+---
+
+## 附录 A：本次分析的方法（可复现）
+
+```bash
+# 合并基
+MB=$(git merge-base master dev2)        # = 884108c7
+
+# git 层冲突清单（不动工作区）
+git merge-tree --write-tree --name-only master dev2
+
+# 单文件 3-way 合并预演（bufwindow.go）
+git show $MB:internal/display/bufwindow.go > /tmp/base.go
+git show dev2:internal/display/bufwindow.go > /tmp/dev2.go
+git show master:internal/display/bufwindow.go > /tmp/master.go
+cp /tmp/dev2.go /tmp/ours.go
+git merge-file -p /tmp/ours.go /tmp/base.go /tmp/master.go   # exit 0 = 无冲突
+
+# 编译验证（/tmp 重建合并树）
+git archive dev2 | tar -x
+git show master:internal/display/bufwindow_md.go       > internal/display/bufwindow_md.go
+git show master:internal/display/bufwindow_md_test.go  > internal/display/bufwindow_md_test.go
+cp /tmp/ours.go internal/display/bufwindow.go          # 用 3-way 合并结果
+go build ./...                                          # exit 0
+go test ./internal/display/...                          # ok
 ```
-
-而且 notePane 的**非 MD 兜底分支已经在调 `SLocFromLoc` + `Diff`**，说明这条桥接路径本来就是 notePane 的老朋友。**迁移到 2D 不引入任何新依赖，只是把 MD 分支也走上同一条路。**
-
-### 5.4 三种迁移方案对比
-
-| 方案 | 做法 | 评价 |
-|------|------|------|
-| **方案 1：导出 `LineToScreenRow`** | notePane 自己做 `SLocFromLoc` + `LineToScreenRow` | 可行，但把 SLoc 细节泄露给 action 层，notePane 要写两步 |
-| **方案 2：新建高层 wrapper** ⭐ | display 层加 `LocToScreenRow(loc) (int,bool)`，内部封装 `SLocFromLoc` + `lineToScreenRow` | **推荐**。notePane 传 Loc 直接拿屏幕行，干净；2D 细节封在 display 内 |
-| **方案 3：保留两个函数** | `BufferLineToScreenOffset`(1D) + `lineToScreenRow`(2D) 共存 | 不推荐。1D 函数体要改用 viewportRowmap 才能编译，等于多维护一个语义更差的函数 |
-
-### 5.5 推荐方案 2 的实现
-
-删掉冲突 ② 的 `BufferLineToScreenOffset`，取 master 的 `lineToScreenRow`，再额外加一个**导出**的高层函数：
-
-```go
-// LocToScreenRow 把 buffer 位置映射为视口内屏幕行（含 softwrap 精确匹配）。
-// 供 action 层（如 notePane）使用。失败返回 (0,false)。
-func (w *BufWindow) LocToScreenRow(loc buffer.Loc) (int, bool) {
-    sloc := w.SLocFromLoc(loc)
-    return w.lineToScreenRow(sloc.Line, sloc.Row)
-}
-```
-
-notePane 端只需把 `BufferLineToScreenOffset(loc.Y)` 改成 `LocToScreenRow(loc)`，**还顺手吃掉了 `loc.Y` vs `loc` 的参数差异**（1D 丢列信息、2D 保留，正好都正确）。
-
-## 6. 一句话结论
-
-> 合并的本质 = **把 master 的 2D 坐标算法，嫁接到 dev2 的"无 MDRender 开关"世界观上**。
->
-> 冲突只是表象，真问题是 git 没法理解两条轴线的正交性。
->
-> notePane 不但能复用 master 的 2D API，而且**迁移后位置更精确** —— 用一个导出的 `LocToScreenRow(loc)` 高层 wrapper，把 2D 细节封在 display 层内，是改动最小、语义最干净的方案。
-
-## 7. 待办（执行顺序）
-
-按依赖关系处理：
-
-1. **冲突 ② `bufwindow_md.go`**：取 master 的 `lineToScreenRow`，新增导出 wrapper `LocToScreenRow`
-2. **雷1 `bufwindow.go:257`**：删 `&& w.mdConfig.MDRender`
-3. **冲突 ① `bufwindow.go:307-315`**：条件取 dev2，API 取 master
-4. **雷2 `notepane.go:433`**：`BufferLineToScreenOffset(loc.Y)` → `LocToScreenRow(loc)`
-5. `make build-quick` 验证编译通过
-6. 手动测试：MD 文件光标滚动 + notePane 浮窗定位
-7. commit + 合并完成
