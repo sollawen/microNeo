@@ -633,6 +633,30 @@ func (n *NotePane) Display() {
 	}
 	screen.Screen.SetContent(n.x+n.width-1, n.y, topRight, nil, config.DefStyle)
 
+	// 嵌入 receiver 名字（D12 Phase 2：上边框左上显示）
+	name := n.selectedReceiver.Name
+	if name != "" {
+		// 截断：上边框可用宽度 = n.width - 2（去边框）；名字段上限 = 可用 / 3
+		avail := n.width - 2
+		nameCap := avail / 3
+		if nameCap < 6 {
+			// 太窄就不显示名字（避免 nameCap-3 负数 panic）
+		} else if len(name) > nameCap-3 {
+			name = name[:nameCap-3]  // -3 给 "→ " 前缀和末尾 ─ 留位
+			label := "→ " + name
+			for i, ch := range label {
+				// 从 ┌ 右边第 1 列开始覆盖（原循环已经画了 ─，这里覆写）
+				screen.Screen.SetContent(n.x+1+i, n.y, ch, nil, config.DefStyle)
+			}
+		} else {
+			label := "→ " + name
+			for i, ch := range label {
+				// 从 ┌ 右边第 1 列开始覆盖（原循环已经画了 ─，这里覆写）
+				screen.Screen.SetContent(n.x+1+i, n.y, ch, nil, config.DefStyle)
+			}
+		}
+	}
+
 	// Draw bottom border
 	screen.Screen.SetContent(n.x, n.y+n.height+1, bottomLeft, nil, config.DefStyle)
 	for i := 1; i < n.width-1; i++ {
