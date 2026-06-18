@@ -1,8 +1,10 @@
 # D13 — SelectPane 设计（通用列表选择浮窗）
 
-> **状态**：方案设计（待实施）
+> **状态**：已实施完成（D12 集成中）
 >
 > **范围**：一个**通用**的列表选择浮窗 `SelectPane`——`Open(items, title, onSelect)`，从列表里选一个 string。当前用于 D12 的多 receiver 选择，未来可复用于选文件、选配色等任何"从列表选一个"的场景。
+>
+> **实施偏差回填**：实际代码相对本文原设计有两处有意偏差（用户拍板，UX 更好）：① title **不反色**（原文 §3.4 写 "Reverse 突出"）；② 上下键 **wrap-around**（原文 §3.5 写 "到边停"）。本文已据此回填。另有几处改进（位置留 1 行间隔、宽度同时考虑 title、测试 title 用长串）未逐字回填，以代码为准。
 >
 > **不做**：浮窗框架（Float interface / 栈 / dispatcher）、其它 pane 类型（FilePicker / ColorPicker 不是新 pane，是 SelectPane 的不同调用方）。
 >
@@ -142,20 +144,20 @@ TheSelectPane.Open(colorNames, "Color", func(s *string) { ... })
 ```
 
 - **底边 Y** = `statusLine.Y - 1`（贴 statusLine 上面）
-- **顶边 Y** = `底边 Y - height + 1`（向上展开 height 行）
+- **顶边 Y** = `底边 Y - height - 1`（向上展开 height 行；实现里多留 1 行间隔，以代码为准）
 - **水平 X** = 暂定 `0`（左对齐屏幕最左边）。未来允许传入 `x` 参数。
 - 弹出时**临时遮盖**该区域的主编辑器内容（先 `Clear` 整个矩形，再画边框 + 列表）。关闭时由下一帧主编辑器重绘覆盖。
 
 ### 3.3 尺寸
 
-**宽度**：
+**宽度**（同时满足内容区和 title 显示，取较大值）：
 ```go
-maxLen := 0
-for _, it := range items {
-    if len(it) > maxLen { maxLen = len(it) }
-}
-width := maxLen + 4 // 含边框(2) + 左右 padding(2)
+// 内容区：边框(2) + 左右 padding(2) + maxItemLen = maxItemLen + 4
+// title 区：边框(2) + ──(2) + title + ──(2) = len(title) + 6
+width := max(maxItemLen + 4, len(title) + 6)
 ```
+
+> 为什么同时考虑 title：避免长 title 被自己的边框截断（如 `"TestLongTitleForSelectPane"`）。
 
 **高度**（写死 `maxHeight`）：
 ```go
@@ -182,18 +184,18 @@ if h > maxHeight { h = maxHeight } // v1 写死常量，比如 10
 - 边：`─` `│`
 - **上边框嵌入 `──{title}──`**（双连字符包裹调用方传入的 title）：
   - 紧接 `┌` 之后写 `──` + title + `──`，后面续 `─` 填满到 `┐`
-  - title 部分用 `style: Reverse` 突出（让用户眼睛能 catch）
+  - title 部分**不反色**，与边框 `─` 同样式（`config.DefStyle`）——有意决策，视觉更干净（D12 notePane 边框名字跟随同一样式）
   - 告诉用户"现在在选什么"——`Receiver` / `File` / `Color` / ...
   - **不同调用方传不同 title**，SelectPane 自己不知道 title 的语义
 
-绘制流程参考 notePane 的 `Display()`：先 `Clear` 整个矩形 → 画 4 角 + 上下边 + 左右边 → 写每行内容（当前选中项用 `Reverse` 样式高亮）→ 上边框中间嵌入 `{title}` 标签。
+绘制流程参考 notePane 的 `Display()`：先 `Clear` 整个矩形 → 画 4 角 + 上下边 + 左右边 → 写每行内容（**当前选中项**用 `Reverse` 样式高亮——注意只有选中项反色，title 不反色）→ 上边框中间嵌入 `{title}` 标签。
 
 ### 3.5 键位
 
 | 键 | 行为 |
 |----|------|
-| `↑` | 上一项（到顶停） |
-| `↓` | 下一项（到底停） |
+| `↑` | 上一项（**wrap-around**：到顶后跳到末项） |
+| `↓` | 下一项（**wrap-around**：到底后跳回首项） |
 | `Enter` | 确认选择 → callback(&items[selected]) → Close |
 | `Esc` | 取消 → callback(nil) → Close |
 | 其它键 | **完全吞掉**（不传给主编辑器；modal 语义由 D12 决定如何实现） |
@@ -272,10 +274,10 @@ D13 只提供组件 + scaffolding，不预判 D12 怎么选。
 | 2 | SelectPane 文件位置 | **新文件 `internal/action/selectpane.go`** | 与 notePane.go 平级，不互相包含 |
 | 3 | 实例数量 | **单例 `TheSelectPane`**（不堆叠/嵌套） | v1 流程永远只有 0 或 1 个浮窗打开，不需要栈 |
 | 4 | 上边框标签 | **参数化** `title`（调用方传 "Receiver" / "File" / "Color" ...） | SelectPane 通用，标签必须随调用方变化 |
-| 5 | SelectPane 尺寸 | 宽度 = 最长 string 长度 + 2；高度 = 候选数（**写死 maxHeight=10** 暂不滚动） | 简化 v1；未来扩滚动 |
-| 6 | SelectPane 键位 | `↑↓ Enter Esc`（**不绑任何 Ctrl 组合**） | 保持键表最小；未来扩 vim 风格 |
+| 5 | SelectPane 尺寸 | 宽度 = `max(maxItemLen + 4, len(title) + 6)`（内容区与 title 取大）；高度 = 候选数（**写死 maxHeight=10** 暂不滚动） | 同时满足内容和 title 显示，避免长 title 截断 |
+| 6 | SelectPane 键位 | `↑↓ Enter Esc`，上下键 **wrap-around**（**不绑任何 Ctrl 组合**） | wrap 在短列表（2–5 项）里更顺手；保持键表最小；未来扩 vim 风格 |
 | 7 | callback 签名 | `func(*string)` —— nil=取消 / &str=确认 | 符合 Go 习惯（零值即无），比 string+哨兵值更类型安全 |
-| 8 | 事件接入方式 | **D13 测试期在 BufPane.HandleEvent / Display 顶部加 if 转发**（test scaffolding） | trigger 在 BufPane，forwarding 在 BufPane，一致；D12 集成时可保留 / 重构 / 替换 |
+| 8 | 事件接入方式 | **BufPane.HandleEvent / Display 顶部加 if 转发**（D13 期作 test scaffolding，**D12 集成时转正**） | trigger 在 BufPane，forwarding 在 BufPane，一致；D12 选定保留并转正（见 D12 决策 11） |
 | 9 | 焦点模型 | **modal**（打开时主编辑器冻结） | 选择器是临时决策点，避免用户误操作主编辑器 |
 
 ### 决策点补充说明
