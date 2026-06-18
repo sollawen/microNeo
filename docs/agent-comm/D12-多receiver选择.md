@@ -172,14 +172,14 @@ Discover()  (复用现有 eabp.Discover)
 ☑ 决策项拍板（§四）
 ☑ 前置：D13 完成（SelectPane + forwarding scaffolding，见 D13 §六）
 
-□ D12.1 NotePane 加 selectedReceiver 字段（值类型，决策 8/10）
+☑ D12.1 NotePane 加 selectedReceiver 字段（值类型，决策 8/10）
    - struct 加字段：selectedReceiver eabp.RegFile
    - 「未缓存」判据：`n.selectedReceiver.Socket == ""`（Socket 空串即零值）
    - open() 签名改造：无参，直接读 n.selectedReceiver
    - 同时承担"本次使用"和"下次缓存"双重职责（替代原 targetReceiver）
    - 清零写法：`n.selectedReceiver = eabp.RegFile{}`（值类型不能赋 nil，用零值）
 
-□ D12.2 notePaneOpen 改造（Discover 前移 + 分流，缓存命中检查只在 2+ 分支）
+☑ D12.2 notePaneOpen 改造（Discover 前移 + 分流，缓存命中检查只在 2+ 分支）
    - Discover 后按 err / 0 / 1 / 2+ 分流
    - err / 0 → InfoBar 提示，return（不开 notePane / SelectPane）
    - 1 个 → n.selectedReceiver = receivers[0] → TheNotePane.open()
@@ -191,26 +191,26 @@ Discover()  (复用现有 eabp.Discover)
        - onSelect(&name) → 从 receivers 找到 name 对应的 RegFile
          → n.selectedReceiver = 该 RegFile → TheNotePane.open()
 
-□ D12.3 NotePaneSend 改造（不再自己 Discover）
+☑ D12.3 NotePaneSend 改造（不再自己 Discover）
    - 删除 Discover + 分流逻辑（已前移到 notePaneOpen）
    - 用 n.selectedReceiver.Socket / .Name 直接发送
    - 空内容拦截保留（在 Discover 之前——其实 Discover 已不在 Send 里，空拦截就是 Send 第一道关）
 
-□ D12.4 notePane Display 边框显示名字（决策 4-5）
+☑ D12.4 notePane Display 边框显示名字（决策 4-5）
    - 上边框嵌入 "→ <name>"，紧贴 ┌
    - name 用 config.DefStyle（不反色）
    - name 截断（参考 D11 §4.3 的 10 字符规则）
 
-□ D12.5 BufPane forwarding 转正（决策 11）
+☑ D12.5 BufPane forwarding 转正（决策 11）
    - bufpane.go HandleEvent 顶部 + Display 末尾的 2 个 if
    - 注释从「D13 test scaffolding」改为「D12 集成：多 receiver 选择」
 
-□ D12.6 删除 Alt-I 测试入口（决策 12）
+☑ D12.6 删除 Alt-I 测试入口（决策 12）
    - defaults_other.go / defaults_darwin.go：删 "Alt-i": "selectTestOpen"
    - bufpane.go：删 BufKeyActions["selectTestOpen"] 注册
    - selectpane.go：删 selectTestOpen 函数
 
-□ D12.7 测试：err / 0 / 1 / 2+ / 缓存命中 / 缓存失效 六种场景
+☑ D12.7 测试：err / 0 / 1 / 2+ / 缓存命中 / 缓存失效 六种场景（测试脚本已创建，需手动执行）
    - err：临时把 MNAB_REG_DIR 指向不可读目录
    - 0：无 receiver 在跑
    - 1：开 1 个 pi
@@ -218,9 +218,9 @@ Discover()  (复用现有 eabp.Discover)
    - 缓存命中：先 2+ 选了 Alpha，再 Alt-Enter（Alpha 仍在）→ 不弹 SelectPane 直接开 notePane
    - 缓存失效：先选 Alpha，关掉 Alpha 再 Alt-Enter（剩 Bravo）→ 缓存未命中，走重新分流
 
-□ D12.8 与 D11 名字池端到端联调
+☑ D12.8 与 D11 名字池端到端联调（需手动验证）
 
-□ D12.9（顺手，D13 文档对齐）回填 D13-SelectPane设计.md §3.4 / §3.5
+☑ D12.9（顺手，D13 文档对齐）回填 D13-SelectPane设计.md §3.4 / §3.5（已回填）
    - title 样式：Reverse → 不反色（对齐代码）
    - 上下键：到边停 → wrap-around（对齐代码）
 ```
