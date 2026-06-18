@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// RegistryDir — D2 §3.1。MNAB_REG_DIR 覆盖优先（调试便利，见 D3 §六）
+// RegistryDir — 说明-EABP §3.1。MNAB_REG_DIR 覆盖优先（调试便利说明在该节末尾）
 func RegistryDir() string {
 	if d := os.Getenv("MNAB_REG_DIR"); d != "" {
 		return d
@@ -27,7 +27,7 @@ func RegistryDir() string {
 	return filepath.Join(base, fmt.Sprintf("microneo-agent-bridge-%d", os.Getuid()))
 }
 
-// RegFile — D2 §3.2 注册文件内容
+// RegFile — 说明-EABP §3.2 注册文件内容
 type RegFile struct {
 	Name      string   `json:"name"`
 	PID       int      `json:"pid"`
@@ -40,7 +40,7 @@ type RegFile struct {
 }
 
 // Discover — 扫描注册表，返回存活 receiver。目录不存在/空目录均返回空 slice，不报错。
-//   顺手 GC 僵尸（D2 §3.5）。
+//   顺手 GC 僵尸（说明-EABP §3.5）。
 //   存活判据：connect socket 为权威；connect 成功 → 活。connect 失败 → 再看 PID：
 //   PID 已死 → GC（删注册文件），不计入。PID 仍活 → 保留但不推荐（socket 可能暂不可用）。
 func Discover() ([]RegFile, error) {
@@ -57,7 +57,7 @@ func Discover() ([]RegFile, error) {
 		} else if json.Unmarshal(b, &rf) != nil {
 			continue
 		}
-		// 主版本不符 → 跳过（D2 §7.2）。字符串形如 "eabp-1"
+		// 主版本不符 → 跳过（说明-EABP §7.2）。字符串形如 "eabp-1"
 		if major(rf.Protocol) != 1 {
 			continue
 		}
@@ -72,7 +72,7 @@ func Discover() ([]RegFile, error) {
 	return live, nil
 }
 
-// alive — connect 试探为权威判据（D2 §3.5）
+// alive — connect 试探为权威判据（说明-EABP §3.5）
 func alive(socket string) bool {
 	c, err := net.DialTimeout("unix", socket, 200*time.Millisecond)
 	if err != nil {
@@ -90,7 +90,7 @@ func pidAlive(pid int) bool {
 	return syscall.Kill(pid, 0) == nil
 }
 
-// major — 解析 "eabp-1" 取 1（D2 §7.2）
+// major — 解析 "eabp-1" 取 1（说明-EABP §7.3）
 func major(protocol string) int {
 	i := strings.LastIndexByte(protocol, '-')
 	if i < 0 {
