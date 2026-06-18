@@ -48,7 +48,7 @@ microNeo ↔ ai agent 通信系统的设计/实现文档。
 
 | 任务 | 先读 |
 |------|------|
-| 改协议字段 / 报文 schema | `说明-EABP.md` §五（同步两处：`internal/eabp/message.go` + `proto/eabp-sender/go/message.go`） |
+| 改协议字段 / 报文 schema | `说明-EABP.md` §五（`internal/eabp/message.go` 单份，无镜像） |
 | 改 notePane 行为 | `说明-notepane.md`（单文件 `internal/action/notepane.go`） |
 | 改 pi 端 LLM 递送 | `说明-接收端.md`（单文件 `eabp-receivers/eabp-pi/index.ts`） |
 | 加新 agent 接收端 | `说明-EABP.md` §八（接收端契约）+ 调研 `opencode调研.md` 作为参考 |
@@ -56,7 +56,7 @@ microNeo ↔ ai agent 通信系统的设计/实现文档。
 
 ## 注意事项
 
-- **`proto/eabp-sender/go/` 与 `internal/eabp/` 是字面镜像**：原型调试工具，主线用 `internal/eabp/`。改一边要同步另一边。
+- **调试工具在 `internal/eabp/cmd/`（discover / send）**：与协议代码同 module，直接 import `internal/eabp`，无镜像维护负担。`make build` 不编译它们，需单独 `go build ./internal/eabp/cmd/<tool>`。
 - **notePane buffer 生命周期**：`open()` 总是 Close 旧 + 新建（不是 close 时销毁）——避免 BufPane.HandleEvent 内 nil 访问 panic（v1 → v2 修复历史）。
 - **不发送 `visible_lines`**：v1 不发送可见区域文本（隐私考虑）。
 - **`MNAB_REG_DIR` 调试覆盖**：两端都支持，调试时设个短路径方便手查注册文件。

@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	eabp "eabp-proto"
+	"github.com/micro-editor/micro/v2/internal/eabp"
 )
 
 func main() {
@@ -41,12 +41,11 @@ func main() {
 			Text:  *selText,
 		}
 	}
-	// TODO: 生产化前加 payload 合法性校验（D2 §5.3：line/col 非负，selection.end >= start 等）
 	payloadJSON, _ := json.Marshal(payload)
 
 	env := eabp.Envelope{
 		V: 1, Type: "context",
-		Sender: eabp.Sender{PID: os.Getpid(), Name: "microNeo", Instance: *instance},
+		Sender:  eabp.Sender{PID: os.Getpid(), Name: "microNeo", Instance: *instance},
 		TS:      float64(time.Now().UnixNano()) / 1e9,
 		Payload: payloadJSON,
 	}
@@ -69,7 +68,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// D2 §4.2: connect → 写一行 JSON → close
+	// 说明-EABP §4.2: connect → 写一行 JSON → close
 	c, err := net.Dial("unix", sock)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "dial:", err)

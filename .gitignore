@@ -21,4 +21,6 @@ tools/build-date
 tools/info-plist
 tools/vscode-tests/
 *.hdr
-proto/bin/
+# EABP 调试工具构建产物（go build ./internal/eabp/cmd/<tool> 落到仓库根）
+/discover
+/send

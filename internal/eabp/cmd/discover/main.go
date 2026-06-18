@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	eabp "eabp-proto"
+	"github.com/micro-editor/micro/v2/internal/eabp"
 )
 
 func main() {
