@@ -212,19 +212,4 @@ func (s *SelectPane) Display() {
 // selectTestOpen 是 D13 测试用 action：打开 5 项 SelectPane 测试。
 // 绑在主编辑器 Alt-I（见 defaults_other.go / defaults_darwin.go）。
 //
-// Enter → InfoBar 显示 "✓ selected: <item>"
-// Esc   → InfoBar 显示 "✗ 用户啥也没选择"
-func selectTestOpen(h *BufPane) bool {
-	TheSelectPane.Open(
-		[]string{"alpha", "bravo", "charlie", "delta", "echo"},
-		"TestLongTitleForSelectPane",
-		func(s *string) {
-			if s == nil {
-				InfoBar.Message("✗ 用户啥也没选择")
-			} else {
-				InfoBar.Message("✓ selected: " + *s)
-			}
-		},
-	)
-	return true
-}
+

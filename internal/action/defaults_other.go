@@ -89,9 +89,6 @@ var bufdefaults = map[string]string{
 	// "Alt-p": "CursorUp",
 	// "Alt-n": "CursorDown",
 
-	// microNeo D13 test scaffolding：Alt-I 打开 SelectPane 测试
-	"Alt-i": "selectTestOpen",
-
 	// Integration with file managers
 	"F2":  "Save",
 	"F3":  "Find",
