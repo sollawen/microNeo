@@ -27,12 +27,12 @@
 | 四 | 传输层（Unix socket、连接策略、逐行 JSON 分帧） |
 | 五 | 报文协议（信封、类型、payload、关键约定） |
 | 六 | 递送语义（**协议最核心**） |
-| 七 | 协议版本（版本号、协商、解析代码） |
+| 七 | 协议版本（版本号、协商、解析规则） |
 | 八 | 接收端契约（合规要求） |
 | 九 | 生命周期与边界情况（处理矩阵） |
 | 十 | 安全性 |
-| 十一 | v0 → v1 关键变更 |
-| 十二 | 开放问题 |
+| 十一 | 开放问题 |
+| 十二 | 相关文档 |
 
 ---
 
@@ -101,34 +101,10 @@ dir  = base + "/microneo-agent-bridge-" + $UID
 2. `$TMPDIR`（macOS 通常是 `/var/folders/.../T/`）——macOS 兜底
 3. `/tmp`——最后兜底
 
-**Go 实现**（`internal/eabp/registry.go:RegistryDir()`）：
-
-```go
-func RegistryDir() string {
-    if d := os.Getenv("MNAB_REG_DIR"); d != "" {  // 调试覆盖
-        return d
-    }
-    base := os.Getenv("XDG_RUNTIME_DIR")
-    if base == "" { base = os.Getenv("TMPDIR") }
-    if base == "" { base = "/tmp" }
-    return filepath.Join(base, fmt.Sprintf("microneo-agent-bridge-%d", os.Getuid()))
-}
-```
-
-**TS 实现**（`eabp-receivers/eabp-pi/index.ts:registryDir()`）：
-
-```typescript
-function registryDir(): string {
-  const override = process.env.MNAB_REG_DIR;
-  if (override) return override;
-  const base = process.env.XDG_RUNTIME_DIR
-    || process.env.TMPDIR
-    || "/tmp";
-  return path.join(base, `microneo-agent-bridge-${process.getuid?.() ?? 0}`);
-}
-```
-
 **实现约束（必须两端一致）**：发送端和接收端各自用**完全相同的算法**算出该路径。本文固定算法，两端复刻。
+
+- **发送端实现**：`internal/eabp/registry.go:RegistryDir()`（详见 `说明-发送端.md §2.2`）
+- **接收端实现**：`eabp-receivers/eabp-pi/index.ts:registryDir()`（详见 `说明-接收端.md §三`）
 
 **`MNAB_REG_DIR` 调试覆盖**：环境变量可覆盖算法，设了就用其值（跳过算法）。**两端都支持**——调试时指个短路径（如 `/tmp/mnab`）方便手查注册文件；生产也用得上。
 
@@ -202,25 +178,7 @@ function registryDir(): string {
 
 > **connect 为权威判据，PID 为旁证**：进程崩溃后 socket 无人 listen，connect 必失败——这是 GC 的主路径，PID 复用问题根本进不了这条判断链（复用旧 PID 的新进程不会监听旧 socket）。PID 仅在 connect 成功时作为辅助确认。
 
-**实现代码**（`internal/eabp/registry.go:Discover()`）：
-
-```go
-func Discover() ([]RegFile, error) {
-    dir := RegistryDir()
-    entries, err := filepath.Glob(filepath.Join(dir, "receiver-*.json"))
-    if err != nil { return nil, err }
-    var live []RegFile
-    for _, p := range entries {
-        var rf RegFile
-        if b, e := os.ReadFile(p); e != nil { continue }
-        else if json.Unmarshal(b, &rf) != nil { continue }
-        if major(rf.Protocol) != 1 { continue }  // 协议主版本不符 → 跳过
-        if alive(rf.Socket) { live = append(live, rf); continue }
-        if !pidAlive(rf.PID) { _ = os.Remove(p) }  // GC
-    }
-    return live, nil
-}
-```
+**实现**：`internal/eabp/registry.go:Discover()`（详见 `说明-发送端.md §2.2`）。
 
 **关键行为**：
 - 目录不存在或空 → 返回空 slice，**不报错**
@@ -289,25 +247,7 @@ func Discover() ([]RegFile, error) {
 }
 ```
 
-**Go 定义**（`internal/eabp/message.go`）：
-
-```go
-const Protocol = "eabp-1"
-
-type Envelope struct {
-    V       int             `json:"v"`       // 主版本，当前=1
-    Type    string          `json:"type"`    // "context"（v1仅）/ "bye"(预留)
-    Sender  Sender          `json:"sender"`
-    TS      float64         `json:"ts"`      // Unix 浮点秒
-    Payload json.RawMessage `json:"payload"` // 原样透传；调用方按 Type 自行反序列化
-}
-
-type Sender struct {
-    PID      int    `json:"pid"`
-    Name     string `json:"name"`     // "microNeo"
-    Instance string `json:"instance"` // 窗口/实例标识
-}
-```
+**权威定义**：`internal/eabp/message.go`（`Envelope` / `Sender`）；下表为字段语义。
 
 | 字段 | 必需 | 说明 |
 |------|------|------|
@@ -347,28 +287,7 @@ type Sender struct {
 }
 ```
 
-**Go 定义**（`internal/eabp/message.go`）：
-
-```go
-type ContextPayload struct {
-    Path         string     `json:"path"`
-    Cursor       Position   `json:"cursor"`
-    Selection    *Selection `json:"selection,omitempty"`    // 无选区则省略（不是 null）
-    Message      string     `json:"message,omitempty"`      // 有无决定递送路径（§六）
-    VisibleLines string     `json:"visible_lines,omitempty"`
-}
-
-type Position struct {
-    Line int `json:"line"`
-    Col  int `json:"col"`
-}
-
-type Selection struct {
-    Start Position `json:"start"`
-    End   Position `json:"end"`
-    Text  string   `json:"text,omitempty"`
-}
-```
+**权威定义**：`internal/eabp/message.go`（`ContextPayload` / `Position` / `Selection`）；下表为字段语义。
 
 | 字段 | 必需 | 类型 | 说明 |
 |------|------|------|------|
@@ -381,7 +300,7 @@ type Selection struct {
 | `message` | ❌ | string | **消息：用户附的一段文字**。有则接收端作为一条用户消息递送给 LLM（立即触发对话）；无则递送为"待用上下文"。详见 §六 |
 | `visible_lines` | ❌ | string | 可见区域文本（可选，更费，默认关闭）。方便 agent 直接看屏幕上下文。**v1 不发送** |
 
-> **Position 类型**：`{ "line": int, "col": int }`，坐标 **1-based**（行从 1 起、列从 1 起）。被 `cursor`、`selection.start`、`selection.end` 复用。
+> **Position 类型**：`{ "line": int, "col": int }`，坐标 **1-based**（行从 1 起、列从 1 起）——与 LLM 工具链（sed / ripgrep / read）天然对齐，无需 ±1 转换。被 `cursor`、`selection.start`、`selection.end` 复用。
 >
 > **合法性约束（协议契约）**：由**发送端保证合法**——`line`/`col` 最小为 1（1-based），`col` 不超出该行长度，`selection.end` 不小于 `selection.start`（不允许反向选区）。**接收端不做校验**，遇非法值行为未定义。这呼应原则③——发送端只递送它已知为真的事实。
 
@@ -424,33 +343,15 @@ type Selection struct {
 
 > 三个示例的区别只在 payload 字段组合，与消息/上下文的**来源无关**——协议不关心它们由什么 UI/热键产生。
 
-### 5.5 selection.text 的发送策略
+### 5.5 `selection.text` 的可选性
 
-协议规定 `selection.text` 字段是**可选的**——是否发送由发送端决定，接收端通过「Text 是否为空」判断如何处理（详见 `说明-接收端.md §七`）。
+协议规定 `selection.text` 是**可选字段**——是否发送由发送端按自身策略决定（如按行数阈值省略，避免大段选区膨胀报文）。接收端**只看 Text 是否为空**决定处理方式：非空 → 用内联文字；空 → 回退到文件引用（如 `@path :lineA-lineB`，让 LLM 自己 read）。
 
-**当前实现**（发送端，`internal/action/notepane.go:lowestCursorScreenRow`）：
+> 选区**位置**（`start`/`end`）无论 Text 是否省略都**始终发送**——这是接收端回退文件引用所必需的。具体阈值与策略属发送端实现决策，见 `说明-发送端.md §3.3`；接收端的处理见 `说明-接收端.md §七`。
 
-| 条件 | `Selection.Text` |
-|------|------------------|
-| 无选区 | 整个 `Selection` 字段省略 |
-| 选区行数 ≤ `MaxSelectionLines`（=30） | 发：实际文本 |
-| 选区行数 > 30 | 不发：`Text` 字段省略（但 `Start/End` 仍发） |
+### 5.6 序列化（MarshalLine）
 
-> 选区行数对用户可见（编辑器能数行），字节阈值不可见——这是 D10 决策 2-3 的核心动机。
-
-**为什么是发送端决定**：行数判断在发送端做是**最自然的**——发送端已经知道 buffer 内容、做行数判断几乎零成本。接收端再做一遍是浪费。详见 `说明-发送端.md §3.3`。
-
-### 5.6 MarshalLine
-
-发送端用 `Envelope.MarshalLine()` 序列化：`json.Marshal(env)` 后追加 `\n`——一行 JSON 加换行符。
-
-```go
-func (e *Envelope) MarshalLine() ([]byte, error) {
-    b, err := json.Marshal(e)
-    if err != nil { return nil, err }
-    return append(b, '\n'), nil
-}
-```
+发送端把 Envelope 序列化为**单行 JSON 并追加 `\n`**（呼应 §4.3 分帧约束）。实现：`Envelope.MarshalLine()`（`internal/eabp/message.go`）。
 
 ---
 
@@ -499,10 +400,6 @@ func (e *Envelope) MarshalLine() ([]byte, error) {
 
 > 这是 v1 的简化策略。未来若需保留多份待用上下文，可按 `sender.instance` 做 map，但 v1 不做。
 
-### 6.6 报文格式
-
-接收端把 `context` payload 格式化为**实际递送给 LLM/输入框的文本**——具体格式完全由接收端自决（协议不规定）。当前 pi 实现的格式见 `说明-接收端.md §七`（简述：短选区用「来自 path 第 A-B 行的选中内容：」+ 内联文字；长选区/无选区用 `@path :lineX` 引用）。
-
 ---
 
 ## 七、协议版本
@@ -520,25 +417,10 @@ func (e *Envelope) MarshalLine() ([]byte, error) {
 - 接收端读信封 `v`（整数），与自身版本的主版本比较；不匹配 → 忽略该报文 + 可选告警
 - v1 不做复杂的 capabilities 协商（YAGNI）
 
-### 7.3 解析代码
+### 7.3 解析规则
 
-**Go**（`internal/eabp/registry.go:major()`）：
-
-```go
-func major(protocol string) int {
-    i := strings.LastIndexByte(protocol, '-')
-    if i < 0 { return -1 }
-    n, err := strconv.Atoi(protocol[i+1:])
-    if err != nil { return -1 }
-    return n
-}
-```
-
-**TS**（`eabp-receivers/eabp-pi/index.ts:handleLine()`）：
-
-```typescript
-if (env.v !== 1 || env.type !== "context") return;
-```
+- **主版本解析**：注册文件 `protocol` 形如 `eabp-1`，取最后一个 `-` 之后的整数；解析失败 → 视为不匹配。实现：`internal/eabp/registry.go:major()`
+- **信封校验**：接收端要求 `v === 1` 且 `type === "context"`，否则静默忽略。实现：`eabp-receivers/eabp-pi/index.ts:handleLine()`
 
 ### 7.4 当前版本
 
@@ -560,17 +442,6 @@ if (env.v !== 1 || env.type !== "context") return;
 4. **退出时注销**：删注册文件 + 删 socket + 关 server（§3.4）
 
 > 接入新 agent **不需要改 microNeo 任何代码**——这正是 LSP 式架构的价值。各 agent 按自身扩展机制实现上述四点即可。
-
-### 8.2 抽象分层
-
-接收适配层可以抽 core（agent 无关）+ adapter（agent 特定）两小层：
-
-| 小层 | 职责 | 形态 |
-|------|------|------|
-| **core** | 注册/分帧/版本校验/分流 | 跨 agent 共享 |
-| **adapter** | 把 core 递送物落到 agent 自己的 LLM 通道 | agent 特定 |
-
-> 当前 pi 实现没显式分层（`index.ts` 一个文件）——M2 形态简单，没必要分。如果接第二个 agent 再考虑抽 core。
 
 ---
 
@@ -597,29 +468,11 @@ if (env.v !== 1 || env.type !== "context") return;
 
 ---
 
-## 十一、关键变更（v0 → v1）
-
-| 维度 | v0 | v1（当前） | commit |
-|------|----|------|---|
-| line/col 基址 | 0-based | **1-based** | `c95bfb52` |
-| payload.Message 字段 | 显式 `"message": null` | **omitempty**（无字段时省略） | `c95bfb52` |
-| 选区文本阈值 | 2KB 字节 | **30 行**（`MaxSelectionLines` 常量） | `4b2ec65c` |
-| 协议常量名 | 草稿 | `eabp-1` | `c95bfb52` |
-| `selection` 字段 | 显式 `null` | **整个字段省略**（用指针 + omitempty） | `c95bfb52` |
-
-**v0 → v1 的原因**：
-
-- **1-based line/col** 与 LLM 工具链（sed -n '12p' / ripgrep / read 工具）天然对齐，不需要做 ±1 转换
-- **Message omitempty** 让"无 message 报文"更干净
-- **30 行阈值** 替代 2KB 字节——行数对用户可见可预测，字节不可见
-
----
-
-## 十二、开放问题
+## 十一、开放问题
 
 下列问题在 v1 暂未解决，记录在此供未来 v2 参考。
 
-### 12.1 协议级
+### 11.1 协议级
 
 1. **新 agent 接入的标准化程度**：本文档 §八 接收端契约 + §一 三条铁律是否够清晰让社区独立实现？是否需要一份独立的"接收端实现规范"文档？
 2. **空 content 发送的语义**：触发发送时 notePane 内容为空，是发纯上下文还是放弃？**当前决策（D10）**：notePane 链路**直接拦截不发**；其他入口（如未来"快速发送选区"热键）可能需要不同决策
@@ -630,13 +483,13 @@ if (env.v !== 1 || env.type !== "context") return;
 7. **payload 合法性校验**：v1 发送端**保证**合法，接收端**不校验**。未来若允许第三方实现发送端，是否要加 schema 校验？
 8. **`sender.instance` 的真实实现**：v1 MVP 固定 `"default"`。microNeo 多实例/多窗口支持需要先做"窗口/tab ID"概念
 
-### 12.2 协议相关但属于发送/接收端实现
+### 11.2 协议相关但属于发送/接收端实现
 
 9. **Windows 支持**：v1 不实现。技术上 AF_UNIX 自 Win10 1803 可用、Go 原生支持，发送端预期可跑；但接收端（Node）支持需验证，故整体留 v2
 10. **长连接 vs 每次新建连接**：v1 每次新建连接。如果未来要支持高频 / streaming 双向通信，需重新评估
 11. **注册表目录的可移植性**：`process.getuid?.() ?? 0` 的兜底在 Windows 上 UID 0 是假值。当前 Unix-only，不影响
 
-### 12.3 已明确不做
+### 11.3 已明确不做
 
 下列议题**已明确不做**（v1 出界），记录以防被重新提出：
 
@@ -648,7 +501,7 @@ if (env.v !== 1 || env.type !== "context") return;
 
 ---
 
-## 十三、相关文档
+## 十二、相关文档
 
 | 文档 | 关系 |
 |------|------|
