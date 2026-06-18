@@ -3,7 +3,7 @@
 - 本项目是对micro的升级和改造
 - 所以我们对micro的原生代码的侵入和改动越小越好。不要轻易去修改micro的原生代码
 - 编译本项目时，必须使用 `make build`，不要直接使用 `go build`。如果想快速编译跳过 generate 步骤，可以使用 `make build-quick`
-- 我目前的micro的用户级配置文件：~/.config/microNeo/目录下，coloescheme and markdown.yaml 都在里面
+- 用户配置目录统一在 `$XDG_CONFIG_HOME/microNeo`（未设置时 fallback 到 `~/.config/microNeo`），启动时可用 `--config <dir>` 临时覆盖
 - plan documents 放到 docs 目录里
 - MD 诊断日志：`make build-dbg` 构建时写到 `/tmp/microNeo_debug.log`（对齐 micro 原生 `util.Debug` 开关）；`make build` / `make build-quick` 默认 OFF，不写日志。日志开关在 `internal/display/bufwindow_md.go` 的 `dbgLog`
 
