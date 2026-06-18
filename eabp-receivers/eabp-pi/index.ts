@@ -69,9 +69,9 @@ export default function (pi: ExtensionAPI) {
     const selText = sel?.text && sel.text.length > 0 ? sel.text : "";
 
     if (sel && selText) {
-      // 有选区且文字未截断：内联文字（用自然语言标位置，不用 @ 语法 → 不触发 LLM 读文件）
-      const header = `来自 ${p.path} 第 ${sel.start.line}-${sel.end.line} 行的选中内容：`;
-      return p.message ? `${header}\n\n${selText}\n\n${p.message}` : `${header}\n\n${selText}`;
+      // 有选区且文字未截断：内联 + 尖括号标签分隔（不用 @ 语法 → 不触发 LLM 读文件）
+      const header = `<selection: ${p.path} lines ${sel.start.line}-${sel.end.line}>`;
+      return p.message ? `${header}\n\n${selText}\n\n<user input>\n\n${p.message}` : `${header}\n\n${selText}`;
     }
 
     // 无选区 / 选区文字被截断（超过 MaxSelectionLines）：走 @ 引用，让 LLM 自己读
