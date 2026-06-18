@@ -633,26 +633,19 @@ func (n *NotePane) Display() {
 	}
 	screen.Screen.SetContent(n.x+n.width-1, n.y, topRight, nil, config.DefStyle)
 
-	// 嵌入 receiver 名字（D12 Phase 2：上边框左上显示）
+	// 嵌入 receiver 名字到上边框（直接替换横线，无箭头）
 	name := n.selectedReceiver.Name
 	if name != "" {
-		// 截断：上边框可用宽度 = n.width - 2（去边框）；名字段上限 = 可用 / 3
+		// 截断：上边框可用宽度 = n.width - 2（去边框）；名字段上限 = 可用 / 2
 		avail := n.width - 2
-		nameCap := avail / 3
-		if nameCap < 6 {
-			// 太窄就不显示名字（避免 nameCap-3 负数 panic）
-		} else if len(name) > nameCap-3 {
-			name = name[:nameCap-3]  // -3 给 "→ " 前缀和末尾 ─ 留位
-			label := "→ " + name
-			for i, ch := range label {
-				// 从 ┌ 右边第 1 列开始覆盖（原循环已经画了 ─，这里覆写）
-				screen.Screen.SetContent(n.x+1+i, n.y, ch, nil, config.DefStyle)
-			}
-		} else {
-			label := "→ " + name
-			for i, ch := range label {
-				// 从 ┌ 右边第 1 列开始覆盖（原循环已经画了 ─，这里覆写）
-				screen.Screen.SetContent(n.x+1+i, n.y, ch, nil, config.DefStyle)
+		nameCap := avail / 2
+		if len(name) > nameCap {
+			name = name[:nameCap]
+		}
+		// 从位置 n.x+2 开始写入名字（保留 ┌- 前缀）
+		for i, ch := range name {
+			if n.x+2+i < n.x+n.width-1 { // 不覆盖右上角
+				screen.Screen.SetContent(n.x+2+i, n.y, ch, nil, config.DefStyle)
 			}
 		}
 	}
