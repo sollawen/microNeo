@@ -14,6 +14,7 @@ func InitGlobals() {
 	buffer.LogBuf = buffer.NewBufferFromString("", "", buffer.BTLog)
 	buffer.LogBuf.SetName("Log")
 	TheNotePane = NewNotePane()
+	TheSelectPane = NewSelectPane() // microNeo D13
 }
 
 // GetInfoBar returns the infobar pane

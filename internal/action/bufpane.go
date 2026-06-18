@@ -430,6 +430,12 @@ func (h *BufPane) getReloadSetting() string {
 
 // HandleEvent executes the tcell event properly
 func (h *BufPane) HandleEvent(event tcell.Event) {
+	// microNeo D13 test scaffolding: forward events to SelectPane when open
+	if TheSelectPane != nil && TheSelectPane.IsOpen() {
+		TheSelectPane.HandleEvent(event)
+		return
+	}
+
 	if h.Buf.ExternallyModified() && !h.Buf.ReloadDisabled {
 		reload := h.getReloadSetting()
 
@@ -530,6 +536,15 @@ func (h *BufPane) HandleEvent(event tcell.Event) {
 	}
 
 	h.observeEditModeToggle(event)
+}
+
+// Display 重写嵌入的 BWindow.Display，在主编辑器画完后叠加 SelectPane。
+// microNeo D13 test scaffolding：D12 可重构或删除。
+func (h *BufPane) Display() {
+	h.BWindow.Display()
+	if TheSelectPane != nil && TheSelectPane.IsOpen() {
+		TheSelectPane.Display()
+	}
 }
 
 // Bindings returns the current bindings tree for this buffer.
@@ -857,6 +872,7 @@ var BufKeyActions = map[string]BufKeyAction{
 	"Deselect":                  (*BufPane).Deselect,
 	"ClearInfo":                 (*BufPane).ClearInfo,
 	"NotePaneOpen":              notePaneOpen,
+	"selectTestOpen":            selectTestOpen,
 	"None":                      (*BufPane).None,
 	// This was changed to InsertNewline but I don't want to break backwards compatibility
 	"InsertEnter": (*BufPane).InsertNewline,

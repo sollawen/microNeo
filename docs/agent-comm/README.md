@@ -38,7 +38,8 @@ microNeo ↔ ai agent 通信系统的设计/实现文档。
 | Phase 1 最小闭环（单 pi、纯上下文暂存） | ✅ |
 | Phase 2 带 message + 选区 + 空拦截 | ✅ |
 | Phase 3 opencode 接收端 | 📋 调研完成，**未实现** |
-| Phase 4 扩展（长连接 / 双向 / Windows / 多 receiver 选择 UI / 隐私黑名单） | 📋 留 v2 |
+| Phase 4 扩展（长连接 / 双向 / Windows / 隐私黑名单） | 📋 留 v2 |
+| Phase 5 多 receiver 选择 UI | 📋 方案 D12 + D13 | [`D12-多receiver选择`](./D12-多receiver选择.md) + [`D13-SelectPane设计`](./D13-SelectPane设计.md) |
 
 **代码位置**：
 - microNeo：`internal/eabp/` + `internal/action/notepane.go`
@@ -61,13 +62,17 @@ microNeo ↔ ai agent 通信系统的设计/实现文档。
 - **不发送 `visible_lines`**：v1 不发送可见区域文本（隐私考虑）。
 - **`MNAB_REG_DIR` 调试覆盖**：两端都支持，调试时设个短路径方便手查注册文件。
 - **D0-D10、notePane实施计划已清理**：详细历史可查 git log + commit message。
+- **D11、D12、D13 是"D 系列决策"最新三篇**：
+  - D11：接收端名字分配（已实现）
+  - D12：notePane 多 receiver 处理（依赖 D13）
+  - D13：SelectPane 通用列表选择浮窗设计（D12 的依赖，参数化通用）
 
 ## 开放问题（高层）
 
 1. opencode 接收端何时实现？
 2. 双向通信的授权模型？
 3. Windows 支持？
-4. 多 receiver 选择 UI？
+4. ~~多 receiver 选择 UI~~ → 见 D12（notePane 处理）+ D13（通用 SelectPane）
 5. 隐私黑名单？
 
 详细见 `说明-架构设计.md` §九 + `说明-EABP.md` §十一。
