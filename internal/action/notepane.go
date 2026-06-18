@@ -21,14 +21,15 @@ import (
 // restricting available actions via a whitelist.
 type NotePane struct {
 	*BufPane
-	isOpen        bool
-	x, y          int
-	width         int
-	height        int
-	filePath      string       // main editor buffer.AbsPath
-	fileCursor    buffer.Loc   // captured cursor (X=col, Y=line)
+	isOpen           bool
+	x, y             int
+	width            int
+	height           int
+	filePath         string       // main editor buffer.AbsPath
+	fileCursor       buffer.Loc   // captured cursor (X=col, Y=line)
 	fileSelection    *[2]buffer.Loc // nil = no selection
 	fileSelectionText string          // main editor's selected text, captured at open()
+	selectedReceiver eabp.RegFile  // D12: 本次使用 + 下次缓存（Socket=="" 表示未缓存）
 }
 
 // TheNotePane is the global NotePane instance
@@ -131,9 +132,65 @@ func notePaneClose(h *BufPane) bool {
 // 注册为主编辑器的 BufKeyAction，可走标准 bindings.json 机制覆盖默认键位。
 // 守卫：notePane 已开态下重复触发是 no-op。
 func notePaneOpen(h *BufPane) bool {
-	if TheNotePane != nil && !TheNotePane.IsOpen() {
-		TheNotePane.open()
+	n := TheNotePane
+	if n == nil {
+		return false
 	}
+	if n.isOpen {
+		return true  // 已开，幂等
+	}
+
+	// 1. Discover
+	receivers, err := eabp.Discover()
+	if err != nil {
+		InfoBar.Message("✗ discover error: " + err.Error())
+		return false
+	}
+	if len(receivers) == 0 {
+		InfoBar.Message("✗ no receiver found")
+		return false
+	}
+
+	// 2. case 1：直接赋值（无需查缓存，只有一个）
+	if len(receivers) == 1 {
+		n.selectedReceiver = receivers[0]
+		n.open()
+		return true
+	}
+
+	// 3. case 2+：先查缓存命中（Socket 在 receivers 列表里）
+	if n.selectedReceiver.Socket != "" {
+		for _, r := range receivers {
+			if r.Socket == n.selectedReceiver.Socket {
+				n.open()  // 命中，复用缓存
+				return true
+			}
+		}
+	}
+
+	// 4. case 2+ 未命中：弹 SelectPane
+	names := make([]string, len(receivers))
+	for i, r := range receivers {
+		names[i] = r.Name
+	}
+	TheSelectPane.Open(names, "Receiver", func(s *string) {
+		if s == nil {
+			// Esc：清零缓存（走到此分支时缓存已失效，决策 14）
+			n.selectedReceiver = eabp.RegFile{}
+			InfoBar.Message("✗ 已取消")
+			return
+		}
+		// Enter：找到 name 对应的 RegFile
+		for _, r := range receivers {
+			if r.Name == *s {
+				n.selectedReceiver = r
+				n.open()
+				return
+			}
+		}
+		// 理论上不会到这（SelectPane 的 items 来自 receivers），防御性
+		InfoBar.Message("✗ internal: selected name not in receivers")
+	})
 	return true
 }
 
@@ -402,21 +459,8 @@ func NotePaneSend(h *BufPane) bool {
 		return false
 	}
 
-	// 1. Discover receivers
-	receivers, err := eabp.Discover()
-	if err != nil {
-		InfoBar.Message("✗ discover error: " + err.Error())
-		return false
-	}
-	if len(receivers) != 1 {
-		if len(receivers) == 0 {
-			InfoBar.Message("✗ no receiver found")
-		} else {
-			InfoBar.Message("✗ multiple receivers found, need exactly one")
-		}
-		return false
-	}
-	receiver := receivers[0]
+	// 1. 用 notePaneOpen 时确定的 receiver（决策 1：Discover 已前移）
+	receiver := n.selectedReceiver
 
 	// 2. Build payload
 	// Convert buffer.Loc {X,Y} = {col,row} (0-based) to EABP Position {Line,Col} = {row,col} (1-based)
