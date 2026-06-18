@@ -37,8 +37,11 @@ func NewSelectPane() *SelectPane {
 // Open 打开选择浮窗。
 //   items    候选项
 //   title    上边框标签（如 "test" / "Receiver" / "File"）
-//   onSelect 回调：Enter → onSelect(&items[selected])；Esc → onSelect(nil)
-func (s *SelectPane) Open(items []string, title string, onSelect func(*string)) {
+//   x, y     锚点（屏坐标）。均为 nil 时走旧逻辑（左下角、向上展开）
+//            两者都非 nil 时按 §四自适应展开
+//   onSelect 回调：Enter → onSelect(&items[selected])；Esc → onSelect(nil)；
+//            屏幕太小放不下（见 §4.6）→ onSelect(nil)，浮窗不 open
+func (s *SelectPane) Open(items []string, title string, x, y *int, onSelect func(*string)) {
 	if s.isOpen {
 		s.Close()
 	}
@@ -70,12 +73,84 @@ func (s *SelectPane) Open(items []string, title string, onSelect func(*string)) 
 		s.height = s.maxHeight
 	}
 
-	// 位置：贴 statusLine 上面、向上弹出、x=0 左对齐
-	_, h := screen.Screen.Size()
+	// 位置算法：锚点自适应（D13-SelectPane设计.md §3.2）
+	w, h := screen.Screen.Size()
 	iOffset := config.GetInfoBarOffset()
 	statusLineY := h - iOffset - 1
-	s.x = 0
-	s.y = statusLineY - s.height - 2
+	bottomLimit := statusLineY - 1 // statusLine 上方 1 row 即显示底边界
+	paneH := s.height + 2         // 含上下边框的完整高度
+	paneW := s.width
+
+	// §3.3 nil 分支：任一为 nil → 旧逻辑（左下角、向上展开）
+	if x == nil || y == nil {
+		s.x = 0
+		s.y = statusLineY - s.height - 2
+		s.isOpen = true
+		screen.Redraw()
+		return
+	}
+
+	// §4.6 失败前置检查：屏幕完全放不下则放弃 open
+	// 失败时不修改任何状态（isOpen 保持 false），不 set x/y，不 Redraw，直接 onSelect(nil) 返回
+	if paneH > bottomLimit+1 || paneW > w {
+		if s.onSelect != nil {
+			s.onSelect(nil)
+		}
+		return
+	}
+
+	// §4 自适应展开算法：y 与 x 各自独立、各自对称
+	ax, ay := *x, *y
+
+	// §4.3 y 方向
+	downSpace := bottomLimit - ay + 1 // [ay, bottomLimit] 的行数
+	upSpace := ay + 1                 // [0, ay] 的行数
+	switch {
+	case downSpace >= paneH:
+		s.y = ay // 向下:锚点 = 顶边
+	case upSpace >= paneH:
+		s.y = ay - paneH + 1 // 向上:锚点 = 底边
+	case downSpace >= upSpace:
+		s.y = ay // 兜底:偏向下
+	default:
+		s.y = ay - paneH + 1 // 兜底:偏向上
+	}
+	// 边界保护（防御性：§4.6 已判定 paneH ≤ bottomLimit+1）
+	maxY := bottomLimit - paneH + 1
+	if maxY < 0 {
+		maxY = 0
+	}
+	if s.y > maxY {
+		s.y = maxY
+	}
+	if s.y < 0 {
+		s.y = 0
+	}
+
+	// §4.4 x 方向（与 y 对称）
+	rightSpace := w - ax // [ax, w-1] 的列数
+	leftSpace := ax + 1  // [0, ax] 的列数
+	switch {
+	case rightSpace >= paneW:
+		s.x = ax // 向右:锚点 = 左边
+	case leftSpace >= paneW:
+		s.x = ax - paneW + 1 // 向左:锚点 = 右边
+	case rightSpace >= leftSpace:
+		s.x = ax // 兜底:偏向右
+	default:
+		s.x = ax - paneW + 1 // 兜底:偏向左
+	}
+	// 边界保护（防御性：§4.6 已判定 paneW ≤ w）
+	maxX := w - paneW
+	if maxX < 0 {
+		maxX = 0
+	}
+	if s.x > maxX {
+		s.x = maxX
+	}
+	if s.x < 0 {
+		s.x = 0
+	}
 
 	s.isOpen = true
 	screen.Redraw()
@@ -208,8 +283,4 @@ func (s *SelectPane) Display() {
 		}
 	}
 }
-
-// selectTestOpen 是 D13 测试用 action：打开 5 项 SelectPane 测试。
-// 绑在主编辑器 Alt-I（见 defaults_other.go / defaults_darwin.go）。
-//
 
