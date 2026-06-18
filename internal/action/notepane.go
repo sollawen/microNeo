@@ -168,12 +168,18 @@ func notePaneOpen(h *BufPane) bool {
 		}
 	}
 
-	// 4. case 2+ 未命中：弹 SelectPane
+	// 4. case 2+ 未命中：弹 SelectPane（D14：传真实锚点）
+	pane := MainTab().CurPane()
+	view := pane.BWindow.GetView()
+	bw := pane.BWindow.(*display.BufWindow)
+	lowestRow := n.lowestCursorScreenRow(bw, view)
+	ax := view.X + 2
+	ay := lowestRow + 1
 	names := make([]string, len(receivers))
 	for i, r := range receivers {
 		names[i] = r.Name
 	}
-	TheSelectPane.Open(names, "Receiver", nil, nil, func(s *string) {
+	TheSelectPane.Open(names, "Receiver", &ax, &ay, func(s *string) {
 		if s == nil {
 			// Esc：清零缓存（走到此分支时缓存已失效，决策 14）
 			n.selectedReceiver = eabp.RegFile{}
