@@ -17,7 +17,7 @@ Terminal screens aren't wide to begin with. **microNeo renders and edits in the 
 - See the result instantly, no split panes
 - Works great as `$EDITOR` for `Claude Code`, `Yazi`, etc.
 
-**Also a full text editor.** Like [micro](https://github.com/zyedidia/micro), microNeo supports syntax highlighting for 100+ languages (Python, Go, Rust, JavaScript, C, HTML, JSON, YAML, etc.), mouse support, multiple cursors, and Lua plugins. Use it as your daily driver for any file type. Markdown rendering is the bonus on top, automatically applied to `.md`/`.markdown` files.
+**Also a full text editor.** Like other editors, microNeo supports syntax highlighting for 100+ languages (Python, Go, Rust, JavaScript, C, HTML, JSON, YAML, etc.), mouse support, multiple cursors, and Lua plugins. Use it as your daily driver for any file type. Markdown rendering is the bonus on top, automatically applied to `.md`/`.markdown` files.
 
 **One-line Install**
 ```bash
