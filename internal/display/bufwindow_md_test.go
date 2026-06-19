@@ -3,6 +3,7 @@ package display
 import (
 	"testing"
 
+	"github.com/micro-editor/micro/v2/internal/buffer"
 	"github.com/micro-editor/micro/v2/internal/config"
 	"github.com/micro-editor/tcell/v2"
 )
@@ -191,17 +192,32 @@ func TestSetCellNilSink(t *testing.T) {
 	}
 }
 
-// TestScreenBuffer_ShowCursor 验证 ShowCursor 记录到 cursorX/Y/cursorOK。
+// TestScreenBuffer_ShowCursor 验证 ShowCursor 记录到 cursors 切片（含主+次）。
 func TestScreenBuffer_ShowCursor(t *testing.T) {
 	s := &screenBuffer{originX: 10, originY: 5, width: 80}
 	s.reset(50, 80, 10, 5)
 
-	s.ShowCursor(15, 10, true) // 绝对 → 本地 (5, 5)
-	if !s.cursorOK {
-		t.Error("ShowCursor 后 cursorOK 应为 true")
+	main := &buffer.Cursor{Num: 0}
+	s.ShowCursor(15, 10, main) // 绝对 → 本地 (5, 5)
+	if len(s.cursors) != 1 {
+		t.Fatalf("len(cursors) = %d, want 1", len(s.cursors))
 	}
-	if s.cursorX != 5 || s.cursorY != 5 {
-		t.Errorf("cursorX/Y = (%d, %d), want (5, 5)", s.cursorX, s.cursorY)
+	got := s.cursors[0]
+	if got.screenX != 5 || got.screenY != 5 {
+		t.Errorf("screenX/Y = (%d, %d), want (5, 5)", got.screenX, got.screenY)
+	}
+	if got.c != main {
+		t.Error("cursors[0].c != 传入的 cursor 指针")
+	}
+
+	// 多光标追加：次级 cursor 应保留在 cursors[1]，main 标记不丢失
+	sub := &buffer.Cursor{Num: 1}
+	s.ShowCursor(25, 20, sub)
+	if len(s.cursors) != 2 {
+		t.Fatalf("len(cursors) = %d, want 2（次级 cursor 应追加）", len(s.cursors))
+	}
+	if s.cursors[1].c != sub || s.cursors[0].c != main {
+		t.Error("追加后两个 cursor 应都保留，且顺序与写入一致")
 	}
 }
 
@@ -213,7 +229,7 @@ func TestScreenBuffer_NilReceiver(t *testing.T) {
 
 	// 以下调用都不应 panic
 	s.SetContent(0, 0, 'A', nil, tcell.StyleDefault)
-	s.ShowCursor(0, 0, true)
+	s.ShowCursor(0, 0, nil)
 	s.setRowMeta(0, 0, 0)
 	// reset 不 nil-safe：displayToBuffer 入口会 if sb==nil { sb = &screenBuffer{} } 保护
 
