@@ -1,5 +1,5 @@
 
-# <img src="./assets/microNeo-logo-mark.svg" width="48" alt="microNeo logo" align="absmiddle"/> microNeo
+# <img src="./assets/microNeo-logo-mark.svg" width="48" alt="microNeo logo" align="absmiddle"/> microNeo - Terminal Markdown Editor
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Go Version](https://img.shields.io/badge/Go-1.19+-00ADD8.svg)](https://golang.org/)
@@ -11,11 +11,13 @@
 Every Markdown editor splits your screen — source left, preview right.
 Terminal screens aren't wide to begin with. **microNeo renders and edits in the same window.**
 
-<img src="./assets/microneo-demo2.png" width="70%"/>
+<img src="./assets/microneo-demo2.png" width="70%" alt="microNeo terminal Markdown editor showing rendered README.md with live preview and syntax highlighting"/>
 
 - Click anywhere to edit the source
 - See the result instantly, no split panes
 - Works great as `$EDITOR` for `Claude Code`, `Yazi`, etc.
+
+**Also a full text editor.** Like [micro](https://github.com/zyedidia/micro), microNeo supports syntax highlighting for 100+ languages (Python, Go, Rust, JavaScript, C, HTML, JSON, YAML, etc.), mouse support, multiple cursors, and Lua plugins. Use it as your daily driver for any file type. Markdown rendering is the bonus on top, automatically applied to `.md`/`.markdown` files.
 
 **One-line Install**
 ```bash
@@ -34,6 +36,56 @@ curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/install.sh
 | Low Learning Curve | ✓ | ✓ | ✓ | ✗ | ✓ |
 
 **microNeo = Micro's editing + Glow's rendering, in one window.**
+
+---
+
+## FAQ
+
+### What is the best Markdown editor for the terminal?
+
+**microNeo** is a terminal Markdown editor that renders and edits in the same window — no split panes, no plugin setup, single Go binary. Unlike [Glow](https://github.com/charmbracelet/glow) (read-only) or vim with markdown plugins (steep learning curve), microNeo combines live Markdown rendering with full editing in one TUI window.
+
+### Is there a Markdown editor with live preview that doesn't split the screen?
+
+Yes — microNeo is the only terminal Markdown editor that renders and edits in the same window. You see the formatted Markdown by default; click anywhere to edit the source, and the preview updates instantly. No source/preview split, no tab switching, no detached preview window.
+
+### Can I use microNeo to edit code and config files, or only Markdown?
+
+Yes — microNeo is a full terminal text editor, not just a Markdown viewer. Like [Micro](https://github.com/zyedidia/micro), it supports syntax highlighting for 100+ languages (Python, Go, Rust, JavaScript, C, HTML, JSON, YAML, TOML, and more), mouse support, multiple cursors, and Lua plugins. Use it as your daily `$EDITOR` for any file type. Markdown rendering is the bonus that activates automatically for `.md`/`.markdown` files.
+
+### How do I preview Markdown in the terminal?
+
+Install microNeo, open any `.md` file with `microneo README.md`. Headings, tables, code blocks, lists, and links are rendered inline. Click to edit, save with `Ctrl-S`.
+
+### microNeo vs Glow — what's the difference?
+
+[Glow](https://github.com/charmbracelet/glow) is a read-only Markdown viewer (think `$PAGER`) — you can scroll and search but not edit. **microNeo is a full editor**: it renders formatted output AND lets you click anywhere to edit the source. If you want Glow's rendering plus the ability to write, microNeo is the combined solution.
+
+### How is microNeo different from Micro?
+
+[Micro](https://github.com/zyedidia/micro) is a general-purpose terminal text editor with syntax highlighting and mouse support. microNeo keeps all of that and adds automatic Markdown rendering: opening a `.md` file shows formatted headings, tables, and code blocks inline instead of raw markup. The same window is used for both viewing and editing — click to switch.
+
+### How do I use microNeo as the editor for Claude Code or opencode?
+
+microNeo works with any tool that respects `$EDITOR` — including [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [opencode](https://github.com/sst/opencode). Set it as your default:
+
+```bash
+export EDITOR=microneo
+```
+
+Add this to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.) and reload. Claude Code and opencode will then spawn microNeo for any text input — prompts, commit messages, file edits. For per-project config, set it in `.env` or the tool's own settings.
+
+### Does microNeo support custom themes and configuration?
+
+Yes. microNeo uses `$XDG_CONFIG_HOME/microNeo/` (default `~/.config/microNeo/`) for configuration. You can:
+
+- Customize Markdown rendering colors via your color scheme (built-in: darcula, gruvbox-tc, …)
+- Set clipboard mode in `settings.json` (fixes garbled click on Linux)
+- Change the status separator for non-Nerd-Font terminals
+- Bind custom hotkeys via `bindings.json`
+
+See [Configuration](#configuration) below for details.
+
 
 ---
 

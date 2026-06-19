@@ -1,23 +1,56 @@
 # microNeo Marketing Plan
 
-> Last updated: 2026-06-19
+> Last updated: 2026-06-19（SEO 重大优化）
+
+---
+
+## 🔍 SEO 重大优化（2026-06-19 完成）🆕
+
+**一次完成 7 项 Google 搜索优化改动**，从内容到 metadata 全链路覆盖。
+
+| # | 改动 | 位置 | 关键变化 |
+|---|---|---|---|
+| 1 | **FAQ 加 8 个 Q&A** | README 第 41 行 | 抢 PAA / Featured Snippet，H3 自然语言问句 |
+| 2 | **Headline callout "Also a full text editor"** | README 顶部 | 拓展定位，吸引非 MD 用户 |
+| 3 | **Q5 (vs Micro) 强化** | README FAQ | 加 "keeps all of that"，防止用户以为丢能力 |
+| 4 | **新 Q8 "Can I edit code/config?"** | README FAQ | 抢 "code editor terminal" / "syntax highlighting" 长尾 |
+| 5 | **demo 图加 alt 文本** | README 第 14 行 | Google 图片搜索流量 |
+| 6 | **Topics 优化：8 → 12 个** | GitHub metadata | 去掉 `markdown`，加 `markdown-editor` 等 5 个 |
+| 7 | **Description 重写：54 → 180 字符** | GitHub metadata | 全部关键词覆盖，Google 搜索摘要直接可用 |
+
+**预期效果时间线**：
+- 📅 1-3 天：Google 重新爬 README + 索引新 topics
+- 📅 1-2 周：FAQ Q&A 命中 PAA / Featured Snippet
+- 📅 2-4 周：organic 搜索流量开始显现
+
+**关键判断**：
+- 之前流量 100% 依赖 awesome-tuis 长尾 + 同事口碑
+- 这次 SEO 改动让 microNeo 在搜索结果里 **self-serve** —— 用户搜 "terminal markdown editor" / "syntax highlighting terminal" / "Claude Code editor" 都能找到
+- 配合 v1.0.x release news，**awesome-tuis 长尾 + 搜索流量 = 双引擎**
+
+**详见附录 C：SEO 关键词覆盖矩阵**。
 
 ---
 
 ## 📣 状态更新（2026-06-19）
 
-**最近里程碑（6/16）：**
-- ✅ **awesome-tuis PR #713 已 merge**（[链接](https://github.com/rothgar/awesome-tuis/pull/713)）—— **第一个英文 awesome 列表收录**（19.3k ⭐，由 Justin Garrison 合并）
+**最近里程碑：**
+- ✅ **awesome-tuis PR #713 已 merge**（[链接](https://github.com/rothgar/awesome-tuis/pull/713)）—— 第一个英文 awesome 列表收录（19.3k ⭐，由 Justin Garrison 合并）
   - README badge 已加：`https://github.com/rothgar/awesome-tuis`
   - 当前流量贡献：14 天 96 次站内 referrer，awesome-tuis 应是主长尾来源
   - 预期长期效果：每天 10-50 浏览，持续带来 organic stars
+- ✅ **chinese-independent-developer PR #975 已 merge**（[链接](https://github.com/1c7/chinese-independent-developer/pull/975)）—— 48.8k ⭐，6/9 合并
+  - 6-08 流量高峰（45 views / 79 clones uniques）由这次 merge 触发
 
-**待跟进（3 个 PR pending）：**
-- 🟡 awesome-cli-apps #1142（19.7k ⭐）— 6/8 提交，10 天无动静 → 礼貌 ping 维护者
-- 🟡 awesome-modern-cli #20（361 ⭐）— 6/8 提交，月更节奏
-- 🟡 awesome-markdown #124（931 ⭐）— 6/8 提交，月更节奏
+**PR 状态（6/19 全面盘查）：**
+- ✅ rothgar/awesome-tuis #713（19.3k）— MERGED 6/16
+- ✅ 1c7/chinese-independent-developer #975（48.8k）— MERGED 6/9
+- ❌ **agarrharr/awesome-cli-apps #1142（19.7k）— CLOSED 6/8（6 小时内被 jneidel 关掉，无评论）** — 见下方"重提策略"
+- 🟡 thegdsks/awesome-modern-cli #20（368）— OPEN 12 天
+- 🟡 BubuAnabelas/awesome-markdown #124（933）— OPEN 12 天
+- 🟡 521xueweihan/HelloGitHub #3335（160k）— Issue 投稿，月刊审核
 
-**见下方 "立即行动（7 天冲刺）" 获取完整计划。**
+**详见下方"🆕 新目标待提交"和"附录 B：awesome PR 完整记录"。**
 
 ---
 
@@ -38,7 +71,7 @@
 
 **为什么不在 install.sh 上做文章：**
 - install.sh 走 binary 下载，不走 `git clone`，GitHub 看不到这部分调用
-- binary 下载数 ≈ 真实装机数，是 install.sh 的代理指标（**当前 ~10-15/14 天**）
+- binary 下载数 ≈ 真实装机数，是 install.sh 的代理指标（**当前 ~20/7d 或 ~41/终身**）
 - 改成 `git clone` 会把装机数砍 5-10×，得不偿失
 - 所有成功的 CLI 工具（bat/fd/ripgrep/zoxide）都走 `curl | sh`
 
@@ -49,12 +82,13 @@
 | 指标 | 值 | 说明 |
 |---|---|---|
 | 总 stars | 10 | 6 来自同事，**organic = 4** |
-| 14 天 unique visitor | 34 | 真的点进 GitHub 看 README/demo 的人 |
-| 14 天 git clone unique | 430 | 大部分是开发者/CI/机器人，非真用户 |
-| 14 天 binary 下载（install.sh 代理） | **~10-15** | 真的装了 binary 准备用的人 |
-| **visitor → star 转化率** | **12%** | 健康（行业平均 1-3%） |
-| 全部 release binary 总下载 | 45 | 终身估算 30-40 unique user |
-| Top referrer | github.com | 无 HN / X / 搜索引擎入口 |
+| 14 天 unique visitor | 45 | 真的点进 GitHub 看 README/demo 的人 |
+| 14 天 git clone unique | 441 | ⚠️ **大部分是 dev/CI/bot，非真用户** |
+| **⭐ 7d binary 下载** | **20** | ⭐ **真用户装机数**（基于 GitHub Releases API） |
+| **⭐ 终身 binary 下载** | **41** | ⭐ **真用户装机累计** |
+| **⭐ visitor → install 转化率** | **~15%** | 41 安装 / 271 浏览 = 远高于行业 2-5% |
+| 全部 release binary 总下载 | 41 | M1+ Mac 占 49%，Linux x64 占 37% |
+| Top referrer | github.com | awesome-tuis 长尾主入口 |
 
 **关键洞察：**
 1. 12% 转化率证明 **产品定位 + README + demo 没问题**
@@ -157,6 +191,33 @@ protocol. Add a new agent without touching microNeo's code.
 | **检查 demo 截图** | P0 | ✅ 确认 microneo-demo2.png 效果 OK |
 | **起草推广通稿** | P0 | ✅ HN + Reddit 通用稿件已写好，见下方通稿章节 |
 | **GitHub Release** | P0 | ✅ 已有 v1.0.2，6 平台二进制 + SHA |
+
+### ✅ Day 3 — 2026-06-19（周四）SEO 重大优化
+
+| 任务 | 状态 | 链接/说明 |
+|------|------|-----------|
+| **FAQ 8 个 Q&A 写入 README** | ✅ 完成 | 第 41 行，原占位 `## FAQ` 填充。风格："一个段落 = 一行"，全章统一 |
+| **Headline 加 "Also a full text editor"** | ✅ 完成 | 拓展定位，告知 100+ 语言、daily driver |
+| **Q5 (vs Micro) 强化** | ✅ 完成 | 加 "keeps all of that and adds Markdown" |
+| **新 Q8 (code/config files)** | ✅ 完成 | 抢 "code editor terminal" / "syntax highlighting" 长尾 |
+| **demo 图加 alt 文本** | ✅ 完成 | README 第 14 行 |
+| **Topics 优化** | ✅ 完成 | 8 → 12 个，详见下面 "当前 topics" |
+| **Description 重写** | ✅ 完成 | 54 → 180 字符，添加 "renders and edits" / "syntax highlighting" / "Claude Code" 等关键词 |
+
+**当前 topics（12 个）**：
+```
+editor, terminal, go, tui, micro, cli, linux,           # 基本身份
+claude-code, cross-platform,                            # 增长词
+markdown-editor, markdown-rendering, syntax-highlighting  # 差异化
+```
+
+**Description 当前版本（180 字符）**：
+> Terminal Markdown editor that renders and edits in the same window. Single Go binary with syntax highlighting for 100+ languages, works as $EDITOR for Claude Code and any CLI tool.
+
+**为什么这次重要**：
+- 之前流量 100% 依赖 awesome-tuis 长尾 + 同事口碑
+- 现在加了 organic 搜索引擎：**self-serve discovery**
+- 搜索词覆盖：品牌 / 父项目 / 竞品 / 用例 / 技术 / 痛点 / 平台全关键词
 
 ### 📋 Day 2 — 2026-06-09（周一）晚上发布（❌ 全部被卡）
 
@@ -269,18 +330,25 @@ https://github.com/sollawen/microNeo
 
 | 优先级 | 渠道 | 预期效果 | 状态 |
 |--------|------|----------|------|
+| 🔴 P0 | **GitHub organic 搜索** | **新 ✅**：self-serve discovery，靠 6/19 SEO 改动被动接收流量 | ✅ 7 项 SEO 改动完成 |
 | 🔴 P0 | **dev.to 长文** | SEO 长尾 50-200 stars | 📋 Day 1（今天） |
 | 🔴 P0 | **Twitter/X thread** | 病毒传播 0-500 stars | 📋 Day 1-2 |
 | 🔴 P0 | **V2EX 分享创造** | 中文圈 50-200 stars | 📋 Day 2-3 |
+| 🔴 P0 | **mundimark/awesome-markdown-editors** | 精准 fit 长期 | 🆕 待提交（6/19 立项） |
+| 🔴 P0 | **mundimark/awesome-markdown** | 备份 list 长期 | 🆕 待提交（6/19 立项） |
+| 🔴 P0 | **hackstoic/golang-open-source-projects** | 中文 Go 圈 | 🆕 待提交（6/19 立项） |
 | 🔴 P0 | awesome-tuis | 长期每天 10-50 浏览 | ✅ 已 merge |
 | 🟡 P1 | **掘金长文** | 中文长尾 100-500 浏览 | 📋 Day 3-5 |
 | 🟡 P1 | HN 攒 karma | 解锁 Show HN | 🔄 后台 3-5 天 |
 | 🟡 P1 | Reddit 攒 karma | 解锁 r/commandline | 🔄 后台 2-3 周 |
-| 🟡 P1 | awesome-cli-apps PR #1142 | 长期少量浏览 | ✅ 已提交 10 天，跟进中 |
+| 🟡 P1 | **herrbischoff/awesome-macos-command-line** | 30k 英文大列表 | ⏸️ 等 200+ stars |
+| 🟡 P1 | awesome-modern-cli #20 | 月更，跟进 | 🟡 OPEN 12 天 |
+| 🟡 P1 | awesome-markdown #124 | owner 僵尸风险 | 🟡 OPEN 12 天 |
+| 🟡 P1 | HelloGitHub #3335 | 160k 月刊 | 🟡 等月刊 |
 | 🟢 P2 | HN Show HN（解锁后） | 0-300 stars | 📋 解锁后 |
 | 🟢 P2 | Reddit r/commandline（解锁后） | 50-200 浏览 | 📋 解锁后 |
-| 🟢 P2 | awesome-modern-cli | 长期少量浏览 | ✅ PR 已提交 |
-| 🟢 P2 | awesome-markdown | 同上 | ✅ PR 已提交 |
+| 🟢 P2 | **awesome-cli-apps 重提** | 200+ stars 后用极简 PR | ⏸️ 等 stars |
+| 🟢 P2 | alebcay/awesome-shell | 50+ stars 门槛 | ⏸️ 等 stars |
 | 🟢 P2 | Homebrew | 发现性提升 | ⏸️ 暂缓，等 200+ stars |
 
 ---
@@ -357,12 +425,240 @@ https://github.com/sollawen/microNeo
 
 ---
 
-## 附录 B：awesome PR 记录
+## 🆕 新目标待提交（按优先级，6/19 全网盘查）
 
-| 仓库 | Stars | 维护者更新频率 | PR | 加的位置 | Merge 概率 |
-|------|-------|----------------|-----|---------|-----------|
-| rothgar/awesome-tuis | 19.3k | 活跃（最近 merge 6/3） | [#713](https://github.com/rothgar/awesome-tuis/pull/713) | Editors | ✅ **已 merge (6/16)** |
-| **agarrharr/awesome-cli-apps** | 19.7k | 很活跃（6/4~6/7 天天 merge） | [#1142](https://github.com/agarrharr/awesome-cli-apps/pull/1142) | Text Editors + Markdown | 中高 |
-| thegdsks/awesome-modern-cli | 361 | 月更（最近 merge 5/6） | [#20](https://github.com/thegdsks/awesome-modern-cli/pull/20) | Text Editors | 高 |
-| **1c7/chinese-independent-developer** | **48.8k** | **很活跃（6/5~6/8 天天 merge）** | [**#975**](https://github.com/1c7/chinese-independent-developer/pull/975) | 程序员版面 | ✅ 已 merge（6/9） |
-| **521xueweihan/HelloGitHub** | **160k** | 月刊发布，审核周期 1-4 周 | [**Issue #3335**](https://github.com/521xueweihan/HelloGitHub/issues/3335) | Go 类目投稿 | 中高（需审核） |
+> 整理逻辑：先 **P0 三个**（高 stars + 高 fit + 活跃维护），效果立等可见。P1 等 v1.0.x 涨粉后再开。P2 卡在硬性门槛。
+
+### P0 — 立即提 PR（这周内）
+
+| 仓库 | Stars | 维护活跃度 | 收录位置 | 备注 |
+|------|-------|------------|----------|------|
+| **mundimark/awesome-markdown-editors** | 2.1k | 🟢 **6/16 push** | Desktop Editors → Linux（交叉 Universal） | **最精准的 fit**。2026 新规：先加 [UPCOMING.md](https://github.com/mundimark/awesome-markdown-editors/blob/master/UPCOMING.md)，主列表定期同步 |
+| **mundimark/awesome-markdown** | 1.9k | 🟢 6/11 push | Editors 段 | 跟上面同 owner，PR #124 失效时退路 |
+| **hackstoic/golang-open-source-projects** | 11.5k | 🟢 5/31 push | Terminal tools / Editor | **中文 Go 开源榜单**，中文 README，对中文开发者更精准 |
+
+### P1 — 等 v1.0.x 做出小 milestone 再提（2-3 周后）
+
+| 仓库 | Stars | 收录位置 | 备注 |
+|------|-------|----------|------|
+| **herrbischoff/awesome-macos-command-line** | 30.7k | Editors 段 | 30k+ stars 大列表，门槛高，需要更多 stars + Mac demo gif |
+| **agarrharr/awesome-cli-apps** | 19.8k | Text Editors + Markdown | **重提**：#1142 被无理由 close，**等 200+ stars 后用极简 PR 重提**（详见下方"重提策略"） |
+| **thegdsks/awesome-modern-cli** | 368 | Text Editors | PR #20 还开着，月底前没反应就 close + 重新开 |
+| **BubuAnabelas/awesome-markdown** | 933 | Editors 段 | PR #124 还开着，owner 2024-08 后无 push — 可能僵尸，备选 mundimark |
+
+### P2 — 暂缓（卡在 star 数 / 维护状态）
+
+| 仓库 | Stars | 阻塞原因 | 解锁条件 |
+|------|-------|----------|----------|
+| **alebcay/awesome-shell** | 37.1k | **明确要求 50+ stars**（[CONTRIBUTING](https://github.com/alebcay/awesome-shell/blob/master/CONTRIBUTING.md)） | 50 stars（10 → 50） |
+| avelino/awesome-go | 175.8k | **只收 libraries，不收 apps** | 永久放弃 |
+| inputsh/awesome-linux | 5.1k | 2023-02 后无 push，已 abandoned | 跳过 |
+| herrbischoff/awesome-command-line-apps | 4.2k | 跟 agarrharr 那份重复 | 跳过 |
+| cdleon/awesome-terminals | 2.8k | 专注 terminal emulators，不适合 | 跳过 |
+| **learnbyexample/TUI-apps** | 991 | **不是 curated list**，是个人 CLI 学习项目 | 跳过 |
+
+### 重提策略：awesome-cli-apps #1142
+
+**事件回顾**：6/8 12:35 提交 → 6/8 18:45 被 jneidel close（**6 小时内**，0 评论，0 review）
+**同期数据**：同维护者 6 月合并了 15 个 PR（#1087, #1090, #1091, #1096, #1097, #1116, #1134, #1135, #1136, #1139, #1141, #1149, #1154 等），合并率约 50%
+
+**为什么被 close**（猜测）：
+- microNeo 当时只有 4 organic stars
+- 描述太长 / 跟已有 Micro fork 重复
+- 维护者最近在批量清理"低 stars + 长描述"PR
+
+**重新打开策略**：
+1. **等 200+ stars 后**再提（v1.0.x 持续涨粉）
+2. 改用**极简 PR 描述**（3-5 行）：
+
+```
+Adds microNeo to Text Editors and Markdown sections.
+
+microNeo is a terminal Markdown editor that renders and edits 
+in the same window (no split panes). Open any .md file, see it 
+rendered, click to edit. 1k+ stars on the parent Micro project.
+```
+
+3. **只加 1 个位置**（Text Editors），不再同时加 Markdown 段（之前双段可能触发了 spam 检测）
+4. PR 标题缩短到 60 字符以内
+
+### 备份方案
+
+如果 2 周后仍无响应：
+- **awesome-modern-cli**：owner 月更节奏，等月底不响应就 close 重开
+- **awesome-markdown**：BubuAnabelas 2024-08 后无 push，**主推 P0 的 mundimark 两个 repo 作为替代**
+
+---
+
+## 📝 PR 模板（即用即改）
+
+### 模板 1：通用 awesome list 提交（英文）
+
+**PR Title**（60 字符内）：
+```
+Add microNeo to <Section Name> section
+```
+
+**PR Body**：
+```markdown
+Adds [microNeo](https://github.com/sollawen/microNeo) to the <Section Name> section.
+
+microNeo is a terminal Markdown editor that renders and edits in the same 
+window. Open any `.md` file → see it rendered → click anywhere to edit the 
+source. No split panes.
+
+- Built in Go, single binary
+- Works as `$EDITOR` for Claude Code, Yazi, etc.
+- One-line install: `curl -fsSL .../install.sh | sh`
+
+Differentiation from existing entries:
+- Micro/nano: no Markdown rendering
+- Glow/frogmouth: read-only viewers
+- vim + plugins: split panes (terminal screens aren't wide)
+```
+
+**配套操作**：
+- PR 同时给 README 加 `[![awesome-xxx](badge)](URL)` badge
+- 检查 GitHub topics 是否需要调整（**当前 12 个已设置，详见 附录 C**）
+
+### 模板 2：中文 awesome 列表提交
+
+**PR Title**：
+```
+添加 microNeo - 终端 Markdown 编辑器
+```
+
+**PR Body**：
+```markdown
+#### sollawen - [GitHub](https://github.com/sollawen)
+* :white_check_mark: [microNeo](https://github.com/sollawen/microNeo)：终端 Markdown 编辑器，**同窗口渲染+编辑**。打开 .md 文件即看到排版效果，点击即可编辑，无需分屏。Go 单二进制，一行命令安装
+```
+
+### 模板 3：跟进被 close 的 PR（重新打开）
+
+**适用**：awesome-cli-apps 之类的
+- **不要在原 PR 下争论**
+- **直接新开 PR**（用上面模板 1 的极简版）
+- 描述中**不引用**原 PR 编号
+
+---
+
+## 附录 B：awesome PR 完整记录
+
+### ✅ 已 merge（2）
+
+| 仓库 | Stars | PR | Merge 时间 | 流量贡献（14 天） |
+|------|-------|-----|-----------|------------------|
+| rothgar/awesome-tuis | 19.3k | [#713](https://github.com/rothgar/awesome-tuis/pull/713) | 2026-06-16 | **主长尾**（预期 10-50 浏览/天） |
+| 1c7/chinese-independent-developer | 48.8k | [#975](https://github.com/1c7/chinese-independent-developer/pull/975) | 2026-06-09 | 6-08 触发 79 clones uniques 峰值 |
+
+### 🟡 待跟进（3）
+
+| 仓库 | Stars | PR/Issue | 提交时间 | 状态 | 跟进动作 |
+|------|-------|----------|----------|------|----------|
+| thegdsks/awesome-modern-cli | 368 | [#20](https://github.com/thegdsks/awesome-modern-cli/pull/20) | 6/8 | OPEN 12 天 | 等月底，不响应则重开 |
+| BubuAnabelas/awesome-markdown | 933 | [#124](https://github.com/BubuAnabelas/awesome-markdown/pull/124) | 6/8 | OPEN 12 天 | owner 2024-08 后无 push，可能僵尸，备选 mundimark |
+| 521xueweihan/HelloGitHub | 160k | [Issue #3335](https://github.com/521xueweihan/HelloGitHub/issues/3335) | 6/8 | 等月刊审核 | 月刊发布日 7 月初 |
+
+### ❌ 已关闭（1）
+
+| 仓库 | Stars | PR | 关闭时间 | 关闭原因 | 后续 |
+|------|-------|-----|----------|----------|------|
+| agarrharr/awesome-cli-apps | 19.8k | [#1142](https://github.com/agarrharr/awesome-cli-apps/pull/1142) | 2026-06-08（6h 内） | 无理由 close | **200+ stars 后重提**（用极简模板） |
+
+### 🆕 待提交（3 — P0）
+
+| 仓库 | Stars | 拟加位置 | 优先级 | 提交模板 |
+|------|-------|----------|--------|----------|
+| mundimark/awesome-markdown-editors | 2.1k | Desktop Editors → Linux + Universal | 🔴 P0 | 模板 1 |
+| mundimark/awesome-markdown | 1.9k | Editors 段 | 🔴 P0 | 模板 1 |
+| hackstoic/golang-open-source-projects | 11.5k | Terminal tools / Editor | 🔴 P0 | 模板 2（中文） |
+
+### ⏸️ 暂缓（等 stars / 维护者活跃）
+
+| 仓库 | Stars | 解锁条件 | 当前状态 |
+|------|-------|----------|----------|
+| alebcay/awesome-shell | 37.1k | 50+ stars（**需 5x 增长**） | 10 stars，等 v1.0.x 涨粉 |
+| herrbischoff/awesome-macos-command-line | 30.7k | 200+ stars + Mac demo gif | 当前没 Mac-specific 卖点 |
+| avelino/awesome-go | 175.8k | 不可解锁（只收 libraries） | 永久放弃 |
+| inputsh/awesome-linux | 5.1k | 维护者复活 | 2023-02 abandoned，跳过 |
+| learnbyexample/TUI-apps | 991 | 不是 curated list | 跳过 |
+
+---
+
+## 附录 C：SEO 关键词覆盖矩阵（2026-06-19 建立）
+
+> 这次 SEO 改动的核心思想：**让用户搜什么都能找到 microNeo**。
+> 下面这个矩阵是所有抢的搜索词及抢的方式。
+
+### 主关键词分类
+
+| 类别 | 关键词 | 抢的方式 |
+|---|---|---|
+| **品牌词** | `microNeo` | GitHub repo、awesome-tuis badge、README |
+| **父项目词** | `Micro` / `micro editor` | Q5 (vs Micro) + 继承描述 |
+| **竞品词** | `Glow` / `vim` / `nano` | Q4 (vs Glow) + 横向对比表 |
+| **USP 词** | `same window` / `no split` / `live preview` / `renders and edits` | Q2、Headline、Description |
+| **技术词** | `Go` / `single binary` / `syntax highlighting` | Description、Q8、topic `go` |
+| **用例词** | `Claude Code` / `opencode` / `$EDITOR` / `Yazi` | Q7 (Claude/opencode) + Q8 |
+| **痛点词** | `terminal markdown editor` / `code editor terminal` | Tagline、Q1、Q8 |
+| **平台词** | `terminal` / `TUI` / `Linux` / `cross-platform` | topics: `terminal`, `tui`, `linux`, `cross-platform` |
+| **AI 编程词** | `Claude Code` / `claude code editor` | Q7、topic `claude-code` |
+
+### 关键词 vs 落地位置对照表
+
+| 关键词 | README | FAQ | Description | Topics | Headline |
+|---|:---:|:---:|:---:|:---:|:---:|
+| terminal markdown editor | ✅ | Q1, Q2, Q3 | ✅ | ✅ | ✅ |
+| renders and edits in same window | — | Q2, Q5, Q8 | ✅ | — | ✅ |
+| live preview | — | Q2, Q3 | — | — | ✅ |
+| no split panes / no split | — | Q2 | — | — | ✅ |
+| single Go binary | ✅ | Q3 | ✅ | ✅ (`go`) | — |
+| syntax highlighting | — | Q8 | ✅ | ✅ | ✅ |
+| 100+ languages | — | Q8 | ✅ | — | ✅ |
+| $EDITOR / Claude Code / opencode | — | Q7 | ✅ | ✅ (`claude-code`) | ✅ |
+| cross-platform | — | Q5 (via Micro) | — | ✅ | — |
+| vs Glow | — | Q4 | — | — | — |
+| vs Micro | — | Q5 | — | — | — |
+
+### Topics 决策记录
+
+| 决策 | 理由 |
+|---|---|
+| **去掉 `markdown`** | 跟 markitdown (155k)、firecrawl (135k) 同台，被淹没 |
+| **加 `markdown-editor`** | 跟 foam (17k)、Milkdown (11k) 同台，精准 |
+| **加 `syntax-highlighting`** | 抢 "syntax highlighting terminal" 长尾 |
+| **加 `markdown-rendering`** | 跟 USP"同窗口渲染+编辑"对齐 |
+| **加 `claude-code`** | 抢 Claude Code 用户增长红利 |
+| **加 `cross-platform`** | 跟 `linux` 互补（macOS/Windows 用户） |
+| **保留 `go`** | 行业惯例 + 组合搜索过滤 + 技术信号 |
+| **保留 `editor`/`terminal`/`tui`/`cli`/`linux`/`micro`** | 基本身份标签，不删 |
+
+### 预期流量来源结构（6 月底 vs 8 月底）
+
+| 流量来源 | 6/19（SEO 前） | 预期 8 月底（SEO 生效后） |
+|---|---|---|
+| awesome-tuis 长尾 | 10-50 浏览/天 | 10-50 浏览/天（稳定） |
+| **Google organic 搜索** | **几乎为 0** | **20-100 浏览/天**（新 ✅） |
+| Chinese awesome list 长尾 | 5-20 浏览/天 | 5-20 浏览/天（稳定） |
+| HN / Reddit（解锁后） | 0 | 50-500 stars 一次性爆发 |
+| 直接访问 / 外链 | 同事 + 偶然 | organic + 同事 |
+| **合计** | 15-70 浏览/天 | 50-200 浏览/天 |
+
+### 监控指标（接下来 4 周看）
+
+| 指标 | 目标 | 测量方式 |
+|---|---|---|
+| Google 索引量 | 1-2 周内 README 进入索引 | `site:github.com/sollawen/microNeo` |
+| PAA 命中 | 4 周内 FAQ Q&A 出现在 PAA | 手动搜 "best terminal markdown editor" 等关键词 |
+| Organic visits | 4 周内 GitHub traffic referrers 出现 google.com | `gh api /traffic/popular/referrers` |
+| Stars 增长 | 4 周内 organic stars +5-10 | 排除同事后看新增 |
+
+### 复盘节奏
+
+- **每周日** 跑一次 `gh api /traffic/popular/referrers` 看 organic 占比
+- **每 2 周** 手动搜 5 个目标关键词看 PAA 进度
+- **每 4 周** 更新本附录，记录实际 vs 预期偏差
+
+**所有数据记录在** [`seo-progress.md`](./seo-progress.md) **（单独的 progress log，T0 baseline 已建立）**
+
