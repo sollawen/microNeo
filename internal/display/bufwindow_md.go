@@ -550,7 +550,7 @@ func (w *BufWindow) renderSegmentNative(
 			if showcursor {
 				for _, c := range cursors {
 					if c.X == bloc.X && c.Y == bloc.Y && !c.HasSelection() {
-						w.setShowCursor(w.X+vloc.X, w.Y+vloc.Y, c.Num == 0)
+						w.setShowCursor(w.X+vloc.X, w.Y+vloc.Y, c)
 					}
 				}
 			}
@@ -810,7 +810,6 @@ func (w *BufWindow) displayToBuffer(startLine SLoc, showCursor bool) {
 	}
 	w.sb.reset(cap, w.gutterOffset+bufWidth, w.X, w.Y)
 	w.sb.startLine = startLine
-	w.sb.cursorOK = false
 	w.sb.editMode = w.editMode
 
 	// 切 sink（renderer 和 gutter 走 screenBuffer）
@@ -1022,13 +1021,15 @@ func (w *BufWindow) showBuffer(startLine SLoc) {
 	}
 
 	// 同步光标位置到 terminal
-	// ★ cursorY 是 sb 绝对行号（从 sb.startLine 算起），
+	// ★ 每个 sbCursor.screenY 是 sb 本地行号（从 sb.startLine 算起），
 	//   但可见窗口从 startVY 开始 blit，必须减去 startVY 才是屏幕行。
 	//   不减会导致光标画低 startVY 行（scrollup 后光标错位 / 消失到 statusLine 下）。
-	if w.sb.cursorOK {
-		curScreenY := w.sb.cursorY - startVY
+	//   遍历本帧记录的所有 cursor（主+次），主光标走真终端光标、次级走 fake cursor。
+	//   同位置多次调用 ShowFakeCursorMulti 无副作用（幂等），无需去重。
+	for _, sc := range w.sb.cursors {
+		curScreenY := sc.screenY - startVY
 		if curScreenY >= 0 && curScreenY < bufHeight {
-			w.showCursor(w.X+w.sb.cursorX, w.Y+curScreenY, true)
+			w.showCursor(w.X+sc.screenX, w.Y+curScreenY, sc.c.Num == 0)
 		}
 	}
 
@@ -1297,6 +1298,14 @@ type screenRow struct {
 	cells  []mdCell // 显示数据；showBuffer blit 后置 nil 释放
 }
 
+// sbCursor 记录一个光标：复用 micro 原生 *buffer.Cursor（含 Num，blit 时算 main），
+// 外加 sb 本地屏幕坐标（离屏渲染必需）。不自己造 main 字段，与原生就地画法保持一致。
+type sbCursor struct {
+	c       *buffer.Cursor // 复用 micro 原生 cursor（c.Num==0 即主光标）
+	screenX int            // sb 本地 X（已减 originX）
+	screenY int            // sb 本地 Y（已减 originY），= sb.rows 索引
+}
+
 // screenBuffer 是 MD 渲染的离屏单一数据源：既是渲染结果，又是 line↔vY 查询地图。
 type screenBuffer struct {
 	rows      []screenRow // 长度动态，≤ 2*bufHeight
@@ -1308,9 +1317,7 @@ type screenBuffer struct {
 	originY   int         // 渲染窗口原点 Y（= w.Y）
 	width     int         // 每行 cell 宽度（= gutterOffset + bufWidth）
 	overflow  bool        // 2×bufHeight 兜底触发标记（→ fallback）
-	cursorX   int         // 光标在 sb 坐标系的位置（showBuffer 同步用）
-	cursorY   int
-	cursorOK  bool // 是否记录到有效光标
+	cursors   []sbCursor  // 本批渲染落在可见区的所有光标（含主 + 次）
 	editMode  bool // 本次 render 时的 editMode，供 displayBufferMD 跨帧比较
 }
 
@@ -1346,15 +1353,16 @@ func (s *screenBuffer) SetContent(x, y int, mainc rune, combc []rune, style tcel
 	rowData.cells[col] = mdCell{r: mainc, combc: combc, style: style}
 }
 
-// ShowCursor 记录光标位置（cells 坐标系）。
-func (s *screenBuffer) ShowCursor(x, y int, main bool) {
+// ShowCursor 记录光标到 cursors 切片（cells 坐标系）。
+func (s *screenBuffer) ShowCursor(x, y int, c *buffer.Cursor) {
 	if s == nil {
 		return
 	}
-	// 转为本地坐标
-	s.cursorX = x - s.originX
-	s.cursorY = y - s.originY
-	s.cursorOK = true
+	s.cursors = append(s.cursors, sbCursor{
+		c:       c,
+		screenX: x - s.originX,
+		screenY: y - s.originY,
+	})
 }
 
 // reset 重置 screenBuffer；复用底层 slice，仅在容量/宽度变化时重建。
@@ -1363,7 +1371,7 @@ func (s *screenBuffer) reset(capacity, width, ox, oy int) {
 	s.originY = oy
 	s.width = width
 	s.overflow = false
-	s.cursorOK = false
+	s.cursors = s.cursors[:0]
 	s.blitStart = 0
 	s.nContent = 0
 
@@ -1559,13 +1567,13 @@ func (w *BufWindow) setCell(x, y int, mainc rune, combc []rune, style tcell.Styl
 }
 
 // setShowCursor 转发到当前 sink 或原生 showCursor。
-func (w *BufWindow) setShowCursor(x, y int, main bool) {
+func (w *BufWindow) setShowCursor(x, y int, c *buffer.Cursor) {
 	if _, ok := w.sink.(*screenBuffer); ok {
 		if w.sb != nil {
-			w.sb.ShowCursor(x, y, main)
+			w.sb.ShowCursor(x, y, c)
 		}
 	} else {
-		w.showCursor(x, y, main)
+		w.showCursor(x, y, c.Num == 0)
 	}
 }
 
