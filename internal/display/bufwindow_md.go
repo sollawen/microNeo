@@ -1163,6 +1163,19 @@ func (w *BufWindow) relocateVerticalMD(c SLoc, scrollmargin, height int) bool {
 				ok = true
 			}
 		}
+		// ★ Bug fix（软换行误 scrollup）：行内编辑导致 wrap 行数变化（如同 buffer line
+		//   变长后 softwrap 多出一行）。cursor 还在同一 buffer line，但 Row 超出 old sb
+		//   记录的最大 segRow → rowIndexOf({line, newRow}) 失败。这是连续编辑的小位移
+		//   （视觉行只增加几行），应走 case A 保持起点，绝不能误判 case C 跳远，否则
+		//   StartLine 会被重置成 c.Line - scrollmargin，光标被强行贴到 viewport 顶部。
+		//   old sb 中 line 的最后一行索引即为 cursor 的近似位置（新 Row 会让光标再下移几行，
+		//   真实 cursorRow 由 displayToBuffer 之后的 fresh sb 重新校正，这里无需精确）。
+		if !ok {
+			if idx, found := w.sb.lastRowIndexOf(c.Line); found {
+				curRow = idx
+				ok = true
+			}
+		}
 		// ★ 用可见视口 [startVY, startVY+height] 判断（左闭右闭），而非 sb 绝对第一屏 [0, height)。
 		//   scrollup 后 StartLine 在 sb 内部推进，blit startVY>0，
 		//   可见窗口随之上移，[0, height) 不再代表可见区。
@@ -1462,6 +1475,26 @@ func (s *screenBuffer) rowIndexOf(sl SLoc) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+// lastRowIndexOf 返回 sb 中指定 line 最后一行的索引（= 该 line 的最大 segRow 行）。
+// 行内编辑（同 buffer line 变长 wrap 出新视觉行）时，用它在 caseJudge 里估算 cursor
+// 在 old sb 中的近似位置：cursor 的 Row 超出了 old sb 记录的范围，但仍在同一 buffer line，
+// 属连续编辑小位移，应走 case A 保持起点，而非误判 case C 跳远（详见 relocateVerticalMD）。
+func (s *screenBuffer) lastRowIndexOf(line int) (int, bool) {
+	if s == nil {
+		return 0, false
+	}
+	idx := -1
+	for i, r := range s.rows {
+		if r.line == line {
+			idx = i // rows 有序，保留最后一个 = 最大 segRow
+		}
+	}
+	if idx < 0 {
+		return 0, false
+	}
+	return idx, true
 }
 
 // rowIndexNearest 当 rowIndexOf 落装饰行/边界时，向下找首个内容行。
