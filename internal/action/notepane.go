@@ -99,8 +99,9 @@ var allowedNotePaneActions = map[string]bool{
 	"ClearInfo": true, "ClearStatus": true, "None": true,
 
 	// EABP send
-	"NotePaneSend":  true,
-	"NotePaneClose": true,
+	"NotePaneSend":             true,
+	"NotePaneClose":           true,
+	"NotePaneSwitchReceiver":  true,
 
 	// Mouse
 	"MousePress": true, "MouseDrag": true, "MouseRelease": true,
@@ -115,8 +116,66 @@ var allowedNotePaneActions = map[string]bool{
 // notePaneRegisterBinding() 优先查它，找不到再 fallback 到全局 BufKeyActions。
 // 这样 notePane 专属 action 不必污染 bufpane.go 的 BufKeyActions（原生文件零侵入）。
 var notePaneActions = map[string]BufKeyAction{
-	"NotePaneSend":  NotePaneSend,
-	"NotePaneClose": notePaneClose,
+	"NotePaneSend":           NotePaneSend,
+	"NotePaneClose":          notePaneClose,
+	"NotePaneSwitchReceiver": NotePaneSwitchReceiver,
+}
+
+// NotePaneSwitchReceiver 在 notePane 已开态下切换 receiver。
+// 绑定 alt-i。只更新 selectedReceiver 字段，不调 open()（保留草稿）。
+// 守卫：notePane 未开时静默 no-op（alt-i 在主编辑器无意义）。
+func NotePaneSwitchReceiver(h *BufPane) bool {
+	n := TheNotePane
+	if n == nil || !n.IsOpen() {
+		return false // 静默：notePane 没开时 alt-i 无效
+	}
+
+	// 1. Discover
+	receivers, err := eabp.Discover()
+	if err != nil {
+		InfoBar.Message("✗ discover error: " + err.Error())
+		return false
+	}
+
+	// 2. case 0：提示用户
+	if len(receivers) == 0 {
+		InfoBar.Message("✗ no receiver found")
+		return false
+	}
+
+	// 3. case 1：直接赋值（不做"是否当前"判断 —— 赋值同一个值无副作用）
+	if len(receivers) == 1 {
+		n.selectedReceiver = receivers[0]
+		// 不需要 screen.Redraw()：本函数在 DoEvent 事件回调里执行，
+		// 改完字段下一帧 DoEvent 的 Display 阶段会无条件重画整个屏幕，
+		// notePane.Display 会读到新的 selectedReceiver.Name。
+		return true
+	}
+
+	// 4. case 2+：弹 SelectPane
+	names := make([]string, len(receivers))
+	for i, r := range receivers {
+		names[i] = r.Name
+	}
+	// 锚点 = notePane 左上角。展开方向交给 FloatFrame 自适应（D13）。
+	NewSelectPane().Open(names, "Switch Receiver", Pos{X: n.x, Y: n.y}, tcell.Style{}, func(s *string) {
+		if s == nil {
+			// Esc：selectedReceiver 不变（伪代码明确要求）
+			return
+		}
+		// Enter：找到 name 对应的 RegFile
+		for _, r := range receivers {
+			if r.Name == *s {
+				n.selectedReceiver = r
+				// 不需要 screen.Redraw()：本回调在 DoEvent 事件链里执行（SelectPane
+				// 的 KeyEnter 经 FloatFrame.HandleEvent 走到这里），下一帧自然重画。
+				return
+			}
+		}
+		// 防御：items 来自 receivers，理论上到不了这
+		InfoBar.Message("✗ internal: selected name not in receivers")
+	})
+	return true
 }
 
 // notePaneClose 关闭 notePane（不发送任何内容，符合 TUI "Esc = 取消" 约定）。
@@ -207,6 +266,7 @@ func init() {
 	// Bind Esc to NotePaneClose (cancel draft without sending — TUI convention).
 	// 依赖 KeyTree 覆盖语义（后注册覆盖前注册），无需 DeleteBinding。
 	notePaneMapBinding("Esc", "NotePaneClose")
+	notePaneMapBinding("Alt-i", "NotePaneSwitchReceiver")
 }
 
 // notePaneMapDefaults registers allowed key bindings from defaults into NotePaneBindings.

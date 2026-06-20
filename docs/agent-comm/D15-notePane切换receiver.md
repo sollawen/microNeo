@@ -1,153 +1,133 @@
-# D15：notePane 内切换 receiver（Alt-I）
+# D15：notePane 内切换 receiver（alt-i）
 
-> 依赖：D13（SelectPane 位置自适应）、D14（notePane 传真实锚点）
-> 状态：待实施
-> 改动面：`internal/action/notepane.go`（2 个 hook + 1 个 action + 1 行绑定）
-
----
-
-## 一、动机与交互
-
-**场景**：用户在 notePane 里输入了一些内容，临时想换个 receiver。当前必须 Esc 关掉重开，输入的草稿会丢（`open()` 兑现"打开=全新"承诺，重建空 buffer）。
-
-**新交互**：notePane 开着时按 **Alt-I** → 弹 SelectPane 选 receiver → 选完（Enter）只更新 `selectedReceiver`，notePane 保持开、草稿保留；Esc 取消则什么都不变。
-
-**核心原则**（用户拍板）：调用方只管传锚点坐标，**展开方向交给 D13 自适应**，不强制向上。SelectPane 会根据 `n.x, n.y` 和屏宽自动判方向（receiver 少向下、receiver 多向上，等等）。调用方不关心、也不应该关心展开方向。
+> **状态**：方案设计（待实施）
+>
+> **改动面**：仅 `internal/action/notepane.go`（1 个 action 函数 + 3 处注册点），约 30–40 行。
+>
+> **上游依据**：用户提出的伪代码（见 §一）。
+>
+> **依赖 / 兼容**：
+> - 依赖 **floatFrame 已完成**（DoEvent 集中路由 + FloatFrame 最后画盖在最上层）—— 这是本 D **不需要**碰 notePane 事件路由 / Display 的前提。
+> - 与 [D16](./D16-notePane-open参数化.md)（已实施）正交：D16 改 `open(receiver)` 入参；本 D **不调 `open()`**（避免重建 buffer 丢草稿），只改 `selectedReceiver` 字段。
 
 ---
 
-## 二、前置研究结论
+## 一、用户需求（伪代码）
 
-### 2.1 Alt-I 当前空闲
-
-全局无绑定（`runtime/`、`internal/`、`cmd/` 搜索均无 `Alt-i`/`AltI`），notePane binding 树也没有。可用。
-
-### 2.2 关键 gap：SelectPane 只挂主 BufPane，notePane 有独立路由
-
-这是本 D 最核心的技术点。
-
-SelectPane 现有的转发/绘制都挂在**主 BufPane**：
-- 事件：`bufpane.go:434-436`（`IsOpen()` 时转发给 SelectPane 并早 return）
-- 绘制：`bufpane.go:545-546`（主 BufPane.Display 末尾画 SelectPane）
-
-但 notePane 开着时，顶层路由（`micro.go:547-548`）把事件**直接给 `TheNotePane.HandleEvent`**，主 BufPane 不参与；绘制顺序（`micro.go:499-500`）notePane 也是**最后画、盖在最上层**。
-
-**后果**：直接在 notePane 里调 `SelectPane.Open` → SelectPane **看不见（被 notePane 盖住）、也收不到键**。
-
-**解法**：在 `notepane.go` 补 2 个 hook，镜像主 BufPane 的模式（详见 §三）。
-
-### 2.3 receiver 列表来源
-
-无缓存。`notePaneOpen` 每次 `eabp.Discover()`（本地 socket 查询，快）。switch 时同样实时 discover，v1 同步即可，不引入异步。
-
-### 2.4 buffer / 焦点 / 收尾
-
-- **buffer**：switch 时**不调 `n.open()`**（它会重建空 buffer 丢草稿），只更新 `n.selectedReceiver`
-- **焦点**：SelectPane 关闭后事件路由自然回到 notePane（顶层路由看 `TheNotePane.IsOpen()` 仍为 true）
-- **标题刷新**：notePane 上边框嵌的 receiver 名字在每次 `Display` 时按 `n.selectedReceiver.Name` 重画（`notepane.go:643` 附近），更新即时
+```
+用户在 notePane 里面的时候，如果想改变 receiver 了，就可以按 alt-i
+- 先 discover 看看有几个 receivers
+- if 没有，则说明有问题了，在 infoPane 里面提示用户吧
+- if 只有一个，则 selectReceiver = 这个唯一的 receiver
+- if 2+ 则 selectPaneOpen(receivers)
+    - 如果用户选择了一个 receiver，selectReceiver 就是它了
+    - 如果用户 esc 没选，那 selectReceiver 不变
+```
 
 ---
 
-## 三、改动清单
+## 二、与 D8（notePaneOpen）的对照
+
+| 维度 | D8 `notePaneOpen`（主编辑器 Alt-Enter） | 本 D `NotePaneSwitchReceiver`（notePane 内 alt-i） |
+|---|---|---|
+| 触发前提 | 主编辑器有焦点，notePane 未开 | notePane 已开（`IsOpen()`） |
+| 缓存命中优化 | ≥2 时查缓存命中跳过 SelectPane | **不做**（切换场景不需要，见 §五） |
+| 选完做什么 | `n.open(receiver)`（重建空 buffer） | **只改 `n.selectedReceiver`**（保留草稿，不重建） |
+| Esc 行为 | 清零缓存（决策 14） | **不动 `selectedReceiver`**（原 receiver 保留） |
+
+**核心区别**：D8 是「打开 notePane 前选 receiver」，重建 buffer 是期望行为；本 D 是「notePane 开着时换 receiver」，**绝不能丢草稿**——所以只改字段、不调 `open()`。
+
+---
+
+## 三、为什么不需要碰 notePane 的事件路由 / Display
+
+> 这是本 D 相对旧版 D15 最大的简化。旧版 D15 是 floatFrame 完成前写的，需要补 2 个 hook 让 SelectPane 能盖在 notePane 之上、能截走 notePane 的事件。floatFrame 完成后这些 hook 全部不需要了。
+
+当前 `cmd/micro/micro.go` 已经集中路由：
+
+```go
+// 事件分发（micro.go:553-556）
+} else if action.TheFloatFrame.IsOpen() {        // ← FloatFrame 优先级最高
+    action.TheFloatFrame.HandleEvent(event)
+} else if action.TheNotePane != nil && action.TheNotePane.IsOpen() {
+    action.TheNotePane.HandleEvent(event)
+}
+
+// Display 顺序（micro.go:499-503）
+if action.TheNotePane != nil && action.TheNotePane.IsOpen() {
+    action.TheNotePane.Display()                  // notePane 先画
+}
+if action.TheFloatFrame.IsOpen() {
+    action.TheFloatFrame.Display()                // FloatFrame 后画，盖在最上层
+}
+```
+
+SelectPane 注册在 FloatFrame 里。因此：
+
+- **事件**：SelectPane 打开时，DoEvent 直接路由到 FloatFrame → SelectPane，notePane 收不到键（天然 modal 隔离，用户在 notePane 里的输入不会跑到 SelectPane 选中的 receiver 上）
+- **绘制**：SelectPane 自动画在 notePane 之上（FloatFrame 是 Display 阶段最后一笔）
+
+**结论**：`notepane.go` 的 `HandleEvent` / `Display` **零改动**。本 D 只新增一个 action 函数 + 3 处注册。
+
+---
+
+## 四、改动清单（逐项）
 
 全部在 `internal/action/notepane.go`。
 
-### 3.1 hook 1：HandleEvent 转发（镜像 `bufpane.go:434-436`）
+### 4.1 新增 action 函数 `NotePaneSwitchReceiver`
 
-`notepane.go:604` 现状：
-
-```go
-func (n *NotePane) HandleEvent(event tcell.Event) {
-	if _, ok := event.(*tcell.EventResize); ok {
-		if n.isOpen {
-			n.reposition()
-		}
-		return
-	}
-	n.BufPane.HandleEvent(event)
-}
-```
-
-改后（在 resize 分支之后、`n.BufPane.HandleEvent` 之前插入转发）：
+放在 `notePaneClose` / `notePaneOpen` 附近（约行 130 区域）。签名与 `notePaneClose` 一致：`func(h *BufPane) bool`。
 
 ```go
-func (n *NotePane) HandleEvent(event tcell.Event) {
-	if _, ok := event.(*tcell.EventResize); ok {
-		if n.isOpen {
-			n.reposition()
-		}
-		return
-	}
-	// D15：SelectPane 打开时转发（镜像主 BufPane bufpane.go:434-436）
-	if TheSelectPane != nil && TheSelectPane.IsOpen() {
-		TheSelectPane.HandleEvent(event)
-		return
-	}
-	n.BufPane.HandleEvent(event)
-}
-```
-
-**位置说明**：转发放在 resize 分支**之后**，保证 resize 优先级最高（resize 应该总能触发 reposition，不被 SelectPane 截走）。两者逻辑独立、不冲突。
-
-### 3.2 hook 2：Display 叠加（镜像 `bufpane.go:545-546`）
-
-`notepane.go:615` 的 `Display` 末尾，画完 notePane 自己之后追加：
-
-```go
-// D15：SelectPane 叠加在 notePane 之上（镜像主 BufPane bufpane.go:545-546）
-if TheSelectPane != nil && TheSelectPane.IsOpen() {
-	TheSelectPane.Display()
-}
-```
-
-放在 `Display` 的**最后一行**，确保 SelectPane 画在 notePane 之上（盖住）。
-
-### 3.3 action handler：NotePaneSwitchReceiver
-
-新增 action 函数（放 notePane 已有 action 函数附近，如 `NotePaneOpen`/`NotePaneClose` 旁）：
-
-```go
-// NotePaneSwitchReceiver 在 notePane 已开态下弹 SelectPane 切换 receiver。
-// 绑定 Alt-I。只更新 selectedReceiver，不重建 buffer（保留草稿）。
-func NotePaneSwitchReceiver() bool {
-	if TheNotePane == nil || !TheNotePane.IsOpen() {
-		return false  // 静默：notePane 没开时 Alt-I 无效
-	}
+// NotePaneSwitchReceiver 在 notePane 已开态下切换 receiver。
+// 绑定 alt-i。只更新 selectedReceiver 字段，不调 open()（保留草稿）。
+// 守卫：notePane 未开时静默 no-op（alt-i 在主编辑器无意义）。
+func NotePaneSwitchReceiver(h *BufPane) bool {
 	n := TheNotePane
+	if n == nil || !n.IsOpen() {
+		return false // 静默：notePane 没开时 alt-i 无效
+	}
 
-	// 实时 discover（本地 socket，快；v1 同步）
+	// 1. Discover
 	receivers, err := eabp.Discover()
 	if err != nil {
 		InfoBar.Message("✗ discover error: " + err.Error())
 		return false
 	}
+
+	// 2. case 0：提示用户
 	if len(receivers) == 0 {
 		InfoBar.Message("✗ no receiver found")
 		return false
 	}
-	if len(receivers) == 1 && receivers[0].Socket == n.selectedReceiver.Socket {
-		InfoBar.Message("· only one receiver, already selected")
-		return false  // 只有一个且就是当前的，没必要弹
+
+	// 3. case 1：直接赋值（不做"是否当前"判断 —— 赋值同一个值无副作用）
+	if len(receivers) == 1 {
+		n.selectedReceiver = receivers[0]
+		// 不需要 screen.Redraw()：本函数在 DoEvent 事件回调里执行，
+		// 改完字段下一帧 DoEvent 的 Display 阶段会无条件重画整个屏幕，
+		// notePane.Display 会读到新的 selectedReceiver.Name。
+		return true
 	}
 
+	// 4. case 2+：弹 SelectPane
 	names := make([]string, len(receivers))
 	for i, r := range receivers {
 		names[i] = r.Name
 	}
-
-	// 锚点 = notePane 左上角。展开方向交给 D13 自适应。
-	ax := n.x
-	ay := n.y
-	TheSelectPane.Open(names, "Switch Receiver", &ax, &ay, func(s *string) {
+	// 锚点 = notePane 左上角。展开方向交给 FloatFrame 自适应（D13）。
+	NewSelectPane().Open(names, "Switch Receiver", Pos{X: n.x, Y: n.y}, tcell.Style{}, func(s *string) {
 		if s == nil {
-			// Esc：保留当前 receiver，什么都不变
+			// Esc：selectedReceiver 不变（伪代码明确要求）
 			return
 		}
-		// Enter：找到 name 对应的 RegFile，更新 selectedReceiver
+		// Enter：找到 name 对应的 RegFile
 		for _, r := range receivers {
 			if r.Name == *s {
 				n.selectedReceiver = r
-				screen.Redraw()  // 触发 notePane 重画，刷新上边框 receiver 名字
+				// 不需要 screen.Redraw()：本回调在 DoEvent 事件链里执行（SelectPane
+				// 的 KeyEnter 经 FloatFrame.HandleEvent 走到这里），下一帧自然重画。
 				return
 			}
 		}
@@ -158,87 +138,132 @@ func NotePaneSwitchReceiver() bool {
 }
 ```
 
-**与 `notePaneOpen` 的关键差异**：
-| | `notePaneOpen` | `NotePaneSwitchReceiver` |
-|---|---|---|
-| 触发前提 | 主编辑器有焦点 | notePane 已开（`IsOpen()`） |
-| 弹完做什么 | callback 里 `n.open()`（重建 buffer） | callback 里只改 `selectedReceiver`（保留 buffer） |
-| case 1 / 缓存命中优化 | 直接赋值不弹 | 单 receiver 时静默 return（不弹） |
-| 上下文捕获 | `lowestCursorScreenRow`（notePane 还没开） | 不需要（notePane 已开，`n.x/n.y` 现成） |
+**关键点**：
+- **不调 `n.open()`** —— 避免重建 buffer 丢草稿（与 D8 的根本区别）
+- **Esc 不动 `selectedReceiver`** —— 严格按伪代码"selectReceiver 不变"
+- **不调 `screen.Redraw()`** —— `selectedReceiver` 改了，notePane 上边框嵌的 receiver 名字（`Display` 行 644 读 `n.selectedReceiver.Name`）靠下一帧自然刷新。本函数在 DoEvent 事件链里执行，函数返回后下一帧 Display 阶段无条件重画全屏，不需要主动 Redraw 唤醒 select
+- **锚点用 `n.x, n.y`** —— notePane 已开，左上角坐标现成；展开方向交给 FloatFrame（D13）
 
-### 3.4 绑定
+### 4.2 白名单加 `NotePaneSwitchReceiver`
 
-`init()` 里（`notepane.go:213` 附近，`NotePaneBindings` 注册区）：
+`allowedNotePaneActions` map（约行 102-103 区域），在 `NotePaneSend` / `NotePaneClose` 旁追加：
 
 ```go
-notePaneMapBinding("Alt-I", "NotePaneSwitchReceiver")
+"NotePaneSend":          true,
+"NotePaneClose":         true,
+"NotePaneSwitchReceiver": true,   // ← 新增
 ```
 
-> 注意：Alt-I 用大写 I（Alt-Shift-I），避免和可能的小写 i 文本输入冲突。若终端不支持，fallback 到其它组合（实施时验证）。
+> 不加白名单的话，`notePaneMapBinding` 会因 `isActionAllowed` 返回 false 而**静默丢弃**这个 binding（见 `notepane.go:275-277`），alt-i 按了没反应。
+
+### 4.3 私有 action map 加 `NotePaneSwitchReceiver`
+
+`notePaneActions` map（约行 117-120），在 `NotePaneSend` / `notePaneClose` 旁追加：
+
+```go
+var notePaneActions = map[string]BufKeyAction{
+	"NotePaneSend":           NotePaneSend,
+	"NotePaneClose":          notePaneClose,
+	"NotePaneSwitchReceiver": NotePaneSwitchReceiver,   // ← 新增
+}
+```
+
+> 这样 action 解析走私有 map 优先（`notePaneRegisterBinding` 行 299），不污染 `bufpane.go` 的 `BufKeyActions`（原生零侵入，D9 既定模式）。
+
+### 4.4 init() 注册 alt-i 绑定
+
+`init()`（约行 202-210），在 `Esc` 绑定后追加：
+
+```go
+func init() {
+	NotePaneBindings = NewKeyTree()
+	notePaneMapDefaults(DefaultBindings("buffer"))
+	notePaneMapBinding("Alt-Enter", "NotePaneSend")
+	notePaneMapBinding("Esc", "NotePaneClose")
+	notePaneMapBinding("Alt-i", "NotePaneSwitchReceiver")   // ← 新增
+}
+```
+
+> 键名字符串必须用**小写 `i`**（即 `"Alt-i"`）。micro 的绑定解析（`internal/action/bindings.go`）会把 `"Alt-i"` 解析为 `KeyRune + ModAlt + 'i'`，与终端送来的真实事件匹配。若写成大写 `"Alt-I"`，会被解析成 `'I'`（Alt-Shift-I 的结果），与终端送的 `ModAlt+'i'` 不匹配，导致绑定静默失效、按 alt-i 时 fallback 到 rune 插入（在光标处插入一个 `i` 字符）。
 
 ---
 
-## 四、流程时序
+## 五、与伪代码的偏差说明
 
-### 4.1 切换 receiver（Enter）
+用户伪代码很完整，本 D 严格遵循，仅一处需要明确：
 
-```
-notePane 开，焦点在 notePane
-→ Alt-I
-→ NotePaneSwitchReceiver: discover → SelectPane.Open(anchor=n.x,n.y)
-→ 顶层路由：事件 → notePane.HandleEvent → hook1 转发 → SelectPane.HandleEvent
-→ 绘制：notePane.Display → hook2 叠加 → SelectPane.Display（盖在上）
-→ 用户 Up/Down 选 + Enter
-→ SelectPane.Close + onSelect(&name) → 更新 selectedReceiver + Redraw
-→ 焦点自动回 notePane（IsOpen 仍 true），上边框 receiver 名字刷新
-```
+### 5.1 2+ 个 receiver 时每次都弹 SelectPane
 
-### 4.2 取消（Esc）
+按伪代码严格实现：discover 出 ≥2 个 receiver，alt-i 每次都弹 SelectPane 让用户从列表里挑，不查缓存、不做「上次用过的那个」优化。
 
-```
-→ ...同上到 SelectPane 打开
-→ Esc
-→ SelectPane.Close + onSelect(nil) → 直接 return（selectedReceiver 不变）
-→ 焦点回 notePane，原 receiver 保留
-```
-
-### 4.3 SelectPane modal 对 notePane 的意义
-
-hook1 转发 + 早 return 保证：SelectPane 开着时，notePane 的 `BufPane.HandleEvent` 收不到键，**用户在 notePane 里的输入不会跑到 SelectPane 选中的 receiver 上**。双向隔离干净。
+> 「弹 SelectPane 时光标初始预置到当前 receiver 上」是个不错的体验优化（弹出来就在当前项，上下移选别的，Enter 保持），但当前 SelectPane 没有预置光标位置的能力。等以后 SelectPane 加了这个能力再做。
 
 ---
 
-## 五、位置语义说明（不强制，仅记录）
+## 六、不变项（核对清单）
 
-按 §一原则，调用方只传 `(n.x, n.y)`，展开方向由 D13 自适应。实际效果：
-
-- receiver 少（`paneH = min(receivers,10)+2` ≤ notePane 高 7，如 3 个 → paneH=5）：D13 判**向下展开**，SelectPane 顶边 = n.y，整块盖住 notePane（草稿不丢，选完回来）
-- receiver 多（paneH > 7）：向下不够，D13 判**向上展开**，盖主编辑器、notePane 保持可见
-
-这是 D13 算法的自然结果，调用方不干预。草稿被盖时不会丢（notePane buffer 不动），选完自动回来。
+| 项 | 现状 | 是否改 | 说明 |
+|---|---|---|---|
+| notePane `HandleEvent` | 转发 resize + `BufPane.HandleEvent` | **不改** | FloatFrame 集中路由已处理 modal（§三） |
+| notePane `Display` | 画边框 + 嵌 receiver 名字 + BufWindow | **不改** | FloatFrame 后画盖在上层；`selectedReceiver` 改了靠下一帧自然刷新（不需 Redraw） |
+| `selectedReceiver` 字段 | 双重职责：发送目标 + 缓存 | **不改** | 本 D 只写不读，读取端（NotePaneSend 行 470 / Display 行 644）自动看到新值 |
+| SelectPane 接口 | `Open(items, title, anchor, frameColor, onSelect)` | **不改** | D13/FloatFrame 已定 |
+| SelectPane 锚点展开 | FloatFrame `expandAnchor` 自适应 | **不改** | D13 既定，调用方只传锚点坐标 |
+| `open(receiver)` 签名 | D16 已参数化 | **不改** | 本 D 不调 open |
+| `notePaneOpen`（D8/D16） | 主编辑器 Alt-Enter 打开流程 | **不改** | 与本 D 正交 |
 
 ---
 
-## 六、验收
+## 七、验收
 
 | # | 场景 | 期望 |
 |---|------|------|
-| 1 | notePane 开，按 Alt-I | SelectPane 从 notePane 左上角附近弹出，可 Up/Down |
+| 1 | notePane 开，草稿有内容，按 alt-i，≥2 个 receiver | SelectPane 从 notePane 左上角附近弹出；草稿**保留**（没被清空） |
 | 2 | 选某 receiver + Enter | SelectPane 关闭，notePane 上边框 receiver 名字刷新，草稿保留 |
 | 3 | Esc 取消 | SelectPane 关闭，原 receiver 保留，草稿保留 |
-| 4 | 只有一个 receiver 且是当前的 | 不弹，InfoBar 提示 "only one receiver, already selected" |
-| 5 | notePane 未开时按 Alt-I | 静默无效（return false，不弹） |
-| 6 | SelectPane 打开时在 notePane 里敲字符 | 字符不进 notePane（被 SelectPane 截走） |
-| 7 | 终端极矮/极窄 | D13 §4.6 失败路径：`onSelect(nil)`，等价 Esc，notePane 保留 |
+| 4 | 只有 1 个 receiver，按 alt-i | 不弹 SelectPane，直接切到那个 receiver，上边框名字刷新 |
+| 5 | 0 个 receiver，按 alt-i | InfoBar 显示"✗ no receiver found"，notePane 状态不变 |
+| 6 | notePane 未开时按 alt-i | 静默无效（return false，不弹、不提示） |
+| 7 | SelectPane 打开时在 notePane 里敲字符 | 字符不进 notePane（被 FloatFrame 截走给 SelectPane） |
+| 8 | 切换 receiver 后按 Alt-Enter 发送 | 发送到**新切换的** receiver（验证 NotePaneSend 读到新值） |
+| 9 | 终端极矮/极窄 | FloatFrame 失败前置检查：`Open` 返回 false → `onSelect(nil)` → 等价 Esc，notePane 保留 |
 
-编译：`make build-quick` 0 错 0 警。
+**编译**：`make build-quick` 0 错 0 警；最终 `make build` 通过。
 
 ---
 
-## 七、与 D13/D14 的关系
+## 八、影响面与回滚
 
-- **D13**：定义 SelectPane 如何接受锚点自适应展开（不关心调用方）
-- **D14**：notePane **打开前**的调用方决策（光标下方 + gutter 之后第 3 列）
-- **D15**（本文）：notePane **已开态下**的调用方决策（notePane 左上角）+ notePane 侧补 SelectPane 转发/绘制 hook
+### 8.1 影响面
 
-D15 之后 notePane 有了"打开前选"（D14）和"开态切换"（D15）两条 SelectPane 调用路径，hook 让两条都能正常工作。SelectPane 本身（D13）零改动。
+- **外部可观测行为**：新增 alt-i 功能（notePane 内切换 receiver），其它行为零变化。
+- **内部结构**：notePane 加一个 action + 3 处注册。事件路由 / Display 零改动。
+- **micro 原生代码**：零侵入（全部改在 `notepane.go`）。
+
+### 8.2 回滚
+
+改动集中在 `notepane.go` 一个文件。回滚 = 撤销对该文件的修改。无中间状态风险。
+
+---
+
+## 九、与历史 D 系列的关系
+
+| 文档 | 关系 |
+|------|------|
+| [D13（SelectPane 设计）](./D13-SelectPane设计.md) | 不涉及——SelectPane 接口不变 |
+| [D14（notePane-select 锚点）](./D14-notePane-select锚点.md) | 不涉及——本 D 锚点用 notePane 左上角（`n.x, n.y`），不是 D14 的光标下方 |
+| [D16（open 参数化）](./D16-notePane-open参数化.md) | 正交——D16 改 `open(receiver)` 入参；本 D 不调 open |
+| [说明-notepane.md](./说明-notepane.md) | 收尾时同步：§七 键位表加 alt-i 行；§十 关键变更表加 D15 行 |
+
+---
+
+## 附：与旧版 D15 的差异（重写说明）
+
+旧版 D15 是 floatFrame 完成前写的，核心技术点是「补 2 个 hook 让 SelectPane 能盖在 notePane 之上、能截走 notePane 的事件」：
+
+- hook 1：notePane `HandleEvent` 转发给 SelectPane（镜像主 BufPane 旧 forwarding）
+- hook 2：notePane `Display` 末尾叠加 SelectPane
+
+floatFrame 完成后，DoEvent 已集中路由（`micro.go:553-556` FloatFrame 优先级最高）、Display 已集中叠加（`micro.go:499-503` FloatFrame 最后画），**这 2 个 hook 完全不需要了**。新 D15 因此大幅简化：只新增一个 action 函数 + 3 处注册，不碰 notePane 的事件路由与 Display。
+
+旧版 D15 的「单 receiver 静默 return」优化也被去掉（§五.1），严格按本次用户伪代码。
