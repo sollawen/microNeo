@@ -149,6 +149,15 @@ func (f *FloatFrame) Display() {
 	w, h := f.outerW, f.outerH
 	color := f.frameColor
 
+	// 隐藏前序 pane（如 notePane / 主编辑器 BufWindow）残留的终端光标。
+	// tcell 光标位置与 cell 内容是独立状态：FloatFrame 画 cell 不会覆盖光标，
+	// 不主动 HideCursor 的话光标会浮在弹窗内闪（D15 实测 bug）。
+	// 放在 Display 开头：若有需要光标的浮窗（如未来 inputPane），
+	// 可在自己的 f.display 里调 ShowCursor 覆盖此 HideCursor。
+	// 不需要在 close() 里恢复：DoEvent 每帧开头 micro.go:492 已无条件 HideCursor，
+	// 浮窗关闭后下一帧由 notePane / 主编辑器各自的 ShowCursor 决定最终态。
+	screen.Screen.HideCursor()
+
 	// 1. Clear 整个矩形（边框 + 内容区）
 	for row := 0; row < h; row++ {
 		for col := 0; col < w; col++ {

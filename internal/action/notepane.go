@@ -158,7 +158,7 @@ func NotePaneSwitchReceiver(h *BufPane) bool {
 		names[i] = r.Name
 	}
 	// 锚点 = notePane 左上角。展开方向交给 FloatFrame 自适应（D13）。
-	NewSelectPane().Open(names, "Switch Receiver", Pos{X: n.x, Y: n.y}, tcell.Style{}, func(s *string) {
+	NewSelectPane().Open(names, "Receivers", Pos{X: n.x, Y: n.y}, tcell.Style{}, func(s *string) {
 		if s == nil {
 			// Esc：selectedReceiver 不变（伪代码明确要求）
 			return
