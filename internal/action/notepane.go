@@ -131,6 +131,7 @@ func notePaneClose(h *BufPane) bool {
 // notePaneOpen 从主编辑器打开 NotePane。
 // 注册为主编辑器的 BufKeyAction，可走标准 bindings.json 机制覆盖默认键位。
 // 守卫：notePane 已开态下重复触发是 no-op。
+// 流程：discover → (1 个 / 缓存命中 / SelectPane 弹窗) → n.open(receiver)（D16：receiver 作为显式参数）。
 func notePaneOpen(h *BufPane) bool {
 	n := TheNotePane
 	if n == nil {
@@ -153,8 +154,7 @@ func notePaneOpen(h *BufPane) bool {
 
 	// 2. case 1：直接赋值（无需查缓存，只有一个）
 	if len(receivers) == 1 {
-		n.selectedReceiver = receivers[0]
-		n.open()
+		n.open(receivers[0])
 		return true
 	}
 
@@ -162,7 +162,7 @@ func notePaneOpen(h *BufPane) bool {
 	if n.selectedReceiver.Socket != "" {
 		for _, r := range receivers {
 			if r.Socket == n.selectedReceiver.Socket {
-				n.open()  // 命中，复用缓存
+				n.open(n.selectedReceiver)  // 命中，复用缓存
 				return true
 			}
 		}
@@ -189,8 +189,7 @@ func notePaneOpen(h *BufPane) bool {
 		// Enter：找到 name 对应的 RegFile
 		for _, r := range receivers {
 			if r.Name == *s {
-				n.selectedReceiver = r
-				n.open()
+				n.open(r)
 				return
 			}
 		}
@@ -363,12 +362,14 @@ func (n *NotePane) IsOpen() bool {
 	return n.isOpen
 }
 
-// open opens the NotePane and positions it below the cursor.
-// 防御深度：已在开态下重复调用是 no-op。
-func (n *NotePane) open() {
+// open 接收 receiver 作为显式入参，并在内部第一行写入 selectedReceiver。
+// 这样 receiver 状态的赋值点收敛到唯一入口（D16），消除"调用方提前 set"的隐式协议。
+// selectedReceiver 字段语义不变：本次发送目标 + 下次缓存。
+func (n *NotePane) open(receiver eabp.RegFile) {
 	if n.isOpen {
 		return
 	}
+	n.selectedReceiver = receiver
 	pane := MainTab().CurPane()
 	if pane == nil {
 		return
