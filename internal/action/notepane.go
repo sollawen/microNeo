@@ -179,7 +179,7 @@ func notePaneOpen(h *BufPane) bool {
 	for i, r := range receivers {
 		names[i] = r.Name
 	}
-	TheSelectPane.Open(names, "Receiver", &ax, &ay, func(s *string) {
+	NewSelectPane().Open(names, "Receiver", Pos{X: ax, Y: ay}, tcell.Style{}, func(s *string) {
 		if s == nil {
 			// Esc：清零缓存（走到此分支时缓存已失效，决策 14）
 			n.selectedReceiver = eabp.RegFile{}

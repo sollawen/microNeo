@@ -499,6 +499,9 @@ func DoEvent() {
 	if action.TheNotePane != nil && action.TheNotePane.IsOpen() {
 		action.TheNotePane.Display()
 	}
+	if action.TheFloatFrame.IsOpen() {
+		action.TheFloatFrame.Display()
+	}
 	screen.Screen.Show()
 
 	// Check for new events
@@ -544,6 +547,11 @@ func DoEvent() {
 			if action.TheNotePane != nil && action.TheNotePane.IsOpen() {
 				action.TheNotePane.HandleEvent(event)
 			}
+			if action.TheFloatFrame.IsOpen() {
+				action.TheFloatFrame.HandleEvent(event)
+			}
+		} else if action.TheFloatFrame.IsOpen() {
+			action.TheFloatFrame.HandleEvent(event)
 		} else if action.TheNotePane != nil && action.TheNotePane.IsOpen() {
 			action.TheNotePane.HandleEvent(event)
 		} else if action.InfoBar.HasPrompt {
