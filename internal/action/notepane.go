@@ -585,6 +585,13 @@ func NotePaneSend(h *BufPane) bool {
 	c.Close()
 
 	// 5. Success: close notePane and show confirmation
+	// microNeo: 发送成功后自动取消主编辑器选区，省去用户手动按 Esc。
+	// 注意：close() 被 send 和 cancel(Esc) 共用，故 deselect 只在 send 成功路径做——
+	// Esc 取消会走 notePaneClose → close()，那里不 deselect，保留用户选区。
+	// 放在 close() 之前，让 close() 内的 Relocate() 基于 deselect 后的光标位置归位。
+	if pane := MainTab().CurPane(); pane != nil && pane.Buf != nil {
+		pane.Buf.DeselectCursors()
+	}
 	n.close()
 	InfoBar.Message("✓ sent to " + receiver.Name)
 	return false
