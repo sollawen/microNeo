@@ -1189,12 +1189,40 @@ func (w *BufWindow) relocateVerticalMD(c SLoc, scrollmargin, height int) bool {
 		if ok && startOk && curRow >= startVY && curRow <= startVY+height {
 			displayStart = w.StartLine // case A：cursor 在可见视口内（含刚越出底部 1 行）
 		} else {
-			displayStart = SLoc{Line: c.Line - scrollmargin, Row: 0}
+			// case C：jump 到远处，重估 displayStart（对齐 micro 原生分支 3/4）
+			bEnd := w.SLocFromLoc(w.Buf.End())
+			if c.Line <= bEnd.Line-scrollmargin {
+				// 分支 3：cursor 在中间区域 → 粗估放到 botMarginRow 附近
+				//   （精确位置由渲染后微调阶段的 SCROLLUP 校正）
+				displayStart = SLoc{Line: c.Line - scrollmargin, Row: 0}
+				dbgLog("    relocate: caseC-branch3 displayStart=%d (c=%d bEnd=%d margin=%d)",
+					displayStart.Line, c.Line, bEnd.Line, scrollmargin)
+			} else {
+				// 分支 4：cursor 在末尾区域（短 buffer / paste / goto 末尾）
+				//   → end-pin：bEnd 钉到视口底，避免顶部留白（Bug #9 修复）
+				displayStart = SLoc{Line: bEnd.Line - height + 1, Row: 0}
+				dbgLog("    relocate: caseC-branch4 end-pin displayStart=%d (c=%d bEnd=%d height=%d)",
+					displayStart.Line, c.Line, bEnd.Line, height)
+			}
 			caseLabel = "C"
 			w.StartLine = displayStart
 		}
 	} else {
-		displayStart = SLoc{Line: c.Line - scrollmargin, Row: 0}
+		// case C：jump 到远处，重估 displayStart（对齐 micro 原生分支 3/4）
+		bEnd := w.SLocFromLoc(w.Buf.End())
+		if c.Line <= bEnd.Line-scrollmargin {
+			// 分支 3：cursor 在中间区域 → 粗估放到 botMarginRow 附近
+			//   （精确位置由渲染后微调阶段的 SCROLLUP 校正）
+			displayStart = SLoc{Line: c.Line - scrollmargin, Row: 0}
+			dbgLog("    relocate: caseC-branch3 displayStart=%d (c=%d bEnd=%d margin=%d)",
+				displayStart.Line, c.Line, bEnd.Line, scrollmargin)
+		} else {
+			// 分支 4：cursor 在末尾区域（短 buffer / paste / goto 末尾）
+			//   → end-pin：bEnd 钉到视口底，避免顶部留白（Bug #9 修复）
+			displayStart = SLoc{Line: bEnd.Line - height + 1, Row: 0}
+			dbgLog("    relocate: caseC-branch4 end-pin displayStart=%d (c=%d bEnd=%d height=%d)",
+				displayStart.Line, c.Line, bEnd.Line, height)
+		}
 		caseLabel = "C"
 		w.StartLine = displayStart
 	}
