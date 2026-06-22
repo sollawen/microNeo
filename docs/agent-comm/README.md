@@ -43,7 +43,7 @@ microNeo ↔ ai agent 通信系统的设计/实现文档。
 
 **代码位置**：
 - microNeo：`internal/aibp/` + `internal/action/notepane.go`
-- pi：`aibp-receivers/aibp-pi/index.ts`（~95 行 TS）
+- pi：`aibp-agents/pi/index.ts`（~95 行 TS）
 
 ## 改东西时
 
@@ -51,7 +51,7 @@ microNeo ↔ ai agent 通信系统的设计/实现文档。
 |------|------|
 | 改协议字段 / 报文 schema | `说明-AIBP.md` §五（`internal/aibp/message.go` 单份，无镜像） |
 | 改 notePane 行为 | `说明-notepane.md`（单文件 `internal/action/notepane.go`） |
-| 改 pi 端 LLM 递送 | `说明-接收端.md`（单文件 `aibp-receivers/aibp-pi/index.ts`） |
+| 改 pi 端 LLM 递送 | `说明-接收端.md`（单文件 `aibp-agents/pi/index.ts`） |
 | 加新 agent 接收端 | `说明-AIBP.md` §八（接收端契约）+ 调研 `opencode调研.md` 作为参考 |
 | 理解"为什么这样设计" | `说明-架构设计.md` §四（5 条原则）+ §六（14 条决策） |
 

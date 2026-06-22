@@ -474,7 +474,7 @@ func (n *NotePane) Display() {
 | **D7 v2** | close 路径不动 Buf + open 总是 Close 旧 + 新建 | ✅ 实施（commit `67ec2858`） |
 | **D8** | 主编辑器 `Alt-i` 硬编码 → `Alt-Enter` + 标准 binding | ✅ 实施 |
 | **D9** | notePane 内 `Esc` 直接关闭（不发送）+ 私有 `notePaneActions` map | ✅ 实施 |
-| **D10** | 空内容拦截 + 30 行阈值 + pi 端 `formatText` 改写 | ✅ 实施（发送端在 notepane.go、接收端在 aibp-pi/index.ts） |
+| **D10** | 空内容拦截 + 30 行阈值 + pi 端 `formatText` 改写 | ✅ 实施（发送端在 notepane.go、接收端在 pi/index.ts） |
 
 **D7 v1 → v2 的 panic 复盘**：
 

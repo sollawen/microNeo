@@ -5,7 +5,7 @@ AIBP (AI Bridge Protocol) receiver extension for pi.
 ## 安装
 
 ```bash
-pi install /path/to/aibp-receivers/aibp-pi
+pi install /path/to/aibp-agents/pi
 ```
 
 ## 功能

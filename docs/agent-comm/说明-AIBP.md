@@ -104,7 +104,7 @@ dir  = base + "/microneo-agent-bridge-" + $UID
 **实现约束（必须两端一致）**：发送端和接收端各自用**完全相同的算法**算出该路径。本文固定算法，两端复刻。
 
 - **发送端实现**：`internal/aibp/registry.go:RegistryDir()`（详见 `说明-发送端.md §2.2`）
-- **接收端实现**：`aibp-receivers/aibp-pi/index.ts:registryDir()`（详见 `说明-接收端.md §三`）
+- **接收端实现**：`aibp-agents/pi/index.ts:registryDir()`（详见 `说明-接收端.md §三`）
 
 **`MNAB_REG_DIR` 调试覆盖**：环境变量可覆盖算法，设了就用其值（跳过算法）。**两端都支持**——调试时指个短路径（如 `/tmp/mnab`）方便手查注册文件；生产也用得上。
 
@@ -420,7 +420,7 @@ dir  = base + "/microneo-agent-bridge-" + $UID
 ### 7.3 解析规则
 
 - **主版本解析**：注册文件 `protocol` 形如 `aibp-1`，取最后一个 `-` 之后的整数；解析失败 → 视为不匹配。实现：`internal/aibp/registry.go:major()`
-- **信封校验**：接收端要求 `v === 1` 且 `type === "context"`，否则静默忽略。实现：`aibp-receivers/aibp-pi/index.ts:handleLine()`
+- **信封校验**：接收端要求 `v === 1` 且 `type === "context"`，否则静默忽略。实现：`aibp-agents/pi/index.ts:handleLine()`
 
 ### 7.4 当前版本
 
