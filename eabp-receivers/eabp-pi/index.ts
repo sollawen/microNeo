@@ -6,8 +6,8 @@ import * as os from "node:os";
 
 const PROTOCOL = "eabp-1";
 
-// D11 §4.2：默认 NATO 音标字母表前 10 个（X 写 Xray，去连字符满足 §4.3 字符约束）
-const DEFAULT_NAMES_STR = "Alpha Bravo Charlie Delta Echo Foxtrot Golf Hotel India Juliet";
+// D11 §4.2：默认 NATO 音标字母表前 15 个 A–O（去连字符满足 §4.3 字符约束）
+const DEFAULT_NAMES_STR = "Alpha Bravo Charlie Delta Echo Foxtrot Golf Hotel India Juliet Kilo Lima Mike November Oscar";
 
 export default function (pi: ExtensionAPI) {
   let server: net.Server | null = null;
@@ -28,7 +28,8 @@ export default function (pi: ExtensionAPI) {
       }
     }
     // 步骤 3：字符过滤——跳过含 / \0 : 空格 - 的 name（不报错，记日志）
-    // `-` 是强约束，避免与 `receiver-` / `pi-` 前缀歧义
+    // `-` 是强约束：避免 name 自带 `-` 让 socket 文件名 `receiver-<name>.sock`
+    // 里的 `receiver-` 分隔标记产生视觉歧义
     return deduped.filter((n) => {
       if (/[/\0: -]/.test(n)) {
         console.warn(`[eabp-pi] skip illegal name: ${JSON.stringify(n)}`);
@@ -82,7 +83,6 @@ export default function (pi: ExtensionAPI) {
    * 池子耗尽（全部占用）→ 返回 null，由调用方 ctx.ui.notify。
    */
   async function allocateName(
-    prefix: string,
     names: string[],
     connectionHandler: (conn: net.Socket) => void,
   ): Promise<{ name: string; socketPath: string } | null> {
@@ -99,9 +99,9 @@ export default function (pi: ExtensionAPI) {
     }
     for (const entry of entries) {
       if (!entry.isFile()) continue;
-      const m = entry.name.match(new RegExp(`^receiver-${prefix}-(.+)\\.json$`));
+      const m = entry.name.match(/^receiver-(.+)\.json$/);
       if (!m) continue;
-      const rid = m[1];                    // 裸名，去掉 <prefix>- 前缀
+      const rid = m[1];                    // 裸名
       let pid: number | null = null;
       try {
         const reg = JSON.parse(fs.readFileSync(path.join(dir, entry.name), "utf8"));
@@ -118,7 +118,7 @@ export default function (pi: ExtensionAPI) {
       } else {
         // PID 死 → 僵尸注册，顺手 GC（json + sock）
         try { fs.unlinkSync(path.join(dir, entry.name)); } catch {}
-        try { fs.unlinkSync(path.join(dir, `receiver-${prefix}-${rid}.sock`)); } catch {}
+        try { fs.unlinkSync(path.join(dir, `receiver-${rid}.sock`)); } catch {}
       }
     }
 
@@ -156,12 +156,12 @@ export default function (pi: ExtensionAPI) {
     // 按池子顺序尝试占用
     for (const n of names) {
       if (occupied.has(n)) continue;
-      const sockPath = path.join(dir, `receiver-${prefix}-${n}.sock`);
+      const sockPath = path.join(dir, `receiver-${n}.sock`);
 
       // D11 §5.1：listen 是原子锁——成功即占用
       if (await tryListen(sockPath)) {
         fs.chmodSync(sockPath, 0o600);
-        return { name: `${prefix}-${n}`, socketPath: sockPath };
+        return { name: n, socketPath: sockPath };
       }
 
       // listen 失败（EADDRINUSE）→ connect 试探判断真活 vs 僵尸 socket（200ms 超时）
@@ -184,7 +184,7 @@ export default function (pi: ExtensionAPI) {
         try { fs.unlinkSync(sockPath); } catch {}
         if (await tryListen(sockPath)) {
           fs.chmodSync(sockPath, 0o600);
-          return { name: `${prefix}-${n}`, socketPath: sockPath };
+          return { name: n, socketPath: sockPath };
         }
       }
       // connect 成功（真活）OR 重 listen 失败 → 换下一个 name
@@ -221,7 +221,7 @@ export default function (pi: ExtensionAPI) {
     };
 
     // D11 §五：分配名字（listen 在 allocateName 内部抢锁；server 通过闭包赋值给外层）
-    const got = await allocateName("pi", names, connectionHandler);
+    const got = await allocateName(names, connectionHandler);
     if (got === null) {                     // §5.2 池子耗尽
       ctx.ui.notify("⚠ 名字池已满，本次不接收消息", "warning");
       return;
