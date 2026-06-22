@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.11] - 2026-06-22
+
+### Fixed
+- Pasting a large block of text into an empty Markdown file no longer shows only the last `scrollmargin + 1` rows of the buffer. The cursor's vertical relocation in MD files was missing the `end-pin` branch (micro native Relocate branch 4): when the cursor lands near `bEnd` (short buffer / paste / goto-end), the view start was over-pushed toward the end and `coversExtent`'s buffer-end exception then locked the wrong state in place. `relocateVerticalMD` case C now branches on cursor position relative to `bEnd` — middle region keeps the old estimate, end region pins `bEnd` to the viewport bottom — restoring one-to-one alignment with micro's native 4-branch Relocate.
+
 ## [1.0.10] - 2026-06-19
 
 ### Fixed
