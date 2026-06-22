@@ -90,7 +90,7 @@ func NotePaneSwitchReceiver(h *BufPane) bool {
 	}
 
 	// 1. Discover
-	receivers, err := eabp.Discover()
+	receivers, err := aibp.Discover()
 	if err != nil {
 		InfoBar.Message("✗ discover error: " + err.Error())
 		return false

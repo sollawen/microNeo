@@ -1,7 +1,7 @@
 # opencode 扩展机制调研报告
 
 > 调研日期：2026-06-10
-> 目的：为 Editor-Agent Bridge 的 **opencode 接收端** 选定实现方案
+> 目的：为 AIBP 的 **opencode 接收端** 选定实现方案
 > 调研依据：本地已安装的 `@opencode-ai/plugin@1.4.10` SDK 类型定义、`@opencode-ai/sdk@1.4.10`、真实插件 `@different-ai/opencode-browser@4.6.0` 源码、`https://opencode.ai/config.json` schema、opencode 官方文档（/docs/acp、/docs/server、/docs/plugins、/docs/tools）。
 > 一句话结论：**用 Plugin（TUI 插件为主）实现接收端；ACP 不适用；我们的 socket 方案无需改动。**（最初曾推荐 server 插件，后修正为 TUI 插件为主，见 §6.5。）
 

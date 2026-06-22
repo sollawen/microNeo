@@ -10,9 +10,9 @@
 > - 与主编辑器的事件路由
 >
 > **不覆盖**：
-> - EABP 发送管线本身（见 `说明-发送端.md`）
+> - AIBP 发送管线本身（见 `说明-发送端.md`）
 > - pi 接收端（见 `说明-接收端.md`）
-> - EABP 协议（见 `说明-EABP.md`）
+> - AIBP 协议（见 `说明-AIBP.md`）
 >
 > **与历史文档的关系**：D6（无文件化）、D7（buffer 生命周期 v2 修复）、D8（Alt-Enter 打开）、D9（Esc 关闭）四份计划合并描述——它们都围绕 notePane 这一组件的不同侧面。注：D7 v1 实施后暴露 panic 漏洞，v2 修复后才有当前稳定形态。
 
@@ -20,7 +20,7 @@
 
 ## 一、定位
 
-notePane 是一个**浮动便签面板**，让用户在编辑文件时能"开个小窗记下想法/问题"，然后通过 EABP 发送给 ai agent。
+notePane 是一个**浮动便签面板**，让用户在编辑文件时能"开个小窗记下想法/问题"，然后通过 AIBP 发送给 ai agent。
 
 **核心特性**：
 
@@ -319,7 +319,7 @@ var allowedNotePaneActions = map[string]bool{
     "Copy": true, "Cut": true, ...
     // 多光标 (8)
     "SpawnMultiCursor": true, ...
-    // 其他 + EABP + 鼠标 + 词导航
+    // 其他 + AIBP + 鼠标 + 词导航
     "NotePaneSend": true, "NotePaneClose": true, ...
 }
 ```
@@ -474,7 +474,7 @@ func (n *NotePane) Display() {
 | **D7 v2** | close 路径不动 Buf + open 总是 Close 旧 + 新建 | ✅ 实施（commit `67ec2858`） |
 | **D8** | 主编辑器 `Alt-i` 硬编码 → `Alt-Enter` + 标准 binding | ✅ 实施 |
 | **D9** | notePane 内 `Esc` 直接关闭（不发送）+ 私有 `notePaneActions` map | ✅ 实施 |
-| **D10** | 空内容拦截 + 30 行阈值 + pi 端 `formatText` 改写 | ✅ 实施（发送端在 notepane.go、接收端在 eabp-pi/index.ts） |
+| **D10** | 空内容拦截 + 30 行阈值 + pi 端 `formatText` 改写 | ✅ 实施（发送端在 notepane.go、接收端在 aibp-pi/index.ts） |
 
 **D7 v1 → v2 的 panic 复盘**：
 
@@ -511,4 +511,4 @@ func (n *NotePane) Display() {
 | 早期 Dx 计划（D6-D10、notePane实施计划） | 已被本文档吸收（设计已全部落地）。详细历史可查 git log 与 commit message。**这些文档已被清理**——D6（无文件化）→ §四、D7 v2（buffer 生命周期）→ §四 + §十、D8（Alt-Enter 打开）→ §六 + §七、D9（Esc 关闭）→ §六 + §七、D10 决策 1（空拦截）→ §四 + §六 |
 | `用户界面-V2.md` | UI 需求源头（位置、尺寸、心智模型）。本文是落地后的「实现」 |
 | `说明-发送端.md` | notePane 内的发送动作 `NotePaneSend` 详细描述 |
-| `说明-EABP.md` | EABP 协议权威；本文档不重复 |
+| `说明-AIBP.md` | AIBP 协议权威；本文档不重复 |

@@ -1,8 +1,8 @@
-# EABP 协议说明（权威）
+# AIBP 协议说明（权威）
 
-> **本文档是 EABP（**E**ditor-**A**gent **B**ridge **P**rotocol）的权威文档**。协议定义、约束、契约、生命周期、开放问题**全部**以本文档为准。
+> **本文档是 AIBP（**A**rtificial **I**ntelligence **B**ridge **P**rotocol）的权威文档**。协议定义、约束、契约、生命周期、开放问题**全部**以本文档为准。
 >
-> **状态**：v1 协议（`eabp-1`）当前实现状态。
+> **状态**：v1 协议（`aibp-1`）当前实现状态。
 >
 > **覆盖范围**：注册表、传输、报文 schema、版本、接收端契约、生命周期边界、安全性、开放问题。
 >
@@ -40,14 +40,14 @@
 
 ### 1.1 一句话定义
 
-**EABP = LSP 式架构**：microNeo 与各 ai agent 是平等的两端，靠同一份协议对接。任何一方都不感知对方内部实现。
+**AIBP = LSP 式架构**：microNeo 与各 ai agent 是平等的两端，靠同一份协议对接。任何一方都不感知对方内部实现。
 
 ```
 ┌──────────────────────────────────────────────┐
 │  microNeo（与具体 agent 无关）                │
 │  发送管线：采集 · 组装 · 发现 · 选择 · 发送   │
 └─────────────────────┬────────────────────────┘
-                      │  EABP 协议（本文档）
+                      │  AIBP 协议（本文档）
        ┌──────────────┼──────────────┐
        ▼              ▼              ▼
    ┌────────┐    ┌──────────┐   ┌────────┐
@@ -103,8 +103,8 @@ dir  = base + "/microneo-agent-bridge-" + $UID
 
 **实现约束（必须两端一致）**：发送端和接收端各自用**完全相同的算法**算出该路径。本文固定算法，两端复刻。
 
-- **发送端实现**：`internal/eabp/registry.go:RegistryDir()`（详见 `说明-发送端.md §2.2`）
-- **接收端实现**：`eabp-receivers/eabp-pi/index.ts:registryDir()`（详见 `说明-接收端.md §三`）
+- **发送端实现**：`internal/aibp/registry.go:RegistryDir()`（详见 `说明-发送端.md §2.2`）
+- **接收端实现**：`aibp-receivers/aibp-pi/index.ts:registryDir()`（详见 `说明-接收端.md §三`）
 
 **`MNAB_REG_DIR` 调试覆盖**：环境变量可覆盖算法，设了就用其值（跳过算法）。**两端都支持**——调试时指个短路径（如 `/tmp/mnab`）方便手查注册文件；生产也用得上。
 
@@ -118,7 +118,7 @@ dir  = base + "/microneo-agent-bridge-" + $UID
 
 每个接收端在该目录下写一个文件 `ai-<name>.json`，其中 `<name>` 是该接收端的 name 字段值（如 `pi-12345` → `ai-pi-12345.json`）。**文件名 = 固定前缀 `ai-` + name**，去前缀即 name，保证全局唯一。
 
-**完整 schema**（`internal/eabp/registry.go:RegFile`）：
+**完整 schema**（`internal/aibp/registry.go:RegFile`）：
 
 ```json
 {
@@ -126,7 +126,7 @@ dir  = base + "/microneo-agent-bridge-" + $UID
   "pid": 12345,
   "transport": "unix",
   "socket": "/tmp/.../microneo-agent-bridge-501/ai-pi-12345.sock",
-  "protocol": "eabp-1",
+  "protocol": "aibp-1",
   "startedAt": 1717000000,
   "cwd": "/Users/me/project",
   "labels": ["default"]
@@ -139,7 +139,7 @@ dir  = base + "/microneo-agent-bridge-" + $UID
 | `pid` | ✅ | 接收端进程 PID，用于存活检测 |
 | `transport` | ✅ | 传输类型，v1 固定 `"unix"` |
 | `socket` | ✅ | 该接收端监听的 Unix socket 绝对路径 |
-| `protocol` | ✅ | 协议版本号（`eabp-1`）。发送端发现版本不匹配时跳过 |
+| `protocol` | ✅ | 协议版本号（`aibp-1`）。发送端发现版本不匹配时跳过 |
 | `startedAt` | ✅ | 启动时间（Unix 秒）。发送端展示「选择目标」列表时的稳定排序依据 |
 | `cwd` | ❌ | 接收端工作目录，发送端可据此判断"是不是同一个项目" |
 | `labels` | ❌ | 自由标签数组，发送端可按标签筛选（如 `["default"]`、`["frontend"]`）。**v1 未使用** |
@@ -178,7 +178,7 @@ dir  = base + "/microneo-agent-bridge-" + $UID
 
 > **connect 为权威判据，PID 为旁证**：进程崩溃后 socket 无人 listen，connect 必失败——这是 GC 的主路径，PID 复用问题根本进不了这条判断链（复用旧 PID 的新进程不会监听旧 socket）。PID 仅在 connect 成功时作为辅助确认。
 
-**实现**：`internal/eabp/registry.go:Discover()`（详见 `说明-发送端.md §2.2`）。
+**实现**：`internal/aibp/registry.go:Discover()`（详见 `说明-发送端.md §2.2`）。
 
 **关键行为**：
 - 目录不存在或空 → 返回空 slice，**不报错**
@@ -247,7 +247,7 @@ dir  = base + "/microneo-agent-bridge-" + $UID
 }
 ```
 
-**权威定义**：`internal/eabp/message.go`（`Envelope` / `Sender`）；下表为字段语义。
+**权威定义**：`internal/aibp/message.go`（`Envelope` / `Sender`）；下表为字段语义。
 
 | 字段 | 必需 | 说明 |
 |------|------|------|
@@ -287,7 +287,7 @@ dir  = base + "/microneo-agent-bridge-" + $UID
 }
 ```
 
-**权威定义**：`internal/eabp/message.go`（`ContextPayload` / `Position` / `Selection`）；下表为字段语义。
+**权威定义**：`internal/aibp/message.go`（`ContextPayload` / `Position` / `Selection`）；下表为字段语义。
 
 | 字段 | 必需 | 类型 | 说明 |
 |------|------|------|------|
@@ -351,7 +351,7 @@ dir  = base + "/microneo-agent-bridge-" + $UID
 
 ### 5.6 序列化（MarshalLine）
 
-发送端把 Envelope 序列化为**单行 JSON 并追加 `\n`**（呼应 §4.3 分帧约束）。实现：`Envelope.MarshalLine()`（`internal/eabp/message.go`）。
+发送端把 Envelope 序列化为**单行 JSON 并追加 `\n`**（呼应 §4.3 分帧约束）。实现：`Envelope.MarshalLine()`（`internal/aibp/message.go`）。
 
 ---
 
@@ -406,25 +406,25 @@ dir  = base + "/microneo-agent-bridge-" + $UID
 
 ### 7.1 版本号方案
 
-- 注册文件 `protocol` 字段格式：`eabp-<major>`，如 `eabp-1`（"Editor Agent Bridge Protocol v1"）
+- 注册文件 `protocol` 字段格式：`aibp-<major>`，如 `aibp-1`（"AI Bridge Protocol v1"）
 - 信封 `v` 字段：主版本整数，如 `1`
 - **主版本**：报文结构不兼容变更时 +1（增删必需字段、改语义）
 - **次版本/兼容 additions**：新增可选字段、新增报文类型——**不改主版本**。接收端应忽略未知字段、忽略未知 `type`（前向兼容）
 
 ### 7.2 版本协商
 
-- 发送端读注册文件 `protocol`（字符串如 `eabp-1`），解析取主版本整数（`1`），与信封 `v` 比较；不匹配 → 跳过该接收端 + 告警提示
+- 发送端读注册文件 `protocol`（字符串如 `aibp-1`），解析取主版本整数（`1`），与信封 `v` 比较；不匹配 → 跳过该接收端 + 告警提示
 - 接收端读信封 `v`（整数），与自身版本的主版本比较；不匹配 → 忽略该报文 + 可选告警
 - v1 不做复杂的 capabilities 协商（YAGNI）
 
 ### 7.3 解析规则
 
-- **主版本解析**：注册文件 `protocol` 形如 `eabp-1`，取最后一个 `-` 之后的整数；解析失败 → 视为不匹配。实现：`internal/eabp/registry.go:major()`
-- **信封校验**：接收端要求 `v === 1` 且 `type === "context"`，否则静默忽略。实现：`eabp-receivers/eabp-pi/index.ts:handleLine()`
+- **主版本解析**：注册文件 `protocol` 形如 `aibp-1`，取最后一个 `-` 之后的整数；解析失败 → 视为不匹配。实现：`internal/aibp/registry.go:major()`
+- **信封校验**：接收端要求 `v === 1` 且 `type === "context"`，否则静默忽略。实现：`aibp-receivers/aibp-pi/index.ts:handleLine()`
 
 ### 7.4 当前版本
 
-**v1（`eabp-1`）**——本文档定义的全部内容。报文类型仅 `context`（`bye` 预留）。
+**v1（`aibp-1`）**——本文档定义的全部内容。报文类型仅 `context`（`bye` 预留）。
 
 ---
 

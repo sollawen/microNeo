@@ -47,7 +47,7 @@ notePaneOpen:
     case 2+ 命中：n.open()                           ← 复用缓存
     case 2+ 未命中：
         SelectPane.Open(..., func(s) {
-            Esc:  n.selectedReceiver = eabp.RegFile{}    ← 清零缓存
+            Esc:  n.selectedReceiver = aibp.RegFile{}    ← 清零缓存
             Enter: n.selectedReceiver = r; n.open()
         })
 ```
@@ -63,7 +63,7 @@ notePaneOpen:
     case 2+ 命中：n.open(n.selectedReceiver)        ← 复用缓存
     case 2+ 未命中：
         SelectPane.Open(..., func(s) {
-            Esc:  n.selectedReceiver = eabp.RegFile{}    ← 清零缓存（保留决策 14）
+            Esc:  n.selectedReceiver = aibp.RegFile{}    ← 清零缓存（保留决策 14）
             Enter: n.open(r)
         })
 
@@ -104,7 +104,7 @@ func (n *NotePane) open() {
 // open 接收 receiver 作为显式入参，并在内部第一行写入 selectedReceiver。
 // 这样 receiver 状态的赋值点收敛到唯一入口（D16），消除"调用方提前 set"的隐式协议。
 // selectedReceiver 字段语义不变：本次发送目标 + 下次缓存。
-func (n *NotePane) open(receiver eabp.RegFile) {
+func (n *NotePane) open(receiver aibp.RegFile) {
     if n.isOpen {
         return
     }
@@ -117,7 +117,7 @@ func (n *NotePane) open(receiver eabp.RegFile) {
 ```
 
 **改动**：
-- 签名加 `receiver eabp.RegFile` 参数
+- 签名加 `receiver aibp.RegFile` 参数
 - `isOpen` 守卫之后、`pane := MainTab()...` 之前插入一行 `n.selectedReceiver = receiver`
 - 方法文档注释更新（说明 receiver 入参与字段关系）
 
@@ -175,7 +175,7 @@ if n.selectedReceiver.Socket != "" {
 NewSelectPane().Open(names, "Receiver", Pos{X: ax, Y: ay}, tcell.Style{}, func(s *string) {
     if s == nil {
         // Esc：清零缓存（走到此分支时缓存已失效，决策 14）
-        n.selectedReceiver = eabp.RegFile{}
+        n.selectedReceiver = aibp.RegFile{}
         InfoBar.Message("✗ 已取消")
         return
     }
@@ -195,7 +195,7 @@ NewSelectPane().Open(names, "Receiver", Pos{X: ax, Y: ay}, tcell.Style{}, func(s
 NewSelectPane().Open(names, "Receiver", Pos{X: ax, Y: ay}, tcell.Style{}, func(s *string) {
     if s == nil {
         // Esc：清零缓存（走到此分支时缓存已失效，决策 14）
-        n.selectedReceiver = eabp.RegFile{}
+        n.selectedReceiver = aibp.RegFile{}
         InfoBar.Message("✗ 已取消")
         return
     }
@@ -233,7 +233,7 @@ NewSelectPane().Open(names, "Receiver", Pos{X: ax, Y: ay}, tcell.Style{}, func(s
 | SelectPane 锚点计算（D14） | `ax := view.X + 2; ay := lowestRow + 1` | 不改 | D14 已定锚点语义 |
 | SelectPane 接口签名 | `Open(items, title, anchor, frameColor, onSelect)` | 不改 | D13/FloatFrame 已定 |
 | **缓存命中跳过 SelectPane** | `if n.selectedReceiver.Socket != ""` 查表 | **不改**（用户明确要求保留） | 伪代码没写，但用户口头强调"记忆功能要保留" |
-| Esc 清零缓存 | `n.selectedReceiver = eabp.RegFile{}` | 不改 | 决策 14；走到 SelectPane 分支即说明旧缓存已失效 |
+| Esc 清零缓存 | `n.selectedReceiver = aibp.RegFile{}` | 不改 | 决策 14；走到 SelectPane 分支即说明旧缓存已失效 |
 | `selectedReceiver` 字段 | 双重职责：发送目标 + 缓存 | 不改（字段保留） | 赋值点从外部收敛到 open 内部 |
 | `NotePaneSend` 读 `n.selectedReceiver` | 行 469 | 不改 | 字段还在，open 后必然已赋值 |
 | `Display` 嵌 receiver 名字 | 行 643 `name := n.selectedReceiver.Name` | 不改 | 同上 |
@@ -257,7 +257,7 @@ NewSelectPane().Open(names, "Receiver", Pos{X: ax, Y: ay}, tcell.Style{}, func(s
 
 **伪代码**：未提及。
 
-**实际**：Esc 时 `n.selectedReceiver = eabp.RegFile{}`（清零）。
+**实际**：Esc 时 `n.selectedReceiver = aibp.RegFile{}`（清零）。
 
 **理由**：保留决策 14。走到 SelectPane 分支说明旧缓存已失效（socket 不在 receivers 列表里）；Esc 表示用户放弃选择，清掉失效缓存避免下次还试一次。
 

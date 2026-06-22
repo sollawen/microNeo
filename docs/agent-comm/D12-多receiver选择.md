@@ -2,7 +2,7 @@
 
 > **状态**：方案设计（已拍板，待实施）
 >
-> **范围**：仅 microNeo 发送端（`internal/action/notepane.go` + `internal/action/selectpane.go` + `internal/action/bufpane.go` forwarding）。EABP 协议不改、接收端不改、micro 原生代码不动。
+> **范围**：仅 microNeo 发送端（`internal/action/notepane.go` + `internal/action/selectpane.go` + `internal/action/bufpane.go` forwarding）。AIBP 协议不改、接收端不改、micro 原生代码不动。
 >
 > **依赖**：**D13**（SelectPane）——**已实施完成**。本 D12 调用 `TheSelectPane.Open()` 实现多 receiver 选择 UI。SelectPane 自身设计见 [`D13-SelectPane设计.md`](./D13-SelectPane设计.md)。
 >
@@ -15,7 +15,7 @@
 当前实现（`notepane.go` `NotePaneSend` 内）：
 
 ```go
-receivers, err := eabp.Discover()
+receivers, err := aibp.Discover()
 ...
 if len(receivers) != 1 {
     if len(receivers) == 0 {
@@ -66,7 +66,7 @@ if len(receivers) != 1 {
 主编辑器 Alt-Enter  →  notePaneOpen(h)
     │
     ▼
-Discover()  (复用现有 eabp.Discover)
+Discover()  (复用现有 aibp.Discover)
     │
     ├── err ───────→ InfoBar "✗ discover error: ..." ─→ 结束（不开 notePane / SelectPane）
     │
@@ -121,11 +121,11 @@ Discover()  (复用现有 eabp.Discover)
 | 7 | Esc 是否可中途取消选择 | **是** | onSelect(nil) 表达取消，调用方据此不开 notePane + InfoBar 提示 |
 | 8 | selectedReceiver 缓存策略 | **进程内缓存**（NotePane 实例字段，microNeo 退出即丢） | 下次 Alt-Enter 时 Discover 命中复用、不命中重选；Discover 自然兜底（Alpha 关了就不会命中），无需磁盘持久化 |
 | 9 | SelectPane 与 notePane 的打开顺序 | **SelectPane 先开 → 选完关 → 再开 notePane** | 两浮层不同时存在（按 §三 流程图），避免焦点/渲染冲突；状态机更简单（用户视角：先选人 → 再写消息） |
-| 10 | `selectedReceiver` 字段类型 | **值类型 `eabp.RegFile`** | 与 `eabp.Discover()` 返回的 `[]RegFile` 一致，写起来更顺；同时承担"本次使用"和"下次缓存"双重职责（替代原 targetReceiver） |
+| 10 | `selectedReceiver` 字段类型 | **值类型 `aibp.RegFile`** | 与 `aibp.Discover()` 返回的 `[]RegFile` 一致，写起来更顺；同时承担"本次使用"和"下次缓存"双重职责（替代原 targetReceiver） |
 | 11 | SelectPane 事件接入 | **保留 BufPane forwarding 并转正**（注释从「D13 scaffolding」改为「D12 集成」） | 弹 SelectPane 时 notePane 未开，焦点在 BufPane；forwarding 是 SelectPane 收键的依赖；侵入仅 2 个 if |
 | 12 | Alt-I 测试键 + `selectTestOpen` | **删除** | D13 测试入口，生产代码不夹测试入口；D12 后生产入口是 `notePaneOpen` 的多 receiver 分流 |
 | 13 | 缓存命中判据 | **Socket 路径**（`RegFile.Socket`） | Socket 唯一；Name 在 D11 下不保证绝对不重名；PID 可能被新进程复用 |
-| 14 | 2+ Esc 时 selectedReceiver 处理 | **清零**（`n.selectedReceiver = eabp.RegFile{}`） | 走到 Esc 分支的前提是 selectedReceiver.Socket 已不在 receivers（缓存失效），保留脏值无意义；清零更安全，避免万一漏判命中时用失效值发送 |
+| 14 | 2+ Esc 时 selectedReceiver 处理 | **清零**（`n.selectedReceiver = aibp.RegFile{}`） | 走到 Esc 分支的前提是 selectedReceiver.Socket 已不在 receivers（缓存失效），保留脏值无意义；清零更安全，避免万一漏判命中时用失效值发送 |
 
 ### 决策点补充说明
 
@@ -149,7 +149,7 @@ Discover()  (复用现有 eabp.Discover)
 ## 五、范围之外（明确不做）
 
 ### 5.1 协议 / 接收端
-- **EABP 协议不改**：选择是发送端 UI 决策，协议不关心
+- **AIBP 协议不改**：选择是发送端 UI 决策，协议不关心
 - **接收端不改**：pi / opencode 接收端不需要任何改动
 
 ### 5.2 选择 UI（v1 不做）
@@ -173,11 +173,11 @@ Discover()  (复用现有 eabp.Discover)
 ☑ 前置：D13 完成（SelectPane + forwarding scaffolding，见 D13 §六）
 
 ☑ D12.1 NotePane 加 selectedReceiver 字段（值类型，决策 8/10）
-   - struct 加字段：selectedReceiver eabp.RegFile
+   - struct 加字段：selectedReceiver aibp.RegFile
    - 「未缓存」判据：`n.selectedReceiver.Socket == ""`（Socket 空串即零值）
    - open() 签名改造：无参，直接读 n.selectedReceiver
    - 同时承担"本次使用"和"下次缓存"双重职责（替代原 targetReceiver）
-   - 清零写法：`n.selectedReceiver = eabp.RegFile{}`（值类型不能赋 nil，用零值）
+   - 清零写法：`n.selectedReceiver = aibp.RegFile{}`（值类型不能赋 nil，用零值）
 
 ☑ D12.2 notePaneOpen 改造（Discover 前移 + 分流，缓存命中检查只在 2+ 分支）
    - Discover 后按 err / 0 / 1 / 2+ 分流
@@ -187,7 +187,7 @@ Discover()  (复用现有 eabp.Discover)
    - 2+ 个 → 先查缓存命中（决策 13：selectedReceiver.Socket 在 receivers 列表里）
      - 命中 → TheNotePane.open()（复用缓存，跳过选择器）
      - 未命中 → 收集 receiver.Name 列表 → TheSelectPane.Open(names, "Receiver", onSelect)
-       - onSelect(nil) → n.selectedReceiver = eabp.RegFile{}（清零，决策 14）→ InfoBar 提示，不开 notePane
+       - onSelect(nil) → n.selectedReceiver = aibp.RegFile{}（清零，决策 14）→ InfoBar 提示，不开 notePane
        - onSelect(&name) → 从 receivers 找到 name 对应的 RegFile
          → n.selectedReceiver = 该 RegFile → TheNotePane.open()
 
@@ -231,7 +231,7 @@ Discover()  (复用现有 eabp.Discover)
 
 - **D11** — `D11-名字分配方案.md`（名字分配机制，让多接收端"能有名字"成为常态）
 - **D13** — `D13-SelectPane设计.md`（SelectPane 选择浮窗设计，本 D12 依赖，**已实施完成**）
-- **`说明-EABP.md` §3** — `eabp.Discover()` 行为契约（Discover 是 SelectPane 的数据源）
+- **`说明-AIBP.md` §3** — `aibp.Discover()` 行为契约（Discover 是 SelectPane 的数据源）
 - **`说明-发送端.md` §3** — 当前发送流程（Discover 要从 `NotePaneSend` 前移到 `notePaneOpen`）
 - **`说明-notepane.md`** — notePane 当前实现（边框绘制、buffer 生命周期）
 - **`说明-架构设计.md` §九 开放问题 #4** — "多 receiver 选择 UI" 在架构层已挂账

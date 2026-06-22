@@ -13,7 +13,7 @@
 >
 > **不做**：浮窗框架（Float interface / 栈 / dispatcher）、其它 pane 类型（FilePicker / ColorPicker 不是新 pane，是 SelectPane 的不同调用方）。
 >
-> **不改**：EABP 协议、接收端、micro 原生代码（`cmd/micro/micro.go` 不动）。
+> **不改**：AIBP 协议、接收端、micro 原生代码（`cmd/micro/micro.go` 不动）。
 
 ---
 

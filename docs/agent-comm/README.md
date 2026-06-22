@@ -11,7 +11,7 @@ microNeo ↔ ai agent 通信系统的设计/实现文档。
 | 文档 | 角色 | 何时读 |
 |------|------|--------|
 | [`说明-架构设计`](./说明-架构设计.md) | **总纲** — 分层 / 原则 / 决策 / 边界 / 状态 | **先读** |
-| [`说明-EABP`](./说明-EABP.md) | **协议层权威** — 注册表 / 报文 / 契约 | 协议相关必读 |
+| [`说明-AIBP`](./说明-AIBP.md) | **协议层权威** — 注册表 / 报文 / 契约 | 协议相关必读 |
 | [`说明-发送端`](./说明-发送端.md) | microNeo 端实现（采集 + 拼报文 + 发送） | 改发送端 |
 | [`说明-接收端`](./说明-接收端.md) | pi 端实现（注册 + 监听 + 递送 LLM） | 改 pi 端 |
 | [`说明-notepane`](./说明-notepane.md) | notePane 浮窗（buffer / binding / 键位） | 改 notePane |
@@ -42,22 +42,22 @@ microNeo ↔ ai agent 通信系统的设计/实现文档。
 | Phase 5 多 receiver 选择 UI | 📋 方案 D12 + D13 | [`D12-多receiver选择`](./D12-多receiver选择.md) + [`D13-SelectPane设计`](./D13-SelectPane设计.md) |
 
 **代码位置**：
-- microNeo：`internal/eabp/` + `internal/action/notepane.go`
-- pi：`eabp-receivers/eabp-pi/index.ts`（~95 行 TS）
+- microNeo：`internal/aibp/` + `internal/action/notepane.go`
+- pi：`aibp-receivers/aibp-pi/index.ts`（~95 行 TS）
 
 ## 改东西时
 
 | 任务 | 先读 |
 |------|------|
-| 改协议字段 / 报文 schema | `说明-EABP.md` §五（`internal/eabp/message.go` 单份，无镜像） |
+| 改协议字段 / 报文 schema | `说明-AIBP.md` §五（`internal/aibp/message.go` 单份，无镜像） |
 | 改 notePane 行为 | `说明-notepane.md`（单文件 `internal/action/notepane.go`） |
-| 改 pi 端 LLM 递送 | `说明-接收端.md`（单文件 `eabp-receivers/eabp-pi/index.ts`） |
-| 加新 agent 接收端 | `说明-EABP.md` §八（接收端契约）+ 调研 `opencode调研.md` 作为参考 |
+| 改 pi 端 LLM 递送 | `说明-接收端.md`（单文件 `aibp-receivers/aibp-pi/index.ts`） |
+| 加新 agent 接收端 | `说明-AIBP.md` §八（接收端契约）+ 调研 `opencode调研.md` 作为参考 |
 | 理解"为什么这样设计" | `说明-架构设计.md` §四（5 条原则）+ §六（14 条决策） |
 
 ## 注意事项
 
-- **调试工具在 `internal/eabp/cmd/`（discover / send）**：与协议代码同 module，直接 import `internal/eabp`，无镜像维护负担。`make build` 不编译它们，需单独 `go build ./internal/eabp/cmd/<tool>`。
+- **调试工具在 `internal/aibp/cmd/`（discover / send）**：与协议代码同 module，直接 import `internal/aibp`，无镜像维护负担。`make build` 不编译它们，需单独 `go build ./internal/aibp/cmd/<tool>`。
 - **notePane buffer 生命周期**：`open()` 总是 Close 旧 + 新建（不是 close 时销毁）——避免 BufPane.HandleEvent 内 nil 访问 panic（v1 → v2 修复历史）。
 - **不发送 `visible_lines`**：v1 不发送可见区域文本（隐私考虑）。
 - **`MNAB_REG_DIR` 调试覆盖**：两端都支持，调试时设个短路径方便手查注册文件。
@@ -75,4 +75,4 @@ microNeo ↔ ai agent 通信系统的设计/实现文档。
 4. ~~多 receiver 选择 UI~~ → 见 D12（notePane 处理）+ D13（通用 SelectPane）
 5. 隐私黑名单？
 
-详细见 `说明-架构设计.md` §九 + `说明-EABP.md` §十一。
+详细见 `说明-架构设计.md` §九 + `说明-AIBP.md` §十一。
