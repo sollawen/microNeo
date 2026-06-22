@@ -21,3 +21,6 @@ tools/build-date
 tools/info-plist
 tools/vscode-tests/
 *.hdr
+
+# mkdocs 本地构建产物（mkdocs build 落到仓库根的静态站点目录）
+/site/

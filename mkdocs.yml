@@ -1,0 +1,69 @@
+site_name: microNeo
+site_description: Terminal Markdown Editor — render and edit in the same window
+site_url: https://sollawen.github.io/microNeo/
+repo_url: https://github.com/sollawen/microNeo
+repo_name: sollawen/microNeo
+edit_uri: edit/master/docs/website/
+docs_dir: docs/website
+site_dir: site
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.tabs.link
+    - content.action.edit
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search
+
+extra:
+  alternate:
+    - name: English
+      link: /microNeo/en/
+      lang: en
+    - name: 中文
+      link: /microNeo/zh/
+      lang: zh
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/sollawen/microNeo
+
+nav:
+  - Home: en/index.md
+  - 首页: zh/index.md
