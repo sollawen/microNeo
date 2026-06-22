@@ -1,5 +1,14 @@
 {
   "name": "aibp-pi",
-  "private": true,
-  "pi": { "extensions": ["./index.ts"] }
+  "version": "1.0.0",
+  "description": "AIBP (AI Bridge Protocol) receiver extension for pi",
+  "license": "MIT",
+  "keywords": ["pi-package", "microNeo"],
+  "files": [
+    "index.ts",
+    "README.md"
+  ],
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
 }
