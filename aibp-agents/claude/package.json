@@ -1,6 +1,7 @@
 {
   "name": "aibp-claude",
   "version": "0.0.0",
+  "aibp": { "protocol": "aibp-1" },
   "description": "AIBP (AI Bridge Protocol) receiver extension for Claude Code (placeholder)",
   "license": "MIT",
   "keywords": ["pi-package", "microNeo", "claude"],

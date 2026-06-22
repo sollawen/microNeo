@@ -3,8 +3,14 @@ import * as net from "node:net";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import { fileURLToPath } from "node:url";
 
-const PROTOCOL = "aibp-1";
+// 协议版本单一事实来源：package.json 的 aibp.protocol。
+// startup 静态检测和运行时注册表声明都读同一字段，避免硬编码漂移。
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json"), "utf8"));
+const PROTOCOL = pkg.aibp.protocol;                       // 字符串，写注册表用
+const PROTOCOL_MAJOR = Number(PROTOCOL.split("-").pop()); // 整数，校验信封用
 
 // D11 §4.2：默认 NATO 音标字母表前 15 个 A–O（去连字符满足 §4.3 字符约束）
 const DEFAULT_NAMES_STR = "Alpha Bravo Charlie Delta Echo Foxtrot Golf Hotel India Juliet Kilo Lima Mike November Oscar";
@@ -256,7 +262,7 @@ export default function (pi: ExtensionAPI) {
   function handleLine(line: string, ctx: any) {
     let env: any;
     try { env = JSON.parse(line); } catch { return; }
-    if (env.v !== 1 || env.type !== "context") return;   // §7.2 主版本校验
+    if (env.v !== PROTOCOL_MAJOR || env.type !== "context") return;   // §7.2 主版本校验
     onMessage(env, ctx);
   }
 

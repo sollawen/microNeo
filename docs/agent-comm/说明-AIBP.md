@@ -411,6 +411,28 @@ dir  = base + "/microneo-agent-bridge-" + $UID
 - **主版本**：报文结构不兼容变更时 +1（增删必需字段、改语义）
 - **次版本/兼容 additions**：新增可选字段、新增报文类型——**不改主版本**。接收端应忽略未知字段、忽略未知 `type`（前向兼容）
 
+### 7.1.1 协议版本的单一事实来源（**重要**）
+
+协议版本字符串（如 `"aibp-1"`）在系统中有**静态**和**运行时**两个使用场景，必须始终指向同一个事实来源，避免硬编码漂移：
+
+| 使用场景 | 谁用 | 形态 | 来源 |
+|---------|------|------|------|
+| **静态检测** | microNeo 启动期（D17 的 startup） | 读扩展包的 `package.json` | ↓ |
+| **运行时声明** | 接收端扩展（如 `aibp-pi`） | 派生为字符串（写注册表）和整数（校验信封） | ↓ |
+| **运行时校验** | microNeo 发送端 | 常量 `aibp-1` | ← 与接收端比对 |
+
+**权威来源**：接收端扩展的 `package.json` 里声明：
+
+```json
+{
+  "aibp": { "protocol": "aibp-1" }
+}
+```
+
+**接收端实现**：不硬编码 `const PROTOCOL = "aibp-1"`，而是启动时从自身 `package.json` 的 `aibp.protocol` 读出，再派生出字符串和整数两种形态（实现见 `aibp-agents/pi/index.ts`，靠 `import.meta.url` 定位同级 package.json）。
+
+**为何单一来源**：接收端扩展（aibp-pi 等）独立于 microNeo 发 npm 包、独立发版，如果硬编码字符串散落多处，升级主版本时漏改一处会造成“静态声明 vs 运行时声明”撕裂——调试极难。收敛到 package.json 后，microNeo 的 startup 静态读到的协议版本与运行时接收端写进注册表的版本**必然一致**（两者读的是同一个文件字段）。
+
 ### 7.2 版本协商
 
 - 发送端读注册文件 `protocol`（字符串如 `aibp-1`），解析取主版本整数（`1`），与信封 `v` 比较；不匹配 → 跳过该接收端 + 告警提示
@@ -420,7 +442,7 @@ dir  = base + "/microneo-agent-bridge-" + $UID
 ### 7.3 解析规则
 
 - **主版本解析**：注册文件 `protocol` 形如 `aibp-1`，取最后一个 `-` 之后的整数；解析失败 → 视为不匹配。实现：`internal/aibp/registry.go:major()`
-- **信封校验**：接收端要求 `v === 1` 且 `type === "context"`，否则静默忽略。实现：`aibp-agents/pi/index.ts:handleLine()`
+- **信封校验**：接收端从自身 `package.json` 的 `aibp.protocol` 派生主版本整数（§7.1.1），要求 `v === PROTOCOL_MAJOR` 且 `type === "context"`，否则静默忽略。实现：`aibp-agents/pi/index.ts:handleLine()`
 
 ### 7.4 当前版本
 
