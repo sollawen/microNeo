@@ -1,6 +1,6 @@
 # microNeo 文档站点方案（mkdocs-material）
 
-> 状态：**讨论中**
+> 状态：**已批准，待实施** （2026-06-22 调整：引入 `mkdocs-static-i18n` 插件）
 > 创建日期：2026-06-22
 > 目标：用 mkdocs-material 搭建 GitHub Pages 文档站
 
@@ -46,7 +46,7 @@ microNeo/
 | 工具 | mkdocs-material | 简单、双语友好、心智负担小 |
 | 子目录 | `docs/website/` | 跟开发文档区分 |
 | 配置位置 | 根目录 `mkdocs.yml` | GitHub Actions 标准路径 |
-| 双语方式 | 双目录 (`en/`、`zh/`) | 简单直接，无需插件 |
+| 双语方式 | `mkdocs-static-i18n` 插件：`en/` 为默认语言（同时构建到根路径）、`zh/` 为次要语言 | 根路径 `/microNeo/` 直接是英文首页；切换按钮由插件自动生成；后续未翻译内容自动 fallback 到英文 |
 | 初始内容 | 1 个英文首页 + 1 个中文首页 | 先把骨架跑通 |
 | 构建产物 | `.gitignore` 加 `/site/` | 防止本地 `mkdocs build` 产物误提交；部署走 GitHub Actions 云端构建，不受影响 |
 | 内容来源 | 基于现有 README.md 改写 | 已经有现成材料 |
@@ -56,21 +56,40 @@ microNeo/
 
 ## 4. 双语切换实现
 
-不用任何第三方插件，靠 mkdocs-material 内置的 `extra.alternate` 功能：
+用 `mkdocs-static-i18n` 插件。插件行为：
+
+- `en/` 标记为默认语言 → `en/index.md` **同时构建到** `/index.html`（根）和 `/en/index.html`
+- `zh/` 标记为次要语言 → `zh/index.md` 只构建到 `/zh/index.html`
+- 插件**自动生成** `extra.alternate`（右上角 🌐 切换按钮），无需手写
+- 未翻译的页面自动 fallback 到英文
+
+效果：
+
+- 访问 `https://sollawen.github.io/microNeo/` → 直接是英文首页
+- 访问 `https://sollawen.github.io/microNeo/zh/` → 中文首页
+- 访问 `https://sollawen.github.io/microNeo/en/` → 英文首页（与根路径内容相同）
+- 页面右上角 🌐 按钮可在英文/中文之间切换
+
+### 导航标题约定
+
+mkdocs 的 nav 标题是固定字符串。为避免英文版出现"首页"这种中文标题（反之亦然），**nav 一律使用英文标题**：
 
 ```yaml
-# mkdocs.yml
-extra:
-  alternate:
-    - name: English
-      link: /microNeo/en/
-      lang: en
-    - name: 中文
-      link: /microNeo/zh/
-      lang: zh
+nav:
+  - Home: en/index.md
+  - Chinese Version: zh/index.md
 ```
 
-效果：页面右上角自动出现 🌐 语言切换按钮，点击跳转到对应语言的首页。
+中文版通过 `nav_translations` 翻译：
+
+```yaml
+nav_translations:
+  Home: 首页
+  Chinese Version: 首页
+```
+
+英文版导航：`Home` / `Chinese Version`  
+中文版导航：`首页` / `首页`（"Chinese Version" 也翻译为 "首页"，避免出现英文）
 
 ---
 
@@ -128,22 +147,29 @@ markdown_extensions:
 
 plugins:
   - search
+  - i18n:
+      docs_structure: folder          # 匹配现有 en/、zh/ 目录
+      languages:
+        - locale: en
+          name: English
+          build: true
+          default: true               # ⭐ 默认语言，内容构建到根
+        - locale: zh
+          name: 中文
+          build: true
+          nav_translations:
+            Home: 首页
+            Chinese Version: 首页
 
+# extra.alternate 由 i18n 插件自动生成，无需手写
 extra:
-  alternate:
-    - name: English
-      link: /microNeo/en/
-      lang: en
-    - name: 中文
-      link: /microNeo/zh/
-      lang: zh
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/sollawen/microNeo
 
 nav:
   - Home: en/index.md
-  - 首页: zh/index.md
+  - Chinese Version: zh/index.md
 ```
 
 ---
@@ -283,3 +309,12 @@ jobs:
 阶段三：使用指南（基本编辑、Markdown 渲染、配置）
 阶段四：架构文档（从 `整体架构说明.md` 精选）
 阶段五：搜索优化、SEO、徽章
+
+---
+
+## 11. 决策变更历史
+
+| 日期 | 变更 | 原因 |
+|------|------|------|
+| 2026-06-22 | 引入 `mkdocs-static-i18n` 插件，取代"无需插件"决策 | 用户需求：根路径 `/microNeo/` 必须直接是英文首页（不接受 404 也不接受语言选择页），仅靠 `extra.alternate` 无法达成，必须借助 i18n 插件把默认语言构建到根 |
+| 2026-06-22 | nav 标题统一为英文（`Home` / `Chinese Version`），中文版通过 `nav_translations` 翻译 | mkdocs 的 nav 标题是固定字符串；为避免英文版出现中文字幕或反之，统一用英文 key 翻译 |

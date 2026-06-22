@@ -11,7 +11,6 @@ theme:
   name: material
   language: en
   features:
-    - navigation.instant
     - navigation.tracking
     - navigation.top
     - search.highlight
@@ -51,19 +50,24 @@ markdown_extensions:
 
 plugins:
   - search
+  - i18n:
+      docs_structure: folder
+      languages:
+        - locale: en
+          name: English
+          build: true
+          default: true
+        - locale: zh
+          name: 中文
+          build: true
+          nav_translations:
+            Home: 首页
 
+# extra.alternate 由 i18n 插件自动生成，无需手写
 extra:
-  alternate:
-    - name: English
-      link: /microNeo/en/
-      lang: en
-    - name: 中文
-      link: /microNeo/zh/
-      lang: zh
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/sollawen/microNeo
 
 nav:
-  - Home: en/index.md
-  - 首页: zh/index.md
+  - Home: index.md

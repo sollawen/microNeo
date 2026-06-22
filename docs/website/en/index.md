@@ -1,8 +1,6 @@
-# microNeo
+# <img src="/microNeo/assets/microNeo-logo-mark.svg" style="width:48px;height:auto" alt="microNeo logo" align="absmiddle"/> microNeo
 
 **The only terminal Markdown editor that renders and edits in the same window.**
-
-![microNeo logo](../assets/microNeo-logo-mark.svg){ width="96" align=right }
 
 Every Markdown editor splits your screen — source left, preview right.
 Terminal screens aren't wide to begin with. **microNeo renders and edits in the same window.**
@@ -139,4 +137,4 @@ microNeo is now developed independently, with the goal of becoming the best Mark
 
 ## License
 
-[MIT](https://github.com/sollawen/microNeo/blob/main/LICENSE)
+[MIT](https://github.com/sollawen/microNeo/blob/master/LICENSE)
