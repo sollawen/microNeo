@@ -1,11 +1,11 @@
-# EABP Receiver for pi
+# AIBP Receiver for pi
 
-EABP (Embedded Agent Bridge Protocol) receiver extension for pi.
+AIBP (AI Bridge Protocol) receiver extension for pi.
 
 ## 安装
 
 ```bash
-pi install /path/to/eabp-receivers/eabp-pi
+pi install /path/to/aibp-receivers/aibp-pi
 ```
 
 ## 功能
@@ -24,9 +24,9 @@ pi install /path/to/eabp-receivers/eabp-pi
 
 ## 协议版本
 
-`eabp-1`
+`aibp-1`
 
 ## 相关文档
 
-- 协议详情：`docs/agent-comm/D2-通信协议方案.md`
-- 实施计划：`docs/agent-comm/D5-pi接收端实施计划.md`
+- 协议详情：`docs/agent-comm/说明-AIBP.md`
+- 实施计划：`docs/agent-comm/D12-实施计划.md`

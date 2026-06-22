@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/micro-editor/micro/v2/internal/eabp"
+	"github.com/micro-editor/micro/v2/internal/aibp"
 )
 
 func main() {
-	receivers, err := eabp.Discover()
+	receivers, err := aibp.Discover()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "discover:", err)
 		os.Exit(1)
@@ -18,7 +18,7 @@ func main() {
 		fmt.Println("(无存活 receiver）")
 		return
 	}
-	// 人类可读 + --json 机器可读（send 内部不用此，自己直接调 eabp.Discover）
+	// 人类可读 + --json 机器可读（send 内部不用此，自己直接调 aibp.Discover）
 	if jsonOut := len(os.Args) > 1 && os.Args[1] == "--json"; jsonOut {
 		b, _ := json.MarshalIndent(receivers, "", "  ")
 		fmt.Println(string(b))

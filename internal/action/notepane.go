@@ -10,7 +10,7 @@ import (
 	"github.com/micro-editor/micro/v2/internal/buffer"
 	"github.com/micro-editor/micro/v2/internal/config"
 	"github.com/micro-editor/micro/v2/internal/display"
-	"github.com/micro-editor/micro/v2/internal/eabp"
+	"github.com/micro-editor/micro/v2/internal/aibp"
 	"github.com/micro-editor/micro/v2/internal/screen"
 	"github.com/micro-editor/micro/v2/internal/util"
 	"github.com/micro-editor/tcell/v2"
@@ -29,7 +29,7 @@ type NotePane struct {
 	fileCursor       buffer.Loc   // captured cursor (X=col, Y=line)
 	fileSelection    *[2]buffer.Loc // nil = no selection
 	fileSelectionText string          // main editor's selected text, captured at open()
-	selectedReceiver eabp.RegFile  // D12: 本次使用 + 下次缓存（Socket=="" 表示未缓存）
+	selectedReceiver aibp.RegFile  // D12: 本次使用 + 下次缓存（Socket=="" 表示未缓存）
 }
 
 // TheNotePane is the global NotePane instance
@@ -98,7 +98,7 @@ var allowedNotePaneActions = map[string]bool{
 	"Deselect": true, "Escape": true, "ToggleOverwriteMode": true,
 	"ClearInfo": true, "ClearStatus": true, "None": true,
 
-	// EABP send
+	// AIBP send
 	"NotePaneSend":             true,
 	"NotePaneClose":           true,
 	"NotePaneSwitchReceiver":  true,
@@ -131,7 +131,7 @@ func NotePaneSwitchReceiver(h *BufPane) bool {
 	}
 
 	// 1. Discover
-	receivers, err := eabp.Discover()
+	receivers, err := aibp.Discover()
 	if err != nil {
 		InfoBar.Message("✗ discover error: " + err.Error())
 		return false
@@ -201,7 +201,7 @@ func notePaneOpen(h *BufPane) bool {
 	}
 
 	// 1. Discover
-	receivers, err := eabp.Discover()
+	receivers, err := aibp.Discover()
 	if err != nil {
 		InfoBar.Message("✗ discover error: " + err.Error())
 		return false
@@ -241,7 +241,7 @@ func notePaneOpen(h *BufPane) bool {
 	NewSelectPane().Open(names, "Receiver", Pos{X: ax, Y: ay}, tcell.Style{}, func(s *string) {
 		if s == nil {
 			// Esc：清零缓存（走到此分支时缓存已失效，决策 14）
-			n.selectedReceiver = eabp.RegFile{}
+			n.selectedReceiver = aibp.RegFile{}
 			InfoBar.Message("✗ 已取消")
 			return
 		}
@@ -425,7 +425,7 @@ func (n *NotePane) IsOpen() bool {
 // open 接收 receiver 作为显式入参，并在内部第一行写入 selectedReceiver。
 // 这样 receiver 状态的赋值点收敛到唯一入口（D16），消除"调用方提前 set"的隐式协议。
 // selectedReceiver 字段语义不变：本次发送目标 + 下次缓存。
-func (n *NotePane) open(receiver eabp.RegFile) {
+func (n *NotePane) open(receiver aibp.RegFile) {
 	if n.isOpen {
 		return
 	}
@@ -508,7 +508,7 @@ func (n *NotePane) reposition() {
 	n.BufPane.Resize(n.width-2, n.height)
 }
 
-// NotePaneSend sends the note content via EABP to a receiver.
+// NotePaneSend sends the note content via AIBP to a receiver.
 // It reads the current notePane buffer as message, discovers receivers,
 // and sends the context payload to the unix socket of the single live receiver.
 func NotePaneSend(h *BufPane) bool {
@@ -518,7 +518,7 @@ func NotePaneSend(h *BufPane) bool {
 	}
 
 	// 0. 空内容拦截（决策 1）：用户没写东西就按 Alt-Enter → 提示 + 直接关闭，不发送。
-	// "打开 pane + 不写 + 发送" 无合理用户意图，避免空 message 走完整 eabp 链路。
+	// "打开 pane + 不写 + 发送" 无合理用户意图，避免空 message 走完整 aibp 链路。
 	message := string(n.BufPane.Buf.Bytes())
 	if strings.TrimSpace(message) == "" {
 		InfoBar.Message("✗ 内容为空,未发送")
@@ -530,11 +530,11 @@ func NotePaneSend(h *BufPane) bool {
 	receiver := n.selectedReceiver
 
 	// 2. Build payload
-	// Convert buffer.Loc {X,Y} = {col,row} (0-based) to EABP Position {Line,Col} = {row,col} (1-based)
-	cursorPos := eabp.Position{Line: n.fileCursor.Y + 1, Col: n.fileCursor.X + 1}
+	// Convert buffer.Loc {X,Y} = {col,row} (0-based) to AIBP Position {Line,Col} = {row,col} (1-based)
+	cursorPos := aibp.Position{Line: n.fileCursor.Y + 1, Col: n.fileCursor.X + 1}
 
 	// message 已在守卫里读取（TrimSpace 判空后必非空）
-	payload := eabp.ContextPayload{
+	payload := aibp.ContextPayload{
 		Path:    n.filePath,
 		Cursor:  cursorPos,
 		Message: message,
@@ -542,9 +542,9 @@ func NotePaneSend(h *BufPane) bool {
 
 	// Selection: pre-captured and normalized at open() time
 	if n.fileSelection != nil {
-		payload.Selection = &eabp.Selection{
-			Start: eabp.Position{Line: n.fileSelection[0].Y + 1, Col: n.fileSelection[0].X + 1},
-			End:   eabp.Position{Line: n.fileSelection[1].Y + 1, Col: n.fileSelection[1].X + 1},
+		payload.Selection = &aibp.Selection{
+			Start: aibp.Position{Line: n.fileSelection[0].Y + 1, Col: n.fileSelection[0].X + 1},
+			End:   aibp.Position{Line: n.fileSelection[1].Y + 1, Col: n.fileSelection[1].X + 1},
 			Text:  n.fileSelectionText,
 		}
 	}
@@ -557,10 +557,10 @@ func NotePaneSend(h *BufPane) bool {
 	}
 
 	// 3. Build envelope
-	env := eabp.Envelope{
+	env := aibp.Envelope{
 		V:       1,
 		Type:    "context",
-		Sender:  eabp.Sender{PID: os.Getpid(), Name: "microNeo", Instance: "default"},
+		Sender:  aibp.Sender{PID: os.Getpid(), Name: "microNeo", Instance: "default"},
 		TS:      float64(time.Now().UnixNano()) / 1e9,
 		Payload: payloadJSON,
 	}

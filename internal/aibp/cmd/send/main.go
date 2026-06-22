@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/micro-editor/micro/v2/internal/eabp"
+	"github.com/micro-editor/micro/v2/internal/aibp"
 )
 
 func main() {
@@ -29,29 +29,29 @@ func main() {
 		os.Exit(2)
 	}
 
-	payload := eabp.ContextPayload{
+	payload := aibp.ContextPayload{
 		Path:    *path,
-		Cursor:  eabp.Position{Line: *line, Col: *col},
+		Cursor:  aibp.Position{Line: *line, Col: *col},
 		Message: *msg,
 	}
 	if *selText != "" {
-		payload.Selection = &eabp.Selection{
-			Start: eabp.Position{Line: *selSLine, Col: *selSCol},
-			End:   eabp.Position{Line: *selELine, Col: *selECol},
+		payload.Selection = &aibp.Selection{
+			Start: aibp.Position{Line: *selSLine, Col: *selSCol},
+			End:   aibp.Position{Line: *selELine, Col: *selECol},
 			Text:  *selText,
 		}
 	}
 	payloadJSON, _ := json.Marshal(payload)
 
-	env := eabp.Envelope{
+	env := aibp.Envelope{
 		V: 1, Type: "context",
-		Sender:  eabp.Sender{PID: os.Getpid(), Name: "microNeo", Instance: *instance},
+		Sender:  aibp.Sender{PID: os.Getpid(), Name: "microNeo", Instance: *instance},
 		TS:      float64(time.Now().UnixNano()) / 1e9,
 		Payload: payloadJSON,
 	}
 
 	// 找 socket：先 Discover 验活，再按 name 取（不能盲目用注册表里的 sock，可能已僵）
-	receivers, err := eabp.Discover()
+	receivers, err := aibp.Discover()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "discover:", err)
 		os.Exit(1)
@@ -68,7 +68,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 说明-EABP §4.2: connect → 写一行 JSON → close
+	// 说明-AIBP §4.2: connect → 写一行 JSON → close
 	c, err := net.Dial("unix", sock)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "dial:", err)

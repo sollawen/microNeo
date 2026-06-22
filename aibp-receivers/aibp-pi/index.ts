@@ -4,7 +4,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 
-const PROTOCOL = "eabp-1";
+const PROTOCOL = "aibp-1";
 
 // D11 §4.2：默认 NATO 音标字母表前 15 个 A–O（去连字符满足 §4.3 字符约束）
 const DEFAULT_NAMES_STR = "Alpha Bravo Charlie Delta Echo Foxtrot Golf Hotel India Juliet Kilo Lima Mike November Oscar";
@@ -32,7 +32,7 @@ export default function (pi: ExtensionAPI) {
     // 里的 `ai-` 分隔标记产生视觉歧义
     return deduped.filter((n) => {
       if (/[/\0: -]/.test(n)) {
-        console.warn(`[eabp-pi] skip illegal name: ${JSON.stringify(n)}`);
+        console.warn(`[aibp-pi] skip illegal name: ${JSON.stringify(n)}`);
         return false;
       }
       return true;
@@ -45,7 +45,7 @@ export default function (pi: ExtensionAPI) {
   function loadNamePool(ctx: any): string[] | null {
     const xdg = process.env.XDG_CONFIG_HOME;
     const configBase = xdg || path.join(os.homedir(), ".config");
-    const poolFile = path.join(configBase, "eabp", "eabp-names.json");
+    const poolFile = path.join(configBase, "aibp", "aibp-names.json");
 
     let raw: string[] | null = null;
 
@@ -58,7 +58,7 @@ export default function (pi: ExtensionAPI) {
         // 解析成功但是空数组 / 非数组 → raw 仍 null → 走分支 B 种子
       } catch {
         // 分支 C：解析失败 → notify + 返回 null（不覆盖用户文件，留给用户修）
-        ctx.ui.notify("⚠ eabp/eabp-names.json 格式错误，本次不接收消息", "warning");
+        ctx.ui.notify("⚠ aibp/aibp-names.json 格式错误，本次不接收消息", "warning");
         return null;
       }
     }
@@ -134,7 +134,7 @@ export default function (pi: ExtensionAPI) {
           if (ok) {
             // listen 成功 → 切换为运行态：移除抢锁阶段的 once error，换成持久日志 handler
             s.removeAllListeners("error");
-            s.on("error", (err) => console.warn(`[eabp-pi] server runtime error: ${err}`));
+            s.on("error", (err) => console.warn(`[aibp-pi] server runtime error: ${err}`));
             server = s;                    // 闭包交给 session_start
             resolve(true);
           } else {
@@ -145,7 +145,7 @@ export default function (pi: ExtensionAPI) {
         s.once("listening", () => finish(true));
         s.once("error", (err: NodeJS.ErrnoException) => {
           if (err.code !== "EADDRINUSE") {
-            console.warn(`[eabp-pi] listen error on ${sockPath}: ${err}`);
+            console.warn(`[aibp-pi] listen error on ${sockPath}: ${err}`);
           }
           finish(false);
         });
@@ -238,12 +238,12 @@ export default function (pi: ExtensionAPI) {
     }));
 
     // D11 §7.2：footer 显示自己的名字（注册成功后才显示）
-    ctx.ui.setStatus("eabp", ctx.ui.theme.fg("accent", `● ${name}`));
+    ctx.ui.setStatus("aibp", ctx.ui.theme.fg("accent", `● ${name}`));
   });
 
   pi.on("session_shutdown", async (_e, ctx) => {
     // D11 §7.2：清除 footer 显示（setStatus 对不存在的 key 幂等安全）
-    ctx.ui.setStatus("eabp", undefined);
+    ctx.ui.setStatus("aibp", undefined);
 
     if (server) {
       await new Promise<void>((res) => server!.close(() => res()));
