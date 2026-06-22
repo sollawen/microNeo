@@ -28,8 +28,8 @@ export default function (pi: ExtensionAPI) {
       }
     }
     // 步骤 3：字符过滤——跳过含 / \0 : 空格 - 的 name（不报错，记日志）
-    // `-` 是强约束：避免 name 自带 `-` 让 socket 文件名 `receiver-<name>.sock`
-    // 里的 `receiver-` 分隔标记产生视觉歧义
+    // `-` 是强约束：避免 name 自带 `-` 让 socket 文件名 `ai-<name>.sock`
+    // 里的 `ai-` 分隔标记产生视觉歧义
     return deduped.filter((n) => {
       if (/[/\0: -]/.test(n)) {
         console.warn(`[eabp-pi] skip illegal name: ${JSON.stringify(n)}`);
@@ -99,7 +99,7 @@ export default function (pi: ExtensionAPI) {
     }
     for (const entry of entries) {
       if (!entry.isFile()) continue;
-      const m = entry.name.match(/^receiver-(.+)\.json$/);
+      const m = entry.name.match(/^ai-(.+)\.json$/);
       if (!m) continue;
       const rid = m[1];                    // 裸名
       let pid: number | null = null;
@@ -118,7 +118,7 @@ export default function (pi: ExtensionAPI) {
       } else {
         // PID 死 → 僵尸注册，顺手 GC（json + sock）
         try { fs.unlinkSync(path.join(dir, entry.name)); } catch {}
-        try { fs.unlinkSync(path.join(dir, `receiver-${rid}.sock`)); } catch {}
+        try { fs.unlinkSync(path.join(dir, `ai-${rid}.sock`)); } catch {}
       }
     }
 
@@ -156,7 +156,7 @@ export default function (pi: ExtensionAPI) {
     // 按池子顺序尝试占用
     for (const n of names) {
       if (occupied.has(n)) continue;
-      const sockPath = path.join(dir, `receiver-${n}.sock`);
+      const sockPath = path.join(dir, `ai-${n}.sock`);
 
       // D11 §5.1：listen 是原子锁——成功即占用
       if (await tryListen(sockPath)) {
@@ -230,7 +230,7 @@ export default function (pi: ExtensionAPI) {
     socketPath = got.socketPath;
 
     // 写注册文件（server 已在 allocateName 内 listen 完成）
-    regFile = path.join(registryDir(), `receiver-${name}.json`);
+    regFile = path.join(registryDir(), `ai-${name}.json`);
     fs.writeFileSync(regFile, JSON.stringify({
       name, pid: process.pid, transport: "unix",
       socket: socketPath, protocol: PROTOCOL,

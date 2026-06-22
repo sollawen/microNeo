@@ -116,7 +116,7 @@ dir  = base + "/microneo-agent-bridge-" + $UID
 
 ### 3.2 注册文件
 
-每个接收端在该目录下写一个文件 `receiver-<name>.json`，其中 `<name>` 是该接收端的 name 字段值（如 `pi-12345` → `receiver-pi-12345.json`）。**文件名 = 固定前缀 `receiver-` + name**，去前缀即 name，保证全局唯一。
+每个接收端在该目录下写一个文件 `ai-<name>.json`，其中 `<name>` 是该接收端的 name 字段值（如 `pi-12345` → `ai-pi-12345.json`）。**文件名 = 固定前缀 `ai-` + name**，去前缀即 name，保证全局唯一。
 
 **完整 schema**（`internal/eabp/registry.go:RegFile`）：
 
@@ -125,7 +125,7 @@ dir  = base + "/microneo-agent-bridge-" + $UID
   "name": "pi-12345",
   "pid": 12345,
   "transport": "unix",
-  "socket": "/tmp/.../microneo-agent-bridge-501/receiver-pi-12345.sock",
+  "socket": "/tmp/.../microneo-agent-bridge-501/ai-pi-12345.sock",
   "protocol": "eabp-1",
   "startedAt": 1717000000,
   "cwd": "/Users/me/project",
@@ -144,9 +144,9 @@ dir  = base + "/microneo-agent-bridge-" + $UID
 | `cwd` | ❌ | 接收端工作目录，发送端可据此判断"是不是同一个项目" |
 | `labels` | ❌ | 自由标签数组，发送端可按标签筛选（如 `["default"]`、`["frontend"]`）。**v1 未使用** |
 
-**socket 文件**：`receiver-<name>.sock`，与 json 同目录。
+**socket 文件**：`ai-<name>.sock`，与 json 同目录。
 
-> **为什么加 `receiver-` 前缀**：该目录以后可能混入别的角色文件。前缀即角色命名空间，发送端扫描时按前缀过滤（`receiver-*.json`），未来新增角色不改动现有命名规则。socket 文件同理。两端 strip 前缀的算法必须一致。
+> **为什么加 `ai-` 前缀**：该目录以后可能混入别的角色文件（如未来非 AI 的 tool- / notify-）。前缀即 AI agent 接收端命名空间，发送端扫描时按前缀过滤（`ai-*.json`），未来新增角色不改动现有命名规则。socket 文件同理。两端 strip 前缀的算法必须一致。
 
 ### 3.3 注册流程
 
@@ -154,18 +154,18 @@ dir  = base + "/microneo-agent-bridge-" + $UID
 
 1. 算出注册表目录（§3.1）→ 不存在则 `0700` 创建
 2. 决定 name（用户可配，否则默认 `<agent>-<pid>`）
-3. 算出 socket 路径 = `<注册表目录>/receiver-<name>.sock`
+3. 算出 socket 路径 = `<注册表目录>/ai-<name>.sock`
 4. 在该路径**创建并监听** Unix socket（stream 类型）
-5. 写注册文件 `receiver-<name>.json`（§3.2 全字段）
+5. 写注册文件 `ai-<name>.json`（§3.2 全字段）
 
-> **name 冲突处理**：若 `receiver-<name>.json` 已存在（上次崩溃残留，或真的撞名），接收端应检测：读旧文件的 `pid`，若该 pid 已死 → 覆盖注册；若仍活 → 给自己改名（追加 `pid` 或序号）后再注册。避免两个接收端写同一 socket 路径。**当前实现**：默认 `name = pi-<pid>`，PID 天然唯一，冲突处理暂留。
+> **name 冲突处理**：若 `ai-<name>.json` 已存在（上次崩溃残留，或真的撞名），接收端应检测：读旧文件的 `pid`，若该 pid 已死 → 覆盖注册；若仍活 → 给自己改名（追加 `pid` 或序号）后再注册。避免两个接收端写同一 socket 路径。**当前实现**：默认 `name = pi-<pid>`，PID 天然唯一，冲突处理暂留。
 
 ### 3.4 注销流程
 
 接收端正常退出时（`session_shutdown`）：
 
-1. 删除自己的注册文件 `receiver-<name>.json`
-2. 删除 socket 文件 `receiver-<name>.sock`
+1. 删除自己的注册文件 `ai-<name>.json`
+2. 删除 socket 文件 `ai-<name>.sock`
 3. 关闭 socket server（`server.close()` 等所有 conn 关闭）
 
 ### 3.5 存活检测与 GC（发送端职责）

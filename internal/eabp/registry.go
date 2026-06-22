@@ -45,7 +45,7 @@ type RegFile struct {
 //   PID 已死 → GC（删注册文件），不计入。PID 仍活 → 保留但不推荐（socket 可能暂不可用）。
 func Discover() ([]RegFile, error) {
 	dir := RegistryDir()
-	entries, err := filepath.Glob(filepath.Join(dir, "receiver-*.json"))
+	entries, err := filepath.Glob(filepath.Join(dir, "ai-*.json"))
 	if err != nil {
 		return nil, err
 	}
