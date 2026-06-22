@@ -286,6 +286,11 @@ func (PiEnsurer) AIBPVersion() (string, error) {
 	if err != nil { return "", err }
 	var pkg struct{ AIBP struct{ Protocol string `json:"protocol"` } `json:"aibp"` }
 	if err := json.Unmarshal(b, &pkg); err != nil { return "", err }
+	// 字段缺失（合法 JSON 但无 aibp.protocol）也视为读不到——Ensure() 会据此重装自愈。
+	// 否则 MajorVersion("") 返回 -1，Ensure() 会误报"扩展过旧"，用户跑了 pi update 也修复不了。
+	if pkg.AIBP.Protocol == "" {
+		return "", fmt.Errorf("package.json 缺少 aibp.protocol 字段（视为没装）")
+	}
 	return pkg.AIBP.Protocol, nil
 }
 

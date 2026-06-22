@@ -58,7 +58,7 @@ func Discover() ([]RegFile, error) {
 			continue
 		}
 		// 主版本不符 → 跳过（说明-AIBP §7.2）。字符串形如 "aibp-1"
-		if major(rf.Protocol) != 1 {
+		if MajorVersion(rf.Protocol) != MajorVersion(Protocol) {
 			continue
 		}
 		if alive(rf.Socket) {
@@ -90,8 +90,9 @@ func pidAlive(pid int) bool {
 	return syscall.Kill(pid, 0) == nil
 }
 
-// major — 解析 "aibp-1" 取 1（说明-AIBP §7.3）
-func major(protocol string) int {
+// MajorVersion — 解析 "aibp-1" 取 1（说明-AIBP §7.3）
+// 被 ensure_agents 子包使用，导出为公共 API
+func MajorVersion(protocol string) int {
 	i := strings.LastIndexByte(protocol, '-')
 	if i < 0 {
 		return -1
