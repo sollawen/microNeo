@@ -7,10 +7,10 @@ import "github.com/micro-editor/micro/v2/internal/aibp/ensure_agents"
 // 必须在 InitCommands() 之后调用（commands map 已初始化），由 InitGlobals 触发。
 // 未来加新命令：在此函数体内追加 MakeCommand 行即可。
 func RegisterCommands() {
-	MakeCommand("check-aibp", (*BufPane).CheckAibpCmd, nil)
+	MakeCommand("check-agent", (*BufPane).CheckAibpCmd, nil)
 }
 
-// CheckAibpCmd 是 :check-aibp 命令的处理函数。
+// CheckAibpCmd 是 :check-agent 命令的处理函数。
 // 检查 pi 是否装了 aibp-pi 扩展；没装则安装，装了则校验协议版本兼容性。
 // 用户主动运行（非启动自动），可给明确反馈。
 func (h *BufPane) CheckAibpCmd(args []string) {
