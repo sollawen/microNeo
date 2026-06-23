@@ -118,6 +118,12 @@ microNeo uses `$XDG_CONFIG_HOME/microNeo/` for config (defaults to `~/.config/mi
 - A Nerd Font or similar powerline-compatible font is recommended. 
 - If the status separator `` looks broken, change `status-separator` in `~/.config/microNeo/settings.json` (e.g., to `│`).
 
+**Reset to default configuration**
+```bash
+microneo --reset-settings
+```
+
+
 ## Hotkeys
 | Action | Shortcut | Action | Shortcut |
 |--------|----------|--------|----------|

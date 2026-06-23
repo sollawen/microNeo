@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.12] - 2026-06-23
+
+### Added
+- New `--reset-settings` CLI flag: copies the embedded `runtime/settings.json` (all 82 fields including MD extensions) to the user's config directory (`~/.config/microNeo/settings.json`), backing up any existing file to `settings.json.backup` first. Independent from `--clean`, which only does diff-only writes via `WriteSettings`.
+- New docs site at https://sollawen.github.io/microNeo/ powered by mkdocs-material, bilingual EN/ZH, deployed via GitHub Actions. Includes `.github/workflows/deploy-docs.yml`, `mkdocs.yml`, and `docs/website/{en,zh}/index.md`.
+
+### Changed
+- `runtime/settings.json` is now a complete reference file (JSON5) with inline comments for all 82 fields. Field values sourced from `internal/config/settings.go` + `internal/config/settings_md.go`; comments for the 74 native fields sourced from micro's `runtime/help/options.md`, plus hand-written descriptions for the 7 MD extension fields and `status-separator` (Powerline arrow U+E0B0). 11 fields are marked `[microNeo]` for git-overlay overrides. Layout reorganized into themed groups (theme / UI / Edit / Search / Brace / Files / Clipboard / Terminal / Plugin / Markdown) with English comments.
+- `--options` flag removed; its listing role is subsumed by `--reset-settings` plus the newly-commented `runtime/settings.json` source.
+
+### Fixed
+- Docs site no longer 404s at the root URL — `mkdocs-static-i18n` plugin now builds English content at `/` and Chinese at `/zh/`, with the 🌐 language switcher auto-generated in the header.
+
+### Docs
+- New `docs/MKT/mkdocs-website-plan.md` capturing the mkdocs-material setup decisions (moved from dev2 working notes), including a new section 11 "Decision change history" covering the i18n plugin switch.
+
 ## [1.0.11] - 2026-06-22
 
 ### Fixed
