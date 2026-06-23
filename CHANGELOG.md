@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-06-23
+
+dev2 分支合并到 master。这是 microNeo 第一个 minor 版本，引入 microNeo ↔ ai agent 通信的完整闭环：notePane 浮窗 + AIBP 协议 + pi 接收端（`aibp-agents/pi` npm 包）。从此 microNeo 不只是 Markdown 编辑器，而是 ai agent 的"前端外设"。
+
+### Added
+- **AIBP 协议层**（`internal/aibp/`）：microNeo ↔ ai agent 通信的 LSP 式协议。注册表 = `$XDG_RUNTIME_DIR/microneo-agent-bridge-$UID/ai-*.json`；传输 = Unix socket + 逐行 JSON；line/col 1-based 对齐 LLM 工具链。协议版本号单一事实来源（`aibp.Protocol`）。
+- **notePane 浮窗**（`internal/action/notepane.go`）：嵌入式 `*BufPane` + 白名单 bindings（约 80 个安全 action，从根上隔离 `Quit`/`Shell`/`OpenFile` 等危险 action）+ 独立 binding 树 + `BTScratch` 无文件 buffer（关闭即清空）。光标下方定位，主编辑器冻结。
+- **`:check-agent` 命令**（`internal/action/command_neo.go`）：用户主动运行，检查本机是否装了 pi，没装就提示先装；装了但没 aibp-pi 就自动 `pi install npm:aibp-pi`；装了则校验协议版本兼容性（扩展过旧只提示不自动升，microNeo 过旧提示升级）。逻辑通过 `AgentEnsurer` 接口编排，未来接 opencode/claude 只新增 `ensure_<agent>.go` 即可。
+- **`Alt-Enter` 打开 notePane**（主编辑器）：默认绑定，在主编辑器里按下时打开 notePane；在 notePane 内按下时则发送当前草稿 + 主编辑器上下文给当前 receiver 后关闭。**`Esc` 永远只关闭不发送**（TUI 约定）。
+- **`Alt-i` 在 notePane 内切换 receiver**（`NotePaneSwitchReceiver`）：notePane 已开态下按下，调 `aibp.Discover()` 找当前可用 receiver，0 个 → InfoBar 报错，1 个 → 静默切到唯一那个，≥2 个 → 弹 SelectPane 列表让用户挑。只更新 `selectedReceiver` 字段不重建 buffer，**草稿不丢**。notePane 未开时 `alt-i` 静默 no-op。
+- **SelectPane 通用浮窗**（D13）：notePane 内部切换 receiver 时弹出的列表选择浮窗。基于新 `FloatFrame` 框架，支持锚点自适应定位（靠近 notePane 上边框且自动展开方向）。上边框嵌入当前名字（`┌─name───┐`）。
+- **pi 接收端**（`aibp-agents/pi/index.ts`，独立 npm 包 `aibp-pi`）：pi 启动时注册到 AIBP 注册表并监听 Unix socket；收到 microNeo 的报文后解析，把 selection/message/file cursor 转给 pi 的 LLM 工具链。
+- **FloatFrame 浮窗框架**（`internal/action/floatframe.go`）：事件路由与 Display 顺序的集中管理，`SelectPane` 等浮窗通过它统一盖在 notePane 之上，确保鼠标/键盘事件被浮窗优先截获、绘制层叠正确。
+
+### Changed
+- 主编辑器默认绑定 `Alt-Enter` 从原 micro 默认（`InsertNewline`）改为 `NotePaneOpen`。`internal/action/defaults_{darwin,other}.go` 各加一行。
+- 协议名从早期 `EABP` 重命名为 `AIBP`（`Agent-IDE Bridge Protocol`），代码与文档全量同步；接收端目录从 `aibp-receivers/` 重命名为 `aibp-agents/`；注册表文件前缀从 `receiver-` 改为 `ai-`。
+- `notePane.open()` 改造成 D16 参数化版本：`open(receiver)` 接收显式 receiver 入参，主编辑器打开前先 `aibp.Discover()`，≥2 个 receiver 时通过 SelectPane 让用户选。
+
+### Fixed
+- notePane 关闭后 `BufPane.HandleEvent` 内访问 nil buffer 的 panic（D7 v2 修复）：v1 实现依赖 `close()` 时销毁 buffer，但 `open()` 重建 buffer 与 close 时序存在窗口期，会触发 nil 访问。v2 改成 `open()` 总是 `Close` 旧 buffer + `NewBufferFromString` 新 buffer，buffer 生命周期与 isOpen 状态机解耦。
+- FloatFrame 关闭后终端光标残留在前序 pane 上：浮窗关闭前显式调用 `screen.ShowCursor(hideX, hideY)` 把光标藏到屏外，避免与主编辑器光标位置错位。
+- 主编辑器选区在 notePane 发送后不清空，导致下一次发送时 selection 内容与已发送的不一致：发送成功后自动调 `Deselect` 清空主编辑器选区。
+
+### Docs
+- `docs/agent-comm/` 整目录从 dev2 迁入，含 8 份"说明-*"当前态文档（架构设计 / AIBP / 发送端 / 接收端 / notepane）+ 8 份"Dx"决策文档（D11 名字分配、D12 多 receiver、D13 SelectPane、D14-D16 notePane 演化、D17 `:check-agent`）。README.md 提供"何时读哪份"导航矩阵。
+
 ## [1.0.12] - 2026-06-23
 
 ### Added
