@@ -1,13 +1,109 @@
+// MicroNeo 默认配置（JSON5 格式）
+// 完整字段参考；用 `microneo --reset-settings` 复制此文件到 ~/.config/microNeo/settings.json
+// 字段描述摘自 micro 官方帮助文档（runtime/help/options.md）
+
 {
-    "basename": true,
-    "colorscheme": "s-light",
-    "diffgutter": true,
-    "matchbracestyle": "highlight",
-    "reload": "auto",
-    "scrollbar": true,
-    "scrollbarchar": "▐",
-    "softwrap": true,
-    "status-separator": "",
-    "statusformatl": "$[special] $(brand) $[dim]$sep $(filename) $(modified)$[normal]$sep$(overwrite) $(position) $(status.paste) | ft:$(opt:filetype) ",
-    "statusformatr": "$(bind:ToggleKeyMenu):keys, $(bind:ToggleHelp):help"
+    // ── 外观 ──
+    "colorscheme": "s-light",  // use the given colorscheme. This setting is `global only`.  // [microNeo]
+    "statusline": true,  // display the status line at the bottom of the screen.
+    "statusformatl": "$[special] $(brand) $[dim]$sep $(filename) $(modified)$[normal]$sep$(overwrite) $(position) $(status.paste) | ft:$(opt:filetype) ",  // format string definition for the left-justified part of the statusline.  // [microNeo]
+    "statusformatr": "$(bind:ToggleKeyMenu):keys, $(bind:ToggleHelp):help",  // format string definition for the right-justified part of the statusline.  // [microNeo]
+    "status-separator": "\ue0b0",  // string substituted into the $sep placeholder inside statusformatl/statusformatr.  // [microNeo]
+    "ruler": true,  // display line numbers.
+    "relativeruler": false,  // make line numbers display relatively. If set to true, all lines except for the line that the cursor is located will display the distance from the cursor's line.
+    "colorcolumn": 0.0,  // if this is not set to 0, it will display a column at the specified column. This is useful if you want column 80 to be highlighted special for example.
+    "cursorline": true,  // highlight the line that the cursor is on in a different color (the color is defined by the colorscheme you are using).
+    "scrollbar": true,  // display a scroll bar.  // [microNeo]
+    "scrollbarchar": "\u2590",  // specifies the character used for displaying the scrollbar.  // [microNeo]
+    "scrollmargin": 3.0,  // margin at which the view starts scrolling when the cursor approaches the edge of the view.
+    "scrollspeed": 2.0,  // amount of lines to scroll for one scroll event.
+    "infobar": true,  // enables the line at the bottom of the editor where messages are printed. This option is `global only`.
+    "keymenu": false,  // display the nano-style key menu at the bottom of the screen. Note that ToggleKeyMenu is bound to `Alt-g` by default and this is displayed in the statusline.
+    "divchars": "|-",  // specifies the "divider" characters used for the dividing line between vertical/horizontal splits.
+    "divreverse": true,  // colorschemes provide the color (foreground and background) for the characters displayed in split dividers.
+    "tabreverse": true,  // reverses the tab bar colors when active.
+    "tabhighlight": false,  // inverts the tab characters' (filename, save indicator, etc) colors with respect to the tab bar.
+
+    // ── 编辑 ──
+    "autoindent": true,  // when creating a new line, use the same indentation as the previous line.
+    "keepautoindent": false,  // when using autoindent, whitespace is added for you. This option determines if when you move to the next line without any insertions the whitespace that was added should be deleted to remove trailing whitespace.
+    "smartpaste": true,  // add leading whitespace when pasting multiple lines. This will attempt to preserve the current indentation level when pasting an unindented block.
+    "softwrap": true,  // wrap lines that are too long to fit on the screen.  // [microNeo]
+    "wordwrap": false,  // wrap long lines by words, i.e. break at spaces. This option only does anything if `softwrap` is on.
+    "showchars": "",  // sets what characters to be shown to display various invisible characters in the file.
+    "tabsize": 4.0,  // the size in spaces that a tab character should be displayed with.
+    "tabstospaces": false,  // use spaces instead of tabs. Note: This option will be overridden by [the `ftoptions` plugin](https://github.com/micro-editor/micro/blob/master/runtime/plugins/ftoptions/ftoptions.lua) for certain filetypes.
+    "tabmovement": false,  // navigate spaces at the beginning of lines as if they are tabs (e.g. move over 4 spaces at once). This option only does anything if `tabstospaces` is on.
+    "indentchar": " ",  // sets the character to be shown to display tab characters. This option is **deprecated**, use the `tab` key in `showchars` option instead.
+
+    // ── 搜索 ──
+    "incsearch": true,  // enable incremental search in "Find" prompt (matching as you type).
+    "hlsearch": false,  // highlight all instances of the searched text after a successful search.
+    "ignorecase": true,  // perform case-insensitive searches.
+
+    // ── 括号与字符高亮 ──
+    "matchbrace": true,  // show matching braces for '()', '{}', '[]' when the cursor is on a brace character or (if `matchbraceleft` is enabled) next to it.
+    "matchbraceleft": true,  // simulate I-beam cursor behavior (cursor located not on a character but "between" characters): when showing matching braces, if there is no brace character directly under the cursor, match the brace character to the left of the cursor instead.
+    "matchbracestyle": "highlight",  // whether to underline or highlight matching braces when `matchbrace` is enabled.  // [microNeo]
+    "hltaberrors": false,  // highlight tabs when spaces are expected, and spaces when tabs are expected.
+    "hltrailingws": false,  // highlight trailing whitespaces at ends of lines. Note that it doesn't highlight newly added trailing whitespaces that naturally occur while typing text.
+
+    // ── 文件与保存 ──
+    "autosave": 0.0,  // automatically save the buffer every n seconds, where n is the value of the autosave option.
+    "autosu": false,  // When a file is saved that the user doesn't have permission to modify, micro will ask if the user would like to use super user privileges to save the file.
+    "sucmd": "sudo",  // specifies the super user command. On most systems this is "sudo" but on BSD it can be "doas." This option can be customized and is only used when saving with su.
+    "backup": true,  // micro will automatically keep backups of all open buffers. Backups are stored in `~/.config/microNeo/backups` and are removed when the buffer is closed cleanly.
+    "backupdir": "",  // the directory micro should place backups in. For the default value of `""` (empty string), the backup directory will be `ConfigDir/backups`, which is `~/.config/microNeo/backups` by default.
+    "permbackup": false,  // this option causes backups (see `backup` option) to be permanently saved.
+    "eofnewline": true,  // micro will automatically add a newline to the end of the file if one does not exist.
+    "rmtrailingws": false,  // micro will automatically trim trailing whitespaces at ends of lines.
+    "mkparents": false,  // if a file is opened on a path that does not exist, the file cannot be saved because the parent directories don't exist.
+    "fileformat": "unix",  // this determines what kind of line endings micro will use for the file.
+    "encoding": "utf-8",  // the encoding to open and save files with. Supported encodings are listed at https://www.w3.org/TR/encoding/.
+    "fastdirty": false,  // this determines what kind of algorithm micro uses to determine if a buffer is modified or not.
+    "readonly": false,  // when enabled, disallows edits to the buffer. It is recommended to only ever set this option locally using `setlocal`.
+    "savecursor": false,  // remember where the cursor was last time the file was opened and put it there when you open the file again. Information is saved to `~/.config/microNeo/buffers/`.
+    "saveundo": false,  // when this option is on, undo is saved even after you close a file so if you close and reopen a file, you can keep undoing. Information is saved to `~/.config/microNeo/buffers/`.
+    "savehistory": true,  // remember command history between closing and re-opening micro. Information is saved to `~/.config/microNeo/buffers/history`.
+    "reload": "auto",  // controls the reload behavior of the current buffer in case the file has changed. The available options are `prompt`, `auto` & `disabled`.  // [microNeo]
+
+    // ── 缓冲区与窗口 ──
+    "splitbottom": true,  // when a horizontal split is created, create it below the current split.
+    "splitright": true,  // when a vertical split is created, create it to the right of the current split.
+    "helpsplit": "hsplit",  // sets the split type to be used by the `help` command. Possible values: * `vsplit`: open help in a vertical split pane * `hsplit`: open help in a horizontal split pane.
+    "multiopen": "tab",  // specifies how to layout multiple files opened at startup. Most useful as a command-line option, like `-multiopen vsplit`.
+    "parsecursor": false,  // if enabled, this will cause micro to parse filenames such as `file.txt:10:5` as requesting to open `file.txt` with the cursor at line 10 and column 5.
+    "pageoverlap": 2.0,  // the number of lines from the current view to keep in view when paging up or down.
+
+    // ── 剪贴板与输入 ──
+    "clipboard": "external",  // specifies how micro should access the system clipboard. Possible values are: * `external`: accesses clipboard via an external tool, such as xclip/xsel or wl-clipboard on Linux, pbcopy/pbpaste on MacOS, and system calls on Windows.
+    "useprimary": true,  // defines whether or not micro will use the primary clipboard to copy selections in the background. This does not affect the normal clipboard using `Ctrl-c` and `Ctrl-v`.
+    "paste": false,  // treat characters sent from the terminal in a single chunk as a paste event rather than a series of manual key presses.
+    "mouse": true,  // mouse support.
+    "fakecursor": false,  // forces micro to render the cursor using terminal colors rather than the actual terminal cursor.
+    "xterm": false,  // micro will assume that the terminal it is running in conforms to `xterm-256color` regardless of what the `$TERM` variable actually contains.
+
+    // ── 颜色与终端 ──
+    "truecolor": "auto",  // controls whether micro will use true colors (24-bit colors) when using a colorscheme with true colors, such as `solarized-tc` or `atom-dark`.
+
+    // ── 插件 ──
+    "pluginchannels": ["https://raw.githubusercontent.com/micro-editor/plugin-channel/master/channel.json"],  // list of URLs pointing to plugin channels for downloading and installing plugins.
+    "pluginrepos": [],  // a list of links to plugin repositories.
+
+    // ── 高级 / 杂项 ──
+    "detectlimit": 100.0,  // if this is not set to 0, it will limit the amount of first lines in a file that are matched to determine the filetype.
+    "filetype": "unknown",  // sets the filetype for the current buffer. Set this option to `off` to completely disable filetype detection.
+    "lockbindings": false,  // prevent plugins and lua scripts from binding any keys. Any custom actions must be binded manually either via commands like `bind` or by modifying the `bindings.json` file.
+    "basename": true,  // in the infobar and tabbar, show only the basename of the file being edited rather than the full path.  // [microNeo]
+    "diffgutter": true,  // display diff indicators before lines.  // [microNeo]
+    "syntax": true,  // enables syntax highlighting.
+
+    // ── Markdown 渲染（microNeo 扩展）──
+    "mdtablealign": true,  // align table | columns (left/center/right).
+    "mdtableborder": true,  // draw table border lines.
+    "mdbolditalic": true,  // render **bold** and *italic* inline styles.
+    "mdcodeblock": true,  // render ``` fenced code blocks with background and border.
+    "mdheading": true,  // render # headings with bold and color.
+    "mdlist": true,  // render - / * / 1. list markers.
+    "mdlink": true,  // render [text](url) links with a distinct color.
 }

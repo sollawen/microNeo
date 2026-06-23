@@ -11,7 +11,6 @@ import (
 	"regexp"
 	"runtime"
 	"runtime/pprof"
-	"sort"
 	"strconv"
 	"syscall"
 	"time"
@@ -31,13 +30,13 @@ import (
 
 var (
 	// Command line flags
-	flagVersion   = flag.Bool("version", false, "Show the version number and information")
-	flagConfigDir = flag.String("config-dir", "", "Specify a custom location for the configuration directory")
-	flagOptions   = flag.Bool("options", false, "Show all option help")
-	flagDebug     = flag.Bool("debug", false, "Enable debug mode (prints debug info to ./log.txt)")
-	flagProfile   = flag.Bool("profile", false, "Enable CPU profiling (writes profile info to ./micro.prof)")
-	flagPlugin    = flag.String("plugin", "", "Plugin command")
-	flagClean     = flag.Bool("clean", false, "Clean configuration directory")
+	flagVersion       = flag.Bool("version", false, "Show the version number and information")
+	flagConfigDir     = flag.String("config-dir", "", "Specify a custom location for the configuration directory")
+	flagResetSettings = flag.Bool("reset-settings", false, "Reset settings.json to the complete default settings (embedded source). Backs up existing file to settings.json.backup")
+	flagDebug         = flag.Bool("debug", false, "Enable debug mode (prints debug info to ./log.txt)")
+	flagProfile       = flag.Bool("profile", false, "Enable CPU profiling (writes profile info to ./micro.prof)")
+	flagPlugin        = flag.String("plugin", "", "Plugin command")
+	flagClean         = flag.Bool("clean", false, "Clean configuration directory")
 	optionFlags   map[string]*string
 
 	sighup chan os.Signal
@@ -59,8 +58,8 @@ func InitFlags() {
 		fmt.Println("    \tSpecify a line and column to start the cursor at when opening a buffer")
 		fmt.Println("+/REGEX")
 		fmt.Println("    \tSpecify a regex to search for when opening a buffer")
-		fmt.Println("-options")
-		fmt.Println("    \tShow all options help and exit")
+		fmt.Println("-reset-settings")
+		fmt.Println("    \tReset settings.json to the complete default settings (all features and all fields, embedded source). Existing file is backed up to settings.json.backup")
 		fmt.Println("-debug")
 		fmt.Println("    \tEnable debug mode (enables logging to ./log.txt)")
 		fmt.Println("-profile")
@@ -87,7 +86,6 @@ func InitFlags() {
 		fmt.Println("-<option> value")
 		fmt.Println("    \tSet `option` to `value` for this session")
 		fmt.Println("    \tFor example: `micro -syntax off file.c`")
-		fmt.Println("\nUse `micro -options` to see the full list of configuration options")
 	}
 
 	optionFlags = make(map[string]*string)
@@ -106,19 +104,9 @@ func InitFlags() {
 		exit(0)
 	}
 
-	if *flagOptions {
-		// If -options was passed
-		var keys []string
-		m := config.DefaultAllSettings()
-		for k := range m {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		for _, k := range keys {
-			v := m[k]
-			fmt.Printf("-%s value\n", k)
-			fmt.Printf("    \tDefault value: '%v'\n", v)
-		}
+	if *flagResetSettings {
+		config.InitConfigDir(*flagConfigDir)
+		ResetSettings()
 		exit(0)
 	}
 
