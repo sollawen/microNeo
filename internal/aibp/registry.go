@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -80,14 +79,6 @@ func alive(socket string) bool {
 	}
 	_ = c.Close()
 	return true
-}
-
-// pidAlive — 跨平台 kill(0) 旁证。Windows 上 syscall 用法不同，v1 仅 Unix
-func pidAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	return syscall.Kill(pid, 0) == nil
 }
 
 // MajorVersion — 解析 "aibp-1" 取 1（说明-AIBP §7.3）
