@@ -1,9 +1,19 @@
 {
   "name": "aibp-opencode",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "aibp": { "protocol": "aibp-1" },
-  "description": "AIBP (AI Bridge Protocol) receiver extension for opencode (placeholder)",
+  "description": "AIBP (AI Bridge Protocol) receiver plugin for opencode",
   "license": "MIT",
-  "keywords": ["pi-package", "microNeo", "opencode"],
-  "files": ["README.md"]
+  "type": "module",
+  "exports": {
+    "./tui": "./index.ts"
+  },
+  "keywords": ["opencode-plugin", "microNeo", "aibp"],
+  "files": ["index.ts", "README.md"],
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.17.0"
+  },
+  "engines": {
+    "opencode": ">=1.4.0"
+  }
 }
