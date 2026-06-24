@@ -52,44 +52,54 @@ const DEFAULT_NAMES_STR =
   "Alpha Bravo Charlie Delta Echo Foxtrot Golf Hotel India Juliet Kilo Lima Mike November Oscar"
 
 // ===== D19b: pending session creation (concurrent message mutex) =====
-let pending: { sessionID: string; resolve: (id: string) => void } | null = null
+// 并发消息复用同一个创建中的 session：第一个进来负责 create+navigate，
+// 后续并发的 await 同一个 Promise。用 Promise 模式，避免手动 resolve 漏赋值。
+let pending: Promise<string> | null = null
 
 async function ensureSession(api: TuiPluginApi): Promise<string> {
+  // 已在 session 页面，直接复用当前 session
   const route = api.route.current as any
   if (route?.name === "session" && typeof route?.params?.sessionID === "string") {
+    log("ensureSession: reuse current", { sessionID: route.params.sessionID })
     return route.params.sessionID
   }
 
-  // 已经有消息在创建 session，等它完成，共享同一个 sessionID
+  // 有创建中的 session，复用同一个 Promise（并发消息走这里）
   if (pending) {
-    return await new Promise<string>((resolve) => {
-      pending!.resolve = resolve
-    })
+    log("ensureSession: reuse pending")
+    return pending
   }
 
   // 第一个进入创建流程的消息
-  let resolveOuter!: (id: string) => void
-  pending = { sessionID: "", resolve: (id) => resolveOuter(id) }
-
-  try {
+  pending = (async () => {
+    log("ensureSession: creating session")
     const res = await api.client.session.create()
     if (res.error) {
-      toast(`⚠ aibp 创建对话失败: ${res.error.message}`, "warning")
+      pending = null
+      log("ensureSession: create error", { error: res.error })
+      try {
+        api.ui.toast({ message: `⚠ aibp 创建对话失败: ${res.error.message}`, variant: "warning" })
+      } catch {}
       throw new Error("session.create failed")
     }
     const sessionID = res.data.id
-    pending.sessionID = sessionID
+    log("ensureSession: created", { sessionID })
 
-    // 导航到新 session（参考 opencode prompt/index.tsx，50ms delay 避免竞态）
+    // 导航到新 session。navigate 签名是 (name, params)：name="session"，params={sessionID}。
+    // 注意 route.current 是 {name, params} 对象，但 navigate 第一参是 name 字符串，别混用。
+    // 50ms delay 让 create 的状态先落库，避免导航竞态。
     setTimeout(() => {
-      api.route.navigate({ type: "session", sessionID })
+      log("ensureSession: navigate", { sessionID })
+      api.route.navigate("session", { sessionID })
     }, 50)
 
     return sessionID
+  })()
+
+  try {
+    return await pending
   } finally {
-    const p = pending!
     pending = null
-    p.resolve(p.sessionID)
   }
 }
 
