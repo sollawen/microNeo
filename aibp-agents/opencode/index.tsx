@@ -468,7 +468,7 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
     const override = process.env.MNAB_REG_DIR
     if (override) return override
     const base = process.env.XDG_RUNTIME_DIR || process.env.TMPDIR || "/tmp"
-    return path.join(base, `microneo-agent-bridge-${process.getuid?.() ?? 0}`)
+    return path.join(base, `aibp-${process.getuid?.() ?? 0}`)
   }
 
   function formatText(p: any): string {

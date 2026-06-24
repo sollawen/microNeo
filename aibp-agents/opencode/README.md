@@ -47,7 +47,7 @@ npm version patch && npm publish
 
 ```bash
 # 1. opencode 启动后，注册文件应已生成（不用先发消息）
-ls "$XDG_RUNTIME_DIR/microneo-agent-bridge-$(id -u)/"   # 见 ai-Bravo.json
+ls "$XDG_RUNTIME_DIR/aibp-$(id -u)/"   # 见 ai-Bravo.json
 # 2. 名字池（与 aibp-pi 共用）
 cat ~/.config/aibp/aibp-names.json
 ```

@@ -23,7 +23,7 @@ func RegistryDir() string {
 	if base == "" {
 		base = "/tmp"
 	}
-	return filepath.Join(base, fmt.Sprintf("microneo-agent-bridge-%d", os.Getuid()))
+	return filepath.Join(base, fmt.Sprintf("aibp-%d", os.Getuid()))
 }
 
 // RegFile — 说明-AIBP §3.2 注册文件内容

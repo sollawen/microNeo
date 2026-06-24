@@ -23,7 +23,7 @@ microNeo ↔ ai agent 通信系统的设计/实现文档。
 
 - **LSP 式**：microNeo 只定义协议，agent 按协议实现接收端即可接入。**接新 agent 不改 microNeo 任何代码**。
 - **零 Lua 钩子**：发送端全 Go 写死，符合 micro 原生零侵入。
-- **注册表 = 文件系统目录**：`$XDG_RUNTIME_DIR/microneo-agent-bridge-$UID/ai-*.json`。无独立进程。
+- **注册表 = 文件系统目录**：`$XDG_RUNTIME_DIR/aibp-$UID/ai-*.json`。无独立进程。
 - **传输 = Unix socket + 逐行 JSON**：每次发送 connect → write 一行 → close。**无状态管理**。
 - **line/col 1-based**：与 LLM 工具链（sed/ripgrep/read）天然对齐。
 - **`message` 有无决定递送路径**：

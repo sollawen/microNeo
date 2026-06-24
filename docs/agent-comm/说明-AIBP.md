@@ -92,7 +92,7 @@
 
 ```
 base = $XDG_RUNTIME_DIR ? $TMPDIR ? /tmp       // 优先级回落
-dir  = base + "/microneo-agent-bridge-" + $UID
+dir  = base + "/aibp-" + $UID
 ```
 
 解析优先级：
@@ -125,7 +125,7 @@ dir  = base + "/microneo-agent-bridge-" + $UID
   "name": "pi-12345",
   "pid": 12345,
   "transport": "unix",
-  "socket": "/tmp/.../microneo-agent-bridge-501/ai-pi-12345.sock",
+  "socket": "/tmp/.../aibp-501/ai-pi-12345.sock",
   "protocol": "aibp-1",
   "startedAt": 1717000000,
   "cwd": "/Users/me/project",

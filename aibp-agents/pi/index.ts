@@ -205,7 +205,7 @@ export default function (pi: ExtensionAPI) {
     const base = process.env.XDG_RUNTIME_DIR
       || process.env.TMPDIR
       || "/tmp";
-    return path.join(base, `microneo-agent-bridge-${process.getuid?.() ?? 0}`);
+    return path.join(base, `aibp-${process.getuid?.() ?? 0}`);
   }
 
   pi.on("session_start", async (_e, ctx) => {
