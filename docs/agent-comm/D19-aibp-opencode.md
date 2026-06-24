@@ -1,147 +1,92 @@
-# D19: aibp-opencode —— microNeo → opencode 代码递送通道
+# D19 · aibp-opencode —— microNeo → opencode 的代码递送通道
 
-让 opencode 成为 AIBP 接收端：在 microNeo 里选中代码按 Alt-Enter，内容递送到 opencode 当前运行的对话。
+> **状态**：已实现并验证通过。源码 `aibp-agents/opencode/index.tsx`（446 行），npm 包 [`aibp-opencode@1.0.1`](https://www.npmjs.com/package/aibp-opencode)。
+>
+> 想了解协议细节看 **D17**，想了解安装/卸载/踩过的坑看 **`aibp-agents/opencode/README.md`**，想了解 opencode 插件机制选型看 **`docs/agent-comm/opencode调研.md`**。本文件只做总览。
 
-## 功能
+## 一句话
 
-- microNeo 用户选中代码 → Alt-Enter → 内容出现在 opencode 当前对话
-- 支持纯选区、选区+用户消息、纯消息三种模式
-- 自动格式化递送内容（`<selection: file lines X-Y>` 风格）
+opencode 的 **TUI 插件**，让 microNeo 能把选中代码（或纯消息）通过 AIBP 协议递送到当前正在运行的 opencode 对话里。aibp-pi 的 opencode 版孪生兄弟。
 
-## 实现方案
+## 形态选择：为什么是 TUI 插件（不是 server 插件）
 
-### 插件形态：TUI 插件
+| 形态 | 加载时机 | 能否满足"启动即注册名字 + 开 socket" |
+|------|---------|-------------------------------------|
+| **TUI 插件** | App mount 立即加载 | ✅ |
+| server 插件 | 需等用户首条消息触发 instance bootstrap | ❌ 延迟注册会让 microNeo 找不到接收端 |
 
-```typescript
-export default {
-  id: "aibp-opencode",
-  tui: async (api) => { ... }
-}
-```
+所以 `index.tsx` 导出的是 `{ id, tui }`，不是 `{ id, server }`。
 
-**为什么用 TUI 插件**：TUI 插件在 App mount（主界面就绪）时立即加载，不受 instance bootstrap gating 影响。满足"启动即注册名字 + 开 socket"需求。若用 server 插件，需等用户首条消息触发 instance bootstrap，延迟注册会导致 microNeo 端找不到接收端。
+## 与 aibp-pi 的关系
 
-### 协议层（与 aibp-pi 共用）
+两者协议层完全一致，是同一个协议的**两个实现**：
 
-- **协议版本**：`aibp-1`（在 package.json 的 `aibp.protocol` 字段）
-- **名字池**：共用 `~/.config/aibp/aibp-names.json`，支持多接收端并存（pi 和 opencode 自动分配不同名字）
-- **registryDir**：`$XDG_RUNTIME_DIR/microneo-agent-bridge-$UID/`（与 aibp-pi 一致）
-- **分帧**：行分隔的 JSON（与 aibp-pi 一致）
+| 项 | 取值 | 说明 |
+|----|------|------|
+| 协议版本 | `aibp-1` | 写在两个包 `package.json` 的 `aibp.protocol` 字段 |
+| 名字池 | `~/.config/aibp/aibp-names.json` | NATO phonetic alphabet，两端并存时自动分配不同名字（如 Alpha / Bravo） |
+| registryDir | `$XDG_RUNTIME_DIR/microneo-agent-bridge-$UID/` | microNeo 端通过它发现 receiver |
+| 报文格式 | 行分隔 JSON | 详见 D17 |
 
-### 递送策略（最简版）
-
-只把消息发到 **TUI 当前正在看的对话**，不创建 session、不选择 agent/model。
-
-```typescript
-const route = api.route.current
-if (route?.name !== "session" || typeof route?.params?.sessionID !== "string") {
-  toast("⚠ 请先在 opencode 打开一个对话", "warning")
-  return
-}
-
-const sessionID = route.params.sessionID
-client.session.prompt({
-  sessionID,
-  parts: [{ type: "text", text: formattedContent }]
-})
-```
-
-**为什么最简**：opencode 的 agent/model 选择逻辑复杂（agent 根据工具需求动态切换），让用户在 UI 里手动选择更稳妥。插件只做消息注入器。
-
-## 关键坑点：v2 SDK 调用风格
-
-### 问题
-
-早期实现时，`client.session.prompt` 一直返回 500（err_ref），db 无消息记录，server 日志无痕迹。经诊断，根因是：
-
-**插件拿到的 `api.client` 是 `@opencode-ai/sdk/v2` 的 `OpencodeClient`**，而文档示例和部分源码用的是 v1 风格。
-
-### v1 vs v2 调用风格差异
-
-| | v1 风格（错误） | v2 风格（正确） |
-|---|---|---|
-| 参数结构 | `{ path: { id: sessionID }, body: { parts: [...] } }` | `{ sessionID, parts: [...] }` 顶层 |
-| URL 结果 | `/session/undefined/message` | `/session/{sessionID}/message` |
-| 结果 | 500 | ✅ |
-
-**v2 正确签名**（`packages/sdk/js/src/v2/gen/sdk.gen.ts`）：
-```typescript
-public prompt(parameters: {
-  sessionID: string,      // ← 顶层参数
-  agent?: string,
-  model?: { providerID, modelID },
-  parts?: Array<TextPartInput | ...>,
-  ...
-}, options?)
-// url: "/session/{sessionID}/message"
-```
-
-**opencode 自己的调用**（`packages/tui/src/component/prompt/index.tsx:1090`）：
-```typescript
-sdk.client.session.prompt({
-  sessionID,
-  agent: agent.name,
-  model: selectedModel,
-  parts: [...],
-}, { throwOnError: true })
-```
-
-### 修复
-
-改用 v2 风格：
-```typescript
-client.session.prompt({
-  sessionID,
-  parts: [{ type: "text", text }]
-})
-```
-
-## 文件结构
+## 源码结构
 
 ```
 aibp-agents/opencode/
-├── index.ts           # TUI 插件主体（协议 + socket + 递送）
-├── package.json       # exports: { "./tui": "./index.ts" }
-└── README.md          # 安装/使用说明
+├── index.tsx          # 446 行: tui() 入口 + socket server + 消息格式化 + SDK 调用
+├── package.json       # 见下文「关键规则」
+└── README.md          # 安装 / 验证 / 卸载 / ⚠️ 注意事项
 ```
 
-## 安装
+主体逻辑全部在 `index.tsx` 的 `tui(api)` 异步函数里（约 387 行），大致五步：
 
-### 本地开发（推荐）
+1. **初始化日志**（写 `/tmp/aibp-opencode.log`）
+2. **加载/初始化名字池**（NATO names list from `aibp-names.json`）
+3. **分配名字**（读 pool，找第一个未被占用的）
+4. **启动 socket server**（unix socket，写 registry 文件）
+5. **挂消息接收 handler**：收到消息 → 格式化为 `<selection: file lines X-Y>` 风格 → 调 `client.session.prompt({ sessionID, parts: [...] })`（**v2 SDK 顶层参数风格**）填进当前对话
+
+具体实现看源码，不在本文件展开。
+
+## package.json 关键规则（TUI-only 插件的硬约束）
+
+这几条是 **1.0.0 翻车后总结的**，违反任何一条都会导致 `opencode plugin` 误判形态，启动报 `must default export an object with server()`：
+
+| 规则 | 为什么 |
+|------|--------|
+| ❌ **不能有 `main` 字段** | opencode plugin 的 `packageTargets()` 把 `main` 存在当作 server 插件的信号，会同时往 `opencode.json` 写条目 |
+| ✅ **`exports` 只能有 `"./tui"`** | 不要带 `"."`，那是主入口语义，跟我们无关 |
+| ✅ **`type: "module"`** | ESM 必须 |
+| ✅ **`peerDependencies`**（不是 `devDependencies`）`@opencode-ai/plugin >= 1.4.0` | 插件跑在 opencode 进程里，不能声明成 dev 依赖 |
+| ✅ **`engines.opencode >= 1.4.0"`** | 启动时版本检查 |
+| ✅ **`aibp.protocol: "aibp-1"`** | 协议版本声明（与 aibp-pi 一致） |
+
+发版流程：
 
 ```bash
-cd /path/to/microNeo
-opencode plugin ./aibp-agents/opencode -g   # 写入 ~/.config/opencode/opencode.json
+cd aibp-agents/opencode
+npm version patch && npm publish
 ```
 
-### 发布后
+## opencode plugin 命令（1.17.9）的几个坑
 
-```bash
-opencode plugin aibp-opencode -g
-```
+不在 README 重复，只列：
 
-## 验证
+| 坑 | 解法 |
+|----|------|
+| 本地 cache 在 `~/.cache/opencode/packages/<name>@latest/`，发新版后不刷新 | 调试时 `rm -rf` 后再跑 `opencode plugin <name> -g` |
+| TUI 插件**正确**写入位置是 `tui.json`，不是 `opencode.json` | package.json 违规（带 `main`）时会被同时写到 `opencode.json`，需手动回滚 |
+| 没有 `plugin remove` 子命令 | 卸载：`jq 'del(.plugin[] \| select(. == "<name>"))' ~/.config/opencode/tui.json` + `rm -rf` cache |
 
-```bash
-# 1. opencode 启动后，注册文件应已生成
-ls "$XDG_RUNTIME_DIR/microneo-agent-bridge-$(id -u)/ai-*.json"
+## 版本历史
 
-# 2. 名字池（与 aibp-pi 共用）
-cat ~/.config/aibp/aibp-named.json
+| 版本 | 关键事件 |
+|------|---------|
+| `1.0.0` | 首次发布。`package.json` 有 `main` + `exports["."]`，导致 opencode plugin 误判成 server + tui 双形态，启动报 `must default export an object with server()` |
+| `1.0.1` | 修复：删 `main` + 删 `exports["."]`，devDeps 改 peerDeps，版本范围放松到 `>=1.4.0`。验证：opencode 启动正常，底部显示分配的 NATO 名字（如 `● Bravo`） |
 
-# 3. 插件日志
-tail -f /tmp/aibp-opencode.log
-```
+## 相关文档
 
-然后在 microNeo 里选中代码按 Alt-Enter，opencode 端应自动发起对话。
-
-## 调试日志
-
-插件写 `/tmp/aibp-opencode.log`（append），记录所有关键节点：
-- 启动阶段：module loaded / name pool / allocation / registry / ready
-- 报文阶段：connection accepted / line received / envelope parsed / formatText output / prompt calling / resolved
-
-## 设计文档
-
-- D19：本文件（总结）
-- 参考 D17：aibp-pi 实现（协议规范）
+- **D17** (`docs/agent-comm/D17-初始化aibp-pi.md`)：协议规范、与 aibp-pi 共用的部分
+- **`aibp-agents/opencode/README.md`**：安装 / 验证 / 卸载 / ⚠️ 注意事项
+- **`docs/agent-comm/opencode调研.md`**：opencode 插件机制（Plugin / MCP / ACP）的选型调研
+- **`docs/agent-comm/说明-接收端.md`**：AIBP 接收端的总体说明（aibp-pi 和 aibp-opencode 一起）
