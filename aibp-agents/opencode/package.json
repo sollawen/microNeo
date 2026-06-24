@@ -6,10 +6,10 @@
   "license": "MIT",
   "type": "module",
   "exports": {
-    "./tui": "./index.ts"
+    "./tui": "./index.tsx"
   },
   "keywords": ["opencode-plugin", "microNeo", "aibp"],
-  "files": ["index.ts", "README.md"],
+  "files": ["index.tsx", "README.md"],
   "devDependencies": {
     "@opencode-ai/plugin": "^1.17.0"
   },
