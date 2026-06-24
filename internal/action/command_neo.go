@@ -27,13 +27,21 @@ func InfoBarNow(msg string) {
 }
 
 // CheckAibpCmd 是 :check-agent 命令的处理函数。
-// 检查 pi 是否装了 aibp-pi 扩展；没装则安装，装了则校验协议版本兼容性。
-// 用户主动运行，可给明确反馈。
+//
+// 遍历所有已知 agent（pi / opencode / 未来的 aibp-claude...），
+// 对每个已装的 agent 运行 ensure 编排（HasAgent → HasAIBP → AIBPVersion → InstallAIBP）。
+// 未装的 agent 静默跳过（不要去骚扰没用 opencode 的 pi 用户）。
 //
 // Ensure 内部所有需要告诉用户的消息都通过 reporter 通知，
 // reporter 直接用 InfoBarNow：签名匹配，无需闭包。
+// 单 agent 错误不中断后续 agent——错误信息已通过 reporter 实时反馈到 InfoBar。
 func (h *BufPane) CheckAibpCmd(args []string) {
-	_ = ensure_agents.Ensure(ensure_agents.PiEnsurer{}, InfoBarNow)
+	for _, e := range ensure_agents.AllEnsurers {
+		if !e.HasAgent() {
+			continue // 未装 → 跳过（D2）
+		}
+		_ = ensure_agents.Ensure(e, InfoBarNow)
+	}
 }
 
 // TestInfoCmd 是 :test-info 命令的处理函数。

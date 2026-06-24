@@ -6,6 +6,16 @@ import (
 	"github.com/micro-editor/micro/v2/internal/aibp"
 )
 
+// AllEnsurers 注册所有已知 agent 的 aibp 扩展自举实现。
+// 新加 agent 只需追加一行：把对应的 <Agent>Ensurer{} 加进 slice。
+//
+// 注意：AllEnsurers 与 Pi/Opencode/... 文件的相对顺序无所谓，
+// 但建议把"主要 / 优先 / 更普及"的 agent 放前面（D11 §4.1 名字池顺序逻辑类似）。
+var AllEnsurers = []AgentEnsurer{
+	PiEnsurer{},
+	OpencodeEnsurer{},
+}
+
 var (
 	errAgentNotFound     = errors.New("agent not found, please install it first")
 	errExtensionOutdated = errors.New("aibp 扩展协议版本过旧，请运行 `pi update npm:aibp-pi` 后重启 pi")
