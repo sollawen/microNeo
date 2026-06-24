@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-06-24
+
+### Added
+- `InfoBarNow(msg)` helper: synchronous InfoBar refresh during blocking commands. `Ensure` now reports progress via `Reporter` callback — agent init shows `aibp-pi downloading.....` / `installed` / `ready` in real time instead of a frozen screen.
+
+### Changed
+- `Ensure` signature takes a `Reporter` parameter. `CheckAibpCmd` simplified to one line: `_ = Ensure(PiEnsurer{}, InfoBarNow)`.
+
 ## [1.1.0] - 2026-06-23
 
 dev2 分支合并到 master。这是 microNeo 第一个 minor 版本，引入 microNeo ↔ ai agent 通信的完整闭环：notePane 浮窗 + AIBP 协议 + pi 接收端（`aibp-agents/pi` npm 包）。从此 microNeo 不只是 Markdown 编辑器，而是 ai agent 的"前端外设"。
