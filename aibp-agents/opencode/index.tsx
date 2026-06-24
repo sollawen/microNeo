@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 // aibp-opencode —— AIBP (AI Bridge Protocol) 在 opencode 上的接收端插件。
 //
-// 设计要点（见 docs/agent-comm/D19b-插件加载时机与形态反转.md）：
+// 设计要点（见 docs/agent-comm/D19-aibp-opencode.md）：
 //   - 形态：TUI 插件（export default { id, tui }）。
 //     TUI 插件在 App mount（主界面就绪）时立即加载，满足「启动即注册」需求。
 //   - 协议层（registryDir / 名字池 / formatText / 分帧 / 版本校验）逐字复制 aibp-pi。
@@ -21,9 +21,13 @@ import * as os from "node:os"
 import { fileURLToPath } from "node:url"
 
 // ===== 诊断日志 =====
+// DEBUG 开关：开发时保持 true 方便排障；npm publish 前必须改成 false，
+// 否则会在装包用户机器的 /tmp 持续写日志（含选区明文，文件无限增长）。
+const DEBUG = true
 const LOG_FILE = "/tmp/aibp-opencode.log"
 let LOG_TAG = "boot" // 分配名字前用 "boot"，注册成功后换成名字
 function log(message: string, data?: unknown) {
+  if (!DEBUG) return
   try {
     const ts = new Date().toISOString()
     const body =
@@ -51,7 +55,7 @@ log("protocol detected", { protocol: PROTOCOL, major: PROTOCOL_MAJOR })
 const DEFAULT_NAMES_STR =
   "Alpha Bravo Charlie Delta Echo Foxtrot Golf Hotel India Juliet Kilo Lima Mike November Oscar"
 
-// ===== D19b: pending session creation (concurrent message mutex) =====
+// ===== pending session creation (concurrent message mutex) =====
 // 并发消息复用同一个创建中的 session：第一个进来负责 create+navigate，
 // 后续并发的 await 同一个 Promise。用 Promise 模式，避免手动 resolve 漏赋值。
 let pending: Promise<string> | null = null
@@ -235,7 +239,7 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
     void onMessage(env)
   }
 
-  // 递送策略 D19b：有 session 则直接递送；无 session 则自动创建并导航。
+  // 递送策略：有 session 则直接递送；无 session 则自动创建并导航（见 D19「自动创建 Session」）。
   async function onMessage(env: any) {
     const p = env.payload
     log("onMessage", {

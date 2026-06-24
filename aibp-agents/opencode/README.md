@@ -8,7 +8,7 @@ AIBP (AI Bridge Protocol) 接收端插件，让 **opencode** 成为 microNeo 的
 - **协议**：与 [`aibp-pi`](../pi) 同协议（`aibp-1`），共用同一名字池文件与 registryDir，pi 与 opencode 并存时自动分配不同名字（如 Alpha / Bravo）。
 - **递送**：收到 microNeo 消息后，通过 `api.client.tui.*`（`clearPrompt` + `appendPrompt` + `submitPrompt`）填输入框并触发 LLM 对话；纯上下文则只填输入框不提交。
 
-详见 `docs/agent-comm/D19b-插件加载时机与形态反转.md`。
+详见 `docs/agent-comm/D19-aibp-opencode.md`。
 
 ## 安装（本地开发）
 
@@ -27,6 +27,15 @@ opencode plugin ./aibp-agents/opencode -g   # 写入全局 ~/.config/opencode/op
 
 ```bash
 opencode plugin aibp-opencode -g
+```
+
+#### 发布前 checklist
+
+```bash
+# 1. 把 index.tsx 顶部的 DEBUG 常量改成 false（发布版不能在用户机器写 /tmp 日志）
+#    const DEBUG = false
+# 2. 打标签 + 发版
+npm version patch && npm publish
 ```
 
 ## ⚠️ 注意事项
