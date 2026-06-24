@@ -237,8 +237,6 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
         .catch((e: any) => {
           log("session.prompt REJECTED", { message: e?.message, stack: e?.stack, name: e?.name })
         })
-
-      toast("microNeo: 已发送到当前对话", "info")
     } catch (e) {
       const err = e as Error
       log("onMessage ERROR", { message: err.message, stack: err.stack, name: err.name })
