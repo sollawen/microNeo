@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url"
 // ===== 诊断日志 =====
 // DEBUG 开关：开发时保持 true 方便排障；npm publish 前必须改成 false，
 // 否则会在装包用户机器的 /tmp 持续写日志（含选区明文，文件无限增长）。
-const DEBUG = true
+const DEBUG = false
 const LOG_FILE = "/tmp/aibp-opencode.log"
 let LOG_TAG = "boot" // 分配名字前用 "boot"，注册成功后换成名字
 function log(message: string, data?: unknown) {
