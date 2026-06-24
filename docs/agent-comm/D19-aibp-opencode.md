@@ -87,6 +87,7 @@ npm version patch && npm publish
 ## 相关文档
 
 - **D17** (`docs/agent-comm/D17-初始化aibp-pi.md`)：协议规范、与 aibp-pi 共用的部分
+- **D19b** (`docs/agent-comm/D19b-aibp-opencode-自动建session.md`)：aibp-opencode 在无 session 时自动创建对话的可行性分析
 - **`aibp-agents/opencode/README.md`**：安装 / 验证 / 卸载 / ⚠️ 注意事项
 - **`docs/agent-comm/opencode调研.md`**：opencode 插件机制（Plugin / MCP / ACP）的选型调研
 - **`docs/agent-comm/说明-接收端.md`**：AIBP 接收端的总体说明（aibp-pi 和 aibp-opencode 一起）

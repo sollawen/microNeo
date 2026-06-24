@@ -51,6 +51,48 @@ log("protocol detected", { protocol: PROTOCOL, major: PROTOCOL_MAJOR })
 const DEFAULT_NAMES_STR =
   "Alpha Bravo Charlie Delta Echo Foxtrot Golf Hotel India Juliet Kilo Lima Mike November Oscar"
 
+// ===== D19b: pending session creation (concurrent message mutex) =====
+let pending: { sessionID: string; resolve: (id: string) => void } | null = null
+
+async function ensureSession(api: TuiPluginApi): Promise<string> {
+  const route = api.route.current as any
+  if (route?.name === "session" && typeof route?.params?.sessionID === "string") {
+    return route.params.sessionID
+  }
+
+  // 已经有消息在创建 session，等它完成，共享同一个 sessionID
+  if (pending) {
+    return await new Promise<string>((resolve) => {
+      pending!.resolve = resolve
+    })
+  }
+
+  // 第一个进入创建流程的消息
+  let resolveOuter!: (id: string) => void
+  pending = { sessionID: "", resolve: (id) => resolveOuter(id) }
+
+  try {
+    const res = await api.client.session.create()
+    if (res.error) {
+      toast(`⚠ aibp 创建对话失败: ${res.error.message}`, "warning")
+      throw new Error("session.create failed")
+    }
+    const sessionID = res.data.id
+    pending.sessionID = sessionID
+
+    // 导航到新 session（参考 opencode prompt/index.tsx，50ms delay 避免竞态）
+    setTimeout(() => {
+      api.route.navigate({ type: "session", sessionID })
+    }, 50)
+
+    return sessionID
+  } finally {
+    const p = pending!
+    pending = null
+    p.resolve(p.sessionID)
+  }
+}
+
 const tui: TuiPlugin = async (api: TuiPluginApi) => {
   const client = api.client // = OpencodeClient
 
@@ -183,7 +225,7 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
     void onMessage(env)
   }
 
-  // 递送策略（最简版）：只发到 TUI 当前正在看的对话，不创建 session、不选 agent/model。
+  // 递送策略 D19b：有 session 则直接递送；无 session 则自动创建并导航。
   async function onMessage(env: any) {
     const p = env.payload
     log("onMessage", {
@@ -200,48 +242,40 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
     const text = formatText(p)
     log("formatText output (FULL TEXT SENT TO LLM)", { text })
 
+    let sessionID: string
     try {
-      const route = api.route.current as any
-      log("current route", {
-        name: route?.name,
-        params: route?.params,
-      })
-
-      if (route?.name !== "session" || typeof route?.params?.sessionID !== "string") {
-        log("no active session in TUI, skipping delivery")
-        toast("⚠ 请先在 opencode 打开一个对话", "warning")
-        return
-      }
-
-      const sessionID = route.params.sessionID
-      // v2 SDK 顶层参数风格（非 v1 的 {path, body}）。
-      // 插件拿到的 api.client 是 @opencode-ai/sdk/v2 的 OpencodeClient，
-      // session.prompt 签名是 ({ sessionID, parts, agent?, ... })，URL=/session/{sessionID}/message。
-      // opencode 自己（prompt/index.tsx:1090）就是这么调的。fire-and-forget：不 await，
-      // TUI 通过 session 订阅渲染流式响应。
-      log("session.prompt calling", { sessionID })
-
-      client.session
-        .prompt({
-          sessionID,
-          parts: [{ type: "text", text }],
-        })
-        .then((res: any) => {
-          log("session.prompt resolved", {
-            status: res?.status,
-            hasData: !!res?.data,
-            hasError: !!res?.error,
-            error: res?.error,
-          })
-        })
-        .catch((e: any) => {
-          log("session.prompt REJECTED", { message: e?.message, stack: e?.stack, name: e?.name })
-        })
-    } catch (e) {
-      const err = e as Error
-      log("onMessage ERROR", { message: err.message, stack: err.stack, name: err.name })
-      toast(`⚠ aibp 递送失败: ${err.message}`, "warning")
+      sessionID = await ensureSession(api)
+    } catch {
+      return
     }
+    if (!sessionID) return
+
+    // v2 SDK 顶层参数风格。
+    // 插件拿到的 api.client 是 @opencode-ai/sdk/v2 的 OpencodeClient，
+    // session.prompt 签名是 ({ sessionID, parts, agent?, ... })，URL=/session/{sessionID}/message。
+    // fire-and-forget：不 await，TUI 通过 session 订阅渲染流式响应。
+    log("session.prompt calling", { sessionID })
+
+    client.session
+      .prompt({
+        sessionID,
+        parts: [{ type: "text", text }],
+      })
+      .then((res: any) => {
+        log("session.prompt resolved", {
+          status: res?.status,
+          hasData: !!res?.data,
+          hasError: !!res?.error,
+          error: res?.error,
+        })
+        if (res?.error) {
+          toast(`⚠ aibp 消息发送失败: ${res.error.message}`, "warning")
+        }
+      })
+      .catch((e: any) => {
+        log("session.prompt REJECTED", { message: e?.message, stack: e?.stack, name: e?.name })
+        toast(`⚠ aibp 递送失败: ${e?.message ?? "unknown error"}`, "warning")
+      })
   }
 
   // ===== 以下 ⟨复制 aibp-pi⟩ =====
