@@ -14,6 +14,11 @@
 
 把 `:check-agent` 从「协议体检 + 首装/自愈」升级为「版本驱动 + 源码安装豁免 + 自动更新」：每个 agent 提供 `AIBPVersion()/InstallAIBP()/UpdateAIBP()` 三件套，`Ensure()` 按「源码→跳过 / 未装→装 / 过旧→升 / 过新→提示 / 一致→ready」编排。
 
+**设计要点**：
+- **源码安装豁免**：如果 agent 已安装 aibp 源码版，不读盘验证路径，直接跳过版本检查（信任用户自管）
+- **版本驱动**：比较 microNeo 协议大号与 aibp 包大号，自动升级过旧版本
+- **首次安装自愈**：无法识别版本时（major==0）自动触发安装
+
 ---
 
 ## 二、现状与关键事实（执行前必读）
@@ -118,7 +123,7 @@ func Ensure(e AgentEnsurer, report Reporter) error {
     case major > mineMajor:
         report("microNeo protocol older than " + prefix + ", please upgrade microNeo")
         return errMicroNeoOutdated
-    default: // major == mineMajor
+    default: // major == mineMajor（此时一定是 npm 安装，源码已在前面的 case isSource 跳过）
         report(prefix + fmt.Sprintf(" ready (aibp-%d.%d)", major, minor))
         return nil
     }
@@ -158,23 +163,29 @@ func Ensure(e AgentEnsurer, report Reporter) error {
 ```
 
 2. `Discover()` 内第 60 行左右，将：
-   ```go
+
+```go
    if MajorVersion(rf.Protocol) != MajorVersion(Protocol) {
        continue
    }
-   ```
+```
    改为：
-   ```go
-   pm, _, _ := ParseProtocol(rf.Protocol)
+```go
+   pm, _, ok := ParseProtocol(rf.Protocol)
+   if !ok { continue }  // 解析失败 → 跳过此条目
    mineMajor, _, _ := ParseProtocol(Protocol)
    if pm != mineMajor {
        continue
    }
-   ```
+```
+   ⚠️ **必须检查 `ok`**：如果 rf.Protocol 格式错误（如 "aibp-invalid"），应跳过该注册文件而不是当作版本 0 比较。
 3. 删除整个 `MajorVersion` 函数（含其 Deprecated 注释）。
 
 ### 步骤 2：改 `ensure.go` 接口 + 编排
 **文件**：`internal/aibp/ensure_agents/ensure.go`
+
+⚠️ **必须删除** `HasAIBP()` 调用：当前代码 `ensure.go:57` 有 `if !e.HasAIBP()` 分支，新 `Ensure()` 已移除此逻辑（见 §3.2），**务必删除**，否则编译报错。
+
 - 接口按 §3.1 改（删 `HasAIBP`，改 `AIBPVersion` 签名，加 `UpdateAIBP`）。
 - `Ensure()` 按 §3.2 重写。
 - 删除 `errExtensionOutdated`；`errMicroNeoOutdated` 文案保留。
@@ -231,8 +242,10 @@ func Ensure(e AgentEnsurer, report Reporter) error {
 ```go
    func (PiEnsurer) UpdateAIBP() error {
        cmd := exec.Command("pi", "update", aibpPiSpec)
+       // ⚠️ 加超时防止网络问题挂死
+       // TODO: Go 1.21+ 使用 cmd.WaitDelay = 60 * time.Second
        if err := cmd.Run(); err != nil {
-           return fmt.Errorf("pi update 失败: %w", err)
+           return fmt.Errorf("超时了，pi update 失败: %w", err)
        }
        return nil
    }
@@ -291,8 +304,10 @@ func Ensure(e AgentEnsurer, report Reporter) error {
        cacheDir := filepath.Join(opencodeCacheDir(), "packages", aibpOpencodeSpec+"@latest")
        _ = os.RemoveAll(cacheDir)
        cmd := exec.Command("opencode", "plugin", aibpOpencodeSpec, "-g")
+       // ⚠️ 加超时防止网络问题挂死
+       // TODO: Go 1.21+ 使用 cmd.WaitDelay = 60 * time.Second
        if err := cmd.Run(); err != nil {
-           return fmt.Errorf("opencode plugin 失败: %w", err)
+           return fmt.Errorf("超时了，opencode plugin 失败: %w", err)
        }
        return nil
    }
@@ -303,19 +318,25 @@ func Ensure(e AgentEnsurer, report Reporter) error {
    注释说明 D24 结论：opencode 无原生 update，清 cache 重装是唯一强制刷新路径。
 
 ### 步骤 5：更新测试
-**文件**：`ensure_pi_test.go`、`ensure_opencode_test.go`
+**文件**：`ensure_pi_test.go`、`ensure_opencode_test.go`、`registry_test.go`
+
+⚠️ **必须保留现有测试覆盖**：当前 `HasAIBP` 测试覆盖了 npm 包、版本固定（`@1.0.0`）、空 packages、文件缺失等场景，这些行为必须在新 `AIBPVersion` 测试中保留。
 
 - 删除/重写所有 `HasAIBP` 测试（接口已删）。
 - `AIBPVersion` 测试改为断言 `(major, minor, isSource)`：
   - **source 用例（核心，验证不读盘）**：settings 放相对路径，**目标 dir 不放 package.json** → 期望 `(0,0,true)`（信任假设生效）。
   - npm 用例：settings 放 `npm:aibp-pi`，并在 `<agentDir>/npm/node_modules/aibp-pi/package.json` 写合法 protocol → 期望 `(2,0,false)`。
+  - npm 版本固定：settings 放 `npm:aibp-pi@1.0.0` → 期望解析到对应版本（不检查是否过旧）。
   - npm 损坏：放 `npm:aibp-pi`，但 `<agentDir>/npm/node_modules/aibp-pi/package.json` 不存在 → 期望 `(0,0,false)`。
   - npm 字段残缺：放 `npm:aibp-pi`，package.json 写 `{"name":"aibp-pi"}`（无 `aibp` 字段）→ 期望 `(0,0,false)`。
   - 空 packages：settings 写 `{"packages":[]}` → 期望 `(0,0,false)`。
   - opencode 同理：绝对路径用例→`(0,0,true)`；裸名+cache 用例→`(2,0,false)`；缺失→`(0,0,false)`。
-- `aibp.ParseProtocol` 已在步骤 1 那边有单测（或放在 `registry_test.go`），这里不重复。
+- `aibp.ParseProtocol` 单测（`registry_test.go`），必须覆盖：
+  - 合法格式：`"aibp-2"` → `(2,0,true)`；`"aibp-2.0"` → `(2,0,true)`
+  - 畸形格式：`"aibp-"` → `(0,0,false)`；`"aibp-2."` → `(0,0,false)`；`"aibp-.0"` → `(0,0,false)`
+  - 无前缀：`"invalid"` → `(0,0,false)`
 - 测试里 `t.Setenv("PI_CODING_AGENT_DIR", dir)` 仍用；opencode 用 `XDG_CONFIG_HOME`/`XDG_CACHE_HOME` 隔离。
-- 可选：`ensure.go` 加一个 `TestEnsure` 编排测试（mock AgentEnsurer）覆盖 5 分支（source/未装/过旧/过新/一致）。
+- **必须添加**：`ensure.go` 加一个 `TestEnsure` 编排测试（mock AgentEnsurer）覆盖 5 分支（source/未装/过旧/过新/一致）。
 
 ### 步骤 6：构建 + 验证
 1. `make build-quick`（编译通过）。
@@ -329,7 +350,7 @@ func Ensure(e AgentEnsurer, report Reporter) error {
 
 | 文件 | 改动 |
 |------|------|
-| `internal/aibp/registry.go` | 加 `ParseProtocol`/`ProtocolMajor`；`Discover` 改用之；删 `MajorVersion` |
+| `internal/aibp/registry.go` | 加 `ParseProtocol`；`Discover` 改用 `ParseProtocol`（必须检查 `ok` 返回值）；删 `MajorVersion` |
 | `internal/aibp/ensure_agents/ensure.go` | 接口（§3.1）+ `Ensure` 编排（§3.2）；删 `errExtensionOutdated` |
 | `internal/aibp/ensure_agents/ensure_pi.go` | 重写 `AIBPVersion` 为 (int,int,bool)：包含 "aibp-agents" → 源码，包含 "npm:aibp-pi" → npm；加 `piReadSetting`、`UpdateAIBP`；删 `HasAIBP` |
 | `internal/aibp/ensure_agents/ensure_opencode.go` | 重写 `AIBPVersion` 为 (int,int,bool)：包含 "aibp-agents" → 源码，包含 "aibp-opencode" → npm；加 `opencodeReadTui`、`UpdateAIBP`；删 `HasAIBP` |
@@ -353,7 +374,8 @@ func Ensure(e AgentEnsurer, report Reporter) error {
    - **接受此风险**：
      - 若用户安装了名为 `my-aibp-stuff` 的非 aibp 扩展，可能会被误判（但实践中 `"aibp-agents"` 路径和 `"aibp-opencode"` 包名都是项目约定的，冲突概率极低）
      - 源码路径分支不读盘验证，信任用户配置的正确性
-4. **源码安装但路径失效**：源码路径分支**不读** package.json（信任假设），路径坏了也返回 `(0,0,true)` → 编排跳过，不触发 install/update。设计取舍：源码由用户自管，microNeo 不擅自覆盖；用户感知不到「路径坏了」也无所谓（他自己改的源码路径）。报告就是 `source install, skipping`，**不带路径**。
+   - **改进建议**（可选）：opencode 的 npm 包匹配可以更精确：`entry == "aibp-opencode" || strings.HasPrefix(entry, "aibp-opencode@")`，避免误匹配路径中的 `aibp-opencode`
+4. **源码安装但不验证路径**：源码路径分支**不读** package.json（信任假设），路径坏了也返回 `(0,0,true)` → 编排跳过，不触发 install/update。**设计取舍**：源码由用户自管，microNeo 不擅自覆盖；用户感知不到「路径坏了」也无所谓（他自己改的源码路径）。报告就是 `source install, skipping`，**不带路径**。
 5. **opencode UpdateAIBP==InstallAIBP**：实现重复，已按 D24 结论共用一段私有 `installOrUpdate()` 复用（两个导出方法各自调它）。语义仍分（编排按场景调不同方法）。
 6. **minor 不参与分支**：仅文案。ext 2.0 vs microNeo 2.1 视作 ready（同大号兼容）。如未来要 minor 级处理，再扩编排。
 7. **联网副作用**：`update/install` 会联网几秒。`CheckAibpCmd` 在主 goroutine 同步阻塞执行（已有 `InfoBarNow` 机制刷新），延时可接受。源码安装豁免后，dev 机日常 `:check-agent` 不再联网。
