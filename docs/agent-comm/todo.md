@@ -8,12 +8,19 @@
 - [x] 把opencode改成安装源代码路径的aibp
 
 任务3
-- [ ] 修改aibp-pi 里面的目录名称，aibp协议改成1.1
-- [ ] 修改aibp-opencode 里面的目录名称，aibp协议改成1.1
+- [x] 修改aibp-pi 里面的目录名称，aibp协议改成1.1
+- [x] 修改aibp-opencode 里面的目录名称，aibp协议改成1.1
+- [x] 修改microNeo端的协议注册目录名字，aibp协议版本改成1.1
 
 任务4
-- [ ] 修改:check-agent里面，aibp版本比较，x.x不同就认为需要升级
-- [ ] 提供统一的 update npm package 的接口
-- [ ] pi and opencode aibp 提供各自的 update npm package 的函数
-- [ ] npm publish pi and opencode aibp version 1.1
+- [ ] 协议比较改 x.x
+  - [ ] 新增 ParseProtocol(s) (major, minor int, ok bool)，替换 MajorVersion
+  - [ ] ensure.go 比较逻辑改用 ParseProtocol，x.x 任一不同 → 需要升级
+  - [ ] registry.go 的 discover 协议匹配同步改
+  - [ ] 测试断言更新到 aibp-1.1
+- [ ] AgentEnsurer 接口加 UpdateAIBP() error
+- [ ] PiEnsurer.UpdateAIBP() 实现（命令待 D 方案确认）
+- [ ] OpencodeEnsurer.UpdateAIBP() 实现（rm cache + plugin add -g）
+- [ ] Ensure() 编排：protocol 一致后调用 UpdateAIBP（idempotent，无脑调）
+- [ ] npm publish aibp-pi@1.1.0 和 aibp-opencode@1.1.0
 

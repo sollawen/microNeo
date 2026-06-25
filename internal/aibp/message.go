@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 )
 
-const Protocol = "aibp-1"
+const Protocol = "aibp-1.1"
 
 // Envelope — 说明-AIBP §5.1 公共信封
 type Envelope struct {
