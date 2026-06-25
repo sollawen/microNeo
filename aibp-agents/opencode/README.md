@@ -12,7 +12,7 @@ AIBP (AI Bridge Protocol) 接收端插件，让 **opencode** 成为 microNeo 的
 
 ## 安装（本地开发）
 
-> 📌 **总原则：源码版与 npm 版互斥**。任何切换（npm→源码 或 源码→npm）**都必须先 remove 旧版再 install 新版**——`opencode plugin` 只追加不替换，两个版本同时加载会冲突（socket 绑定失败、注册文件互相覆盖）。具体迁移步骤见各方式末尾的两个子节。
+> 📌 **总原则：opencode `plugin` 命令按插件名去重，不是只追加**。tui.json 里已有同名条目时，重装只打印 `Already configured` 并**保留旧条目不变**（cache 会刷新，但 tui.json 不改）。因此任何形态/版本切换（npm→源码、源码→npm、或换版本）**都必须先手动从 tui.json 删掉旧条目**，否则新装被静默忽略——症状就是「命令成功执行却没生效」。具体迁移步骤见各方式末尾的两个子节。
 
 源码在 `aibp-agents/opencode/`，Bun 直接加载 `.ts`，无需预编译。
 
@@ -33,13 +33,13 @@ opencode plugin /path/to/microNeo/aibp-agents/opencode -g   # 写入全局 ~/.co
 如果之前装的是 npm 版（`aibp-opencode`），切换路径：
 
 ```bash
-# 1. 从 tui.json 删掉 npm 版条目
-jq 'del(.plugin[] | select(. == "aibp-opencode"))' \
+# 1. 从 tui.json 删掉 npm 版条目（startswith 覆盖 "aibp-opencode" 和 "aibp-opencode@1.0.2" 两种写法）
+jq 'del(.plugin[] | select(. | startswith("aibp-opencode")))' \
    ~/.config/opencode/tui.json > /tmp/tui.json.new \
    && mv /tmp/tui.json.new ~/.config/opencode/tui.json
 
-# 2. 清掉 npm 包的本地 cache（不然 `opencode plugin add` 还会去那里拉）
-rm -rf ~/.cache/opencode/packages/aibp-opencode@latest
+# 2. 清掉 npm 包的本地 cache（@* 覆盖所有版本，不然 `opencode plugin add` 还会去那里拉）
+rm -rf ~/.cache/opencode/packages/aibp-opencode@*
 
 # 3. 装源码版
 opencode plugin /path/to/microNeo/aibp-agents/opencode -g
@@ -47,7 +47,7 @@ opencode plugin /path/to/microNeo/aibp-agents/opencode -g
 
 #### 从源码版迁回 npm 版
 
-反向同理——`opencode plugin` 只追加不替换，必须先卸源码版：
+反向同理——opencode 按插件名去重，不先删源码条目的话 npm 版装不进去（提示 `Already configured`）：
 
 ```bash
 # 1. 从 tui.json 删掉源码版条目（spec 是装时的绝对路径）
@@ -61,16 +61,41 @@ opencode plugin aibp-opencode -g
 
 ### 方式二：发布到 npm 后
 
+首次安装：
+
 ```bash
 opencode plugin aibp-opencode -g
 ```
 
-**注意**：npm 版的更新需要**先清 cache 再重装**（详见 microNeo 仓库的 `工作记录0625.md §三`）：
+#### 升级到新版本（清除旧版 → 安装新版）
+
+> ⚠️ **必须先完全退出 opencode TUI**。opencode 运行时持有 cache，不退出就删 cache 会被重建，新版没法真正装上——这是「明明装了新版却还是旧版 / 不生效」最常见的坑。
+
+> 💡 下面用**无版本号安装**（`aibp-opencode`，加载 `@latest`，每次拉 npm 最新），与 microNeo 自动托管（`ensure_opencode.go`）一致。**要锁版本**就把第 3 步换成 `opencode plugin aibp-opencode@<版本号> -g`（tui.json 写成 `aibp-opencode@<版本号>`、cache 目录为 `aibp-opencode@<版本号>`）。
 
 ```bash
-rm -rf ~/.cache/opencode/packages/aibp-opencode@latest
+# 1. 从 tui.json 删除 aibp-opencode 条目（startswith 覆盖带/不带版本号两种写法）
+jq 'del(.plugin[] | select(. | startswith("aibp-opencode")))' \
+   ~/.config/opencode/tui.json > /tmp/tui.json.new \
+   && mv /tmp/tui.json.new ~/.config/opencode/tui.json
+
+# 2. 删除所有版本的插件 cache（@* 清掉所有版本残留，不只是 latest）
+rm -rf ~/.cache/opencode/packages/aibp-opencode@*
+
+# 3. 安装最新版（规范形态，无版本后缀）
 opencode plugin aibp-opencode -g
 ```
+
+验证：
+
+```bash
+jq '.plugin' ~/.config/opencode/tui.json     # 应是 ["aibp-opencode"]（无版本后缀）
+ls ~/.cache/opencode/packages/ | grep aibp    # 应只有 aibp-opencode@latest
+```
+
+启动 opencode，左下角应有 `● 名字` 标记。
+
+> 📌 **注册表目录**（`$XDG_RUNTIME_DIR/aibp-<uid>`，fallback `$TMPDIR/aibp-<uid>`）是 opencode 运行时写的状态，**与插件是否安装无关**——升级流程不用管它，opencode 启动时自己管理。
 
 开发期**不要走这条路**——会把本地改动覆盖掉。
 

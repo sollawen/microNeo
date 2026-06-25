@@ -80,3 +80,32 @@
 - 包含"aibp-opendoe"的就是源代码
 
 你觉得这个逻辑怎么样？
+
+@aibp-agents/opencode/README.md 
+
+
+---
+
+# 问题的现象
+- aibp-opencode 如果用源代码目录的方式安装到opencode里成为插件，就可以正确运行，注册出名字并显示出来
+- 但如果用npm:aibp-opencode的方式安装最新版1.0.2到opencode里面的话，opencode无法识别出来安装了这个插件，所以启动后根本就没有理会这个插件，也就是说没有注册出名字，更没有显示
+- 现在这个目录里的代码，与npm:aibp-opencode v1.0.2是一模一样的
+
+# 我的猜测
+我认为在opencode里面安装npm:aibp-opencode的方式肯定是有问题，让opencode无法识别
+- 我们的这个插件，是插在tui.json里的，没有插在opencode.json里面
+- 但是奇怪的是用源代码目录的方式安装就可以正确识别出来
+
+# 你来debug一下
+
+- 你可以用bash来install/uninstall to opencode，试验各种不同的安装方法，看看哪个有效
+- 你可以使用gh到https://github.com/anomalyco/opencode 里去查找有关的代码和文档
+- 你可以使用curl查看 https://opencode.ai/docs/zh-cn/plugins/ 的插件说明
+- 你可以查看git历史，最早的npm:aibp-opencode v1.0.0是可以正常安装和工作的
+- 不要修改microNeo目录里的代码文件和文档
+
+# 基本原则
+
+- opencode是用户非常多的开源软件。它的npm安装插件的机制是非常成熟的。成千上万的人在写npm的opencode插件。
+- 所以，opencode的npm插件一定是能够非常简单的安装和使用的
+- 我们的aibp有问题，一定是我们的代码或是package.json没有符合opencode的插件规范
