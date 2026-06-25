@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/micro-editor/micro/v2/internal/aibp"
 )
 
 const aibpOpencodeSpec = "aibp-opencode" // 不 pin 版本（D5）
@@ -61,73 +63,74 @@ func opencodeCacheDir() string {
 	return filepath.Join(home, ".cache", "opencode")
 }
 
-// HasAIBP：检查 opencode tui.json 的 plugin[] 里是否已登记 aibp-opencode。
-//
-// 形态（实测）：
-//   - "aibp-opencode"           （unpinned，本计划期望形态）
-//   - "aibp-opencode@1.0.1"     （pinned 到具体版本；用户手改或历史遗留）
-//
-// 兼容两种（D17 D5 同款策略）。
-func (OpencodeEnsurer) HasAIBP() bool {
+// opencodeReadTui 读取 opencode tui.json 的 plugin[]。
+func opencodeReadTui() []string {
 	b, err := os.ReadFile(opencodeTuiPath())
 	if err != nil {
-		return false // 读不到 → 视为未登记
+		return nil
 	}
-	var s struct {
-		Plugin []string `json:"plugin"`
+	var s struct{ Plugin []string `json:"plugin"` }
+	if err := json.Unmarshal(b, &s); err != nil {
+		return nil
 	}
-	if json.Unmarshal(b, &s) != nil {
-		return false
-	}
-	for _, p := range s.Plugin {
-		if p == aibpOpencodeSpec || strings.HasPrefix(p, aibpOpencodeSpec+"@") {
-			return true
-		}
-	}
-	return false
+	return s.Plugin
 }
 
-// AIBPVersion：读已装扩展的 package.json 的 aibp.protocol 字段。
-//
-// 包位置（实测 opencode 1.17.9）：
-//   ~/.cache/opencode/packages/aibp-opencode@latest/node_modules/aibp-opencode/package.json
-//
-// 注意：用 opencodeCacheDir() 而不是 os.UserCacheDir()——macOS 下两者不一致。
-// 注意 @latest 缓存 key：D3 通过 InstallAIBP 先 rm -rf 缓存再安装，保证 cache 不陈旧。
-// 若 cache 文件本身被外部破坏（用户手 rm -rf），Ensure() 会视作「没装」触发 Install 自愈。
-func (OpencodeEnsurer) AIBPVersion() (string, error) {
+// AIBPVersion：识别本 agent 已装的 aibp。
+//   - 包含 "aibp-agents" → 源码路径，返回 (0, 0, true)（不读盘；信任假设）
+//   - 包含 "aibp-opencode" → npm 包，读取缓存的 package.json 的协议
+//   - 未找到 / 损坏 → (0, 0, false)
+func (OpencodeEnsurer) AIBPVersion() (int, int, bool) {
+	for _, entry := range opencodeReadTui() {
+		if strings.Contains(entry, "aibp-agents") {
+			return 0, 0, true // 源码路径：不读盘
+		}
+		if strings.Contains(entry, "aibp-opencode") {
+			return opencodeNpmAIBPVersion() // npm 包：读版本号
+		}
+	}
+	return 0, 0, false // 没找到 aibp 条目
+}
+
+// opencodeNpmAIBPVersion 读取 aibp-opencode 的 cache 安装版本的协议。
+// 协议来源：package.json 的 aibp.protocol 交 aibp.ParseProtocol 解析。
+func opencodeNpmAIBPVersion() (int, int, bool) {
 	pkgPath := filepath.Join(
 		opencodeCacheDir(), "packages", "aibp-opencode@latest",
 		"node_modules", "aibp-opencode", "package.json",
 	)
 	b, err := os.ReadFile(pkgPath)
 	if err != nil {
-		return "", err
+		return 0, 0, false
 	}
 	var pkg struct {
-		AIBP struct {
-			Protocol string `json:"protocol"`
-		} `json:"aibp"`
+		AIBP struct{ Protocol string `json:"protocol"` } `json:"aibp"`
 	}
 	if err := json.Unmarshal(b, &pkg); err != nil {
-		return "", err
+		return 0, 0, false
 	}
 	if pkg.AIBP.Protocol == "" {
-		return "", fmt.Errorf("package.json 缺少 aibp.protocol 字段（视为没装）")
+		return 0, 0, false
 	}
-	return pkg.AIBP.Protocol, nil
+	return aibp.ParseProtocol(pkg.AIBP.Protocol)
 }
 
-func (OpencodeEnsurer) InstallAIBP() error {
+// installOrUpdate 是 opencode 的安装/更新通用实现。
+// opencode 无原生 update 命令，清 cache + 重装是唯一强制刷新路径（D24 调研结论）。
+func (e OpencodeEnsurer) installOrUpdate() error {
 	cacheDir := filepath.Join(opencodeCacheDir(), "packages", aibpOpencodeSpec+"@latest")
-	// D3：npm 缓存不自动刷新，必须先 rm -rf 缓存目录再安装
-	if cacheErr := os.RemoveAll(cacheDir); cacheErr != nil {
-		// 缓存目录不存在是正常的（首次安装），不阻断
-	}
+	_ = os.RemoveAll(cacheDir)
 	cmd := exec.Command("opencode", "plugin", aibpOpencodeSpec, "-g")
 	if err := cmd.Run(); err != nil {
-		// D4：opencode plugin 失败不兜底。唯一现实风险是 opencode 太旧没有 plugin 子命令。
 		return fmt.Errorf("opencode plugin 失败（可能 opencode 过旧，请升级 opencode）: %w", err)
 	}
 	return nil
+}
+
+func (OpencodeEnsurer) InstallAIBP() error {
+	return OpencodeEnsurer{}.installOrUpdate()
+}
+
+func (OpencodeEnsurer) UpdateAIBP() error {
+	return OpencodeEnsurer{}.installOrUpdate()
 }

@@ -2,6 +2,7 @@ package ensure_agents
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/micro-editor/micro/v2/internal/aibp"
 )
@@ -17,9 +18,8 @@ var AllEnsurers = []AgentEnsurer{
 }
 
 var (
-	errAgentNotFound     = errors.New("agent not found, please install it first")
-	errExtensionOutdated = errors.New("aibp 扩展协议版本过旧，请运行 `pi update npm:aibp-pi` 后重启 pi")
-	errMicroNeoOutdated  = errors.New("aibp 扩展协议版本较新，请升级 microNeo")
+	errAgentNotFound    = errors.New("agent not found, please install it first")
+	errMicroNeoOutdated = errors.New("aibp 扩展协议版本较新，请升级 microNeo")
 )
 
 // Reporter 汇报进度 / 状态消息的回调。
@@ -31,11 +31,18 @@ type Reporter func(msg string)
 type AgentEnsurer interface {
 	AgentName() string // "pi" / "opencode"——日志和报错用
 
-	HasAgent() bool           // 本机有没有这个 agent 程序
-	HasAIBP() bool            // 该 agent 装没装 aibp 扩展
-	AIBPVersion() (string, error) // 已装扩展实现的协议（如 "aibp-2.0"）。
-	                               //   注意：协议版本，非包版本。读静态声明（package.json），不启动 agent
-	InstallAIBP() error       // 装 aibp 扩展到该 agent
+	HasAgent() bool // 本机有没有这个 agent 程序
+
+	// AIBPVersion：识别本 agent 已装的 aibp。
+	// 返回 (major, minor, isSourceInstall)。
+	//   - 源码路径安装 → isSourceInstall=true，major/minor=0（不读盘；编排会跳过；信任假设）
+	//   - npm/cache 安装 → 读到协议 → isSourceInstall=false
+	//   - 未装 / 损坏 / 读不到协议 → (0, 0, false)（编排触发 InstallAIBP）
+	// 约定：合法协议大号从 1 起；major==0 即「无法识别」。
+	AIBPVersion() (major, minor int, isSourceInstall bool)
+
+	InstallAIBP() error // 装 aibp 扩展到该 agent（首次 / 损坏自愈）
+	UpdateAIBP() error  // 升 aibp 扩展到最新 npm 包（过旧时）
 }
 
 // Ensure 是统一编排逻辑，各 ensure_<agent>.go 共用。
@@ -50,41 +57,39 @@ func Ensure(e AgentEnsurer, report Reporter) error {
 	}
 	prefix := "aibp-" + e.AgentName()
 	report("checking " + e.AgentName() + " ...")
-	if !e.HasAgent() {
-		report(e.AgentName() + " not found, please install it first")
+	if !e.HasAgent() { // 兜底；CheckAibpCmd 已先过滤
+		report(e.AgentName() + " not found")
 		return errAgentNotFound
 	}
-	if !e.HasAIBP() {
-		report(prefix + " downloading.....")
+
+	major, minor, isSource := e.AIBPVersion()
+	mineMajor, _, _ := aibp.ParseProtocol(aibp.Protocol) // =2
+
+	switch {
+	case isSource:
+		report(prefix + " source install, skipping")
+		return nil
+	case major == 0: // 无法识别 / 未装
+		report(prefix + " not installed, installing ...")
 		if err := e.InstallAIBP(); err != nil {
 			report(prefix + " install failed: " + err.Error())
 			return err
 		}
 		report(prefix + " installed")
-	}
-	report("checking " + prefix + " protocol version ...")
-	ext, err := e.AIBPVersion()
-	if err != nil {
-		report(prefix + " reinstalling (corrupted) ...")
-		if err := e.InstallAIBP(); err != nil {
-			report(prefix + " install failed: " + err.Error())
-			return err
-		}
-		ext, err = e.AIBPVersion()
-		if err != nil {
-			report(prefix + " version still invalid after reinstall: " + err.Error())
-			return err
-		}
-	}
-	switch extMajor, mine := aibp.MajorVersion(ext), aibp.MajorVersion(aibp.Protocol); {
-	case extMajor == mine:
-		report(prefix + " ready")
 		return nil
-	case extMajor < mine:
-		report(e.AgentName() + " protocol outdated, please upgrade")
-		return errExtensionOutdated
-	default:
-		report("microNeo protocol outdated, please upgrade")
+	case major < mineMajor:
+		report(prefix + fmt.Sprintf(" outdated (aibp-%d < aibp-%d), updating ...", major, mineMajor))
+		if err := e.UpdateAIBP(); err != nil {
+			report(prefix + " update failed: " + err.Error())
+			return err
+		}
+		report(prefix + " updated")
+		return nil
+	case major > mineMajor:
+		report("microNeo protocol older than " + prefix + ", please upgrade microNeo")
 		return errMicroNeoOutdated
+	default: // major == mineMajor（此时一定是 npm 安装，源码已在前面的 case isSource 跳过）
+		report(prefix + fmt.Sprintf(" ready (aibp-%d.%d)", major, minor))
+		return nil
 	}
 }

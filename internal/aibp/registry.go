@@ -57,7 +57,12 @@ func Discover() ([]RegFile, error) {
 			continue
 		}
 		// 主版本不符 → 跳过（说明-AIBP §7.2）。字符串形如 "aibp-2.0"
-		if MajorVersion(rf.Protocol) != MajorVersion(Protocol) {
+		pm, _, ok := ParseProtocol(rf.Protocol)
+		if !ok {
+			continue // 解析失败 → 跳过此条目
+		}
+		mineMajor, _, _ := ParseProtocol(Protocol)
+		if pm != mineMajor {
 			continue
 		}
 		if alive(rf.Socket) {
@@ -81,17 +86,27 @@ func alive(socket string) bool {
 	return true
 }
 
-// MajorVersion — 解析 "aibp-1" 取 1（说明-AIBP §7.3）。
-// ⚠️ Deprecated: 仅兼容旧版 "aibp-X" 形式（无 minor 段）。新版 "aibp-X.Y" 会解析失败返回 -1。
-// 改用 ParseProtocol（任务4 实施）。本函数计划在任务4 中删除。
-func MajorVersion(protocol string) int {
-	i := strings.LastIndexByte(protocol, '-')
-	if i < 0 {
-		return -1
+// ParseProtocol — 解析 "aibp-MAJOR" 或 "aibp-MAJOR.MINOR"。
+// 兼容旧 "aibp-X"（minor 缺省 0）。解析失败返回 (0,0,false)。
+func ParseProtocol(s string) (major, minor int, ok bool) {
+	const prefix = "aibp-"
+	if !strings.HasPrefix(s, prefix) {
+		return 0, 0, false
 	}
-	n, err := strconv.Atoi(protocol[i+1:])
+	rest := s[len(prefix):]
+	parts := strings.Split(rest, ".")
+	if len(parts) == 0 || parts[0] == "" {
+		return 0, 0, false
+	}
+	maj, err := strconv.Atoi(parts[0])
 	if err != nil {
-		return -1
+		return 0, 0, false
 	}
-	return n
+	min := 0
+	if len(parts) >= 2 {
+		if min, err = strconv.Atoi(parts[1]); err != nil {
+			return 0, 0, false
+		}
+	}
+	return maj, min, true
 }

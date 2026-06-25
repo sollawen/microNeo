@@ -1,15 +1,22 @@
 {
   "name": "aibp-pi",
-  "version": "1.0.1",
-  "aibp": { "protocol": "aibp-2.0" },
+  "version": "1.0.2",
+  "aibp": {
+    "protocol": "aibp-2.0"
+  },
   "description": "AIBP (AI Bridge Protocol) receiver extension for pi",
   "license": "MIT",
-  "keywords": ["pi-package", "microNeo"],
+  "keywords": [
+    "pi-package",
+    "microNeo"
+  ],
   "files": [
     "index.ts",
     "README.md"
   ],
   "pi": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }

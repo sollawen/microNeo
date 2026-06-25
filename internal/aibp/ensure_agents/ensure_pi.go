@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/micro-editor/micro/v2/internal/aibp"
 )
 
 const aibpPiSpec = "npm:aibp-pi" // 不 pin 版本（D5）
@@ -53,53 +55,67 @@ func piSettingsPath() string {
 	return filepath.Join(piAgentDir(), "settings.json")
 }
 
-// HasAIBP：检查 pi settings.json 的 packages 里是否已登记 aibp-pi。
-// 兼容 "npm:aibp-pi"（unpinned，期望形态）和 "npm:aibp-pi@x.y.z"（pinned，历史遗留）。
-func (PiEnsurer) HasAIBP() bool {
+// piReadSetting 读取 pi settings.json 的 packages[]。
+func piReadSetting() []string {
 	b, err := os.ReadFile(piSettingsPath())
 	if err != nil {
-		return false // 读不到 → 视为未登记（首次安装）
+		return nil
 	}
 	var s struct{ Packages []string `json:"packages"` }
-	if json.Unmarshal(b, &s) != nil {
-		return false
+	if err := json.Unmarshal(b, &s); err != nil {
+		return nil
 	}
-	for _, p := range s.Packages {
-		if p == aibpPiSpec || strings.HasPrefix(p, aibpPiSpec+"@") {
-			return true
-		}
-	}
-	return false
+	return s.Packages
 }
 
-// AIBPVersion：读已装扩展的 package.json 的 aibp.protocol 字段。
-//   扩展位置 = <piAgentDir>/npm/node_modules/aibp-pi/package.json（与 settings.json 同源）
-//   读不到（文件缺失/损坏/字段缺失）→ 返回 error，由 Ensure 视作「没装」触发 Install。
-//   协议版本的单一事实来源是 package.json 的 aibp.protocol——aibp-pi 启动时也读它派生注册表
-//   （见 aibp-agents/pi/index.ts:11-12），所以静态检测与运行时必然一致。
-func (PiEnsurer) AIBPVersion() (string, error) {
+// AIBPVersion：识别本 agent 已装的 aibp。
+//   - 包含 "aibp-agents" → 源码路径，返回 (0, 0, true)（不读盘；信任假设）
+//   - 包含 "npm:aibp-pi" → npm 包，读取 <agentDir>/npm/node_modules/aibp-pi/package.json 的协议
+//   - 未找到 / 损坏 → (0, 0, false)
+func (PiEnsurer) AIBPVersion() (int, int, bool) {
+	for _, entry := range piReadSetting() {
+		if strings.Contains(entry, "aibp-agents") {
+			return 0, 0, true // 源码路径：不读盘
+		}
+		if strings.Contains(entry, "npm:aibp-pi") {
+			return piNpmAIBPVersion() // npm 包：读版本号
+		}
+	}
+	return 0, 0, false // 没找到 aibp 条目
+}
+
+// piNpmAIBPVersion 读取 aibp-pi 的 npm 安装版本的协议。
+// 协议来源：package.json 的 aibp.protocol 交 aibp.ParseProtocol 解析。
+func piNpmAIBPVersion() (int, int, bool) {
 	pkgPath := filepath.Join(piAgentDir(), "npm", "node_modules", "aibp-pi", "package.json")
 	b, err := os.ReadFile(pkgPath)
 	if err != nil {
-		return "", err
+		return 0, 0, false
 	}
-	var pkg struct{ AIBP struct{ Protocol string `json:"protocol"` } `json:"aibp"` }
+	var pkg struct {
+		AIBP struct{ Protocol string `json:"protocol"` } `json:"aibp"`
+	}
 	if err := json.Unmarshal(b, &pkg); err != nil {
-		return "", err
+		return 0, 0, false
 	}
-	// 字段缺失（合法 JSON 但无 aibp.protocol）也视为读不到——Ensure() 会据此重装自愈。
-	// 否则 MajorVersion("") 返回 -1，Ensure() 会误报"扩展过旧"，用户跑了 pi update 也修复不了。
 	if pkg.AIBP.Protocol == "" {
-		return "", fmt.Errorf("package.json 缺少 aibp.protocol 字段（视为没装）")
+		return 0, 0, false
 	}
-	return pkg.AIBP.Protocol, nil
+	return aibp.ParseProtocol(pkg.AIBP.Protocol)
 }
 
 func (PiEnsurer) InstallAIBP() error {
 	cmd := exec.Command("pi", "install", aibpPiSpec) // 不带 @版本（D5）
 	if err := cmd.Run(); err != nil {
-		// D3：pi install 失败不兜底。唯一现实风险是 pi 太旧没有 install 子命令。
 		return fmt.Errorf("pi install 失败（可能 pi 过旧，请升级 pi）: %w", err)
+	}
+	return nil
+}
+
+func (PiEnsurer) UpdateAIBP() error {
+	cmd := exec.Command("pi", "update", aibpPiSpec)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("pi update 失败: %w", err)
 	}
 	return nil
 }
