@@ -10,11 +10,62 @@ microNeo 是基于 [micro](https://github.com/zyedidia/micro) 增强的终端编
 
 ## 安装
 
+> 📌 **总原则：源码版与 npm 版互斥**。任何切换（npm→源码 或 源码→npm）**都必须先 `pi remove` 旧版再 `pi install` 新版**——`pi install` 只追加不替换，两个版本同时加载会冲突（socket 绑定失败、注册文件互相覆盖）。具体迁移步骤见各方式末尾的两个子节。
+
+### 方式一：本地源码路径（开发推荐）
+
+源码在 `aibp-agents/pi/`，直接加载 `index.ts`，无需预编译。
+
+```bash
+pi install /path/to/microNeo/aibp-agents/pi
+```
+
+会写入 `~/.pi/agent/settings.json` 的 `packages` 字段：
+
+```jsonc
+{
+  "packages": [
+    // ... 已有项 ...
+    "/Users/you/path/to/microNeo/aibp-agents/pi"
+  ]
+}
+```
+
+**迭代开发**：直接编辑 `index.ts`，**重启 pi 即生效**——无需 `npm publish` / `pi install`。如果改了没生效，先确认 `settings.json` 里的路径仍指向你正在编辑的目录。
+
+#### 从 npm 版迁回源码版
+
+如果之前装的是 npm 版（`npm:aibp-pi`），切换路径：
+
+```bash
+# 1. 卸掉 npm 版（避免两个版本都加载）
+pi remove npm:aibp-pi
+
+# 2. 装源码版
+pi install /path/to/microNeo/aibp-agents/pi
+```
+
+#### 从源码版迁回 npm 版
+
+反向同理——`pi install` 只追加不替换，必须先卸源码版：
+
+```bash
+# 1. 卸掉源码版（spec 是装时的绝对路径）
+pi remove /path/to/microNeo/aibp-agents/pi
+
+# 2. 装 npm 版
+pi install npm:aibp-pi
+```
+
+### 方式二：npm 包（发布后）
+
 ```bash
 pi install npm:aibp-pi
 ```
 
-microNeo 会在首次启动时自动检测并安装本扩展（若 pi 已就位）。手动安装也可用上面的命令。
+**注意**：npm 版的更新需要 `pi update npm:aibp-pi`（详见 microNeo 仓库的 `工作记录0625.md`）。开发期**不要走这条路**——会把本地改动覆盖掉。
+
+microNeo 会在首次启动时自动检测并安装本扩展（若 pi 已就位）——但**只针对 npm 版**。源码版需要手动 `pi install` 一次。
 
 ## 功能
 

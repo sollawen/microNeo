@@ -4,8 +4,8 @@
 - [x] 了解并测试 opencode 如何 update npm package
 
 任务2
-- [ ] 把pi改成安装源代码路径的aibp
-- [ ] 把opencode改成安装源代码路径的aibp
+- [x] 把pi改成安装源代码路径的aibp
+- [x] 把opencode改成安装源代码路径的aibp
 
 任务3
 - [ ] 修改aibp-pi 里面的目录名称，aibp协议改成1.1
