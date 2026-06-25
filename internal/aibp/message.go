@@ -6,9 +6,14 @@ import (
 
 const Protocol = "aibp-2.0"
 
+// ProtocolMajor 是 Protocol 常量的主版本整数（单一事实来源——必须从 Protocol 派生，
+// 不可写死字面量；D25 引入 ParseProtocol 后改为 var 初始化计算）。发送端填 Envelope.V
+// 必用此常量，接收端按 aibp.protocol 算 PROTOCOL_MAJOR 校验，两边必须一致。
+const ProtocolMajor = 2
+
 // Envelope — 说明-AIBP §5.1 公共信封
 type Envelope struct {
-	V       int             `json:"v"`       // 主版本，当前=1
+	V       int             `json:"v"`       // 主版本，等于 aibp.ProtocolMajor（不可写死字面量）
 	Type    string          `json:"type"`    // "context"（v1仅）/ "bye"(预留)
 	Sender  Sender          `json:"sender"`
 	TS      float64        `json:"ts"`      // Unix 浮点秒

@@ -558,7 +558,7 @@ func NotePaneSend(h *BufPane) bool {
 
 	// 3. Build envelope
 	env := aibp.Envelope{
-		V:       1,
+		V:       aibp.ProtocolMajor,
 		Type:    "context",
 		Sender:  aibp.Sender{PID: os.Getpid(), Name: "microNeo", Instance: "default"},
 		TS:      float64(time.Now().UnixNano()) / 1e9,

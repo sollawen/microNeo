@@ -44,7 +44,7 @@ func main() {
 	payloadJSON, _ := json.Marshal(payload)
 
 	env := aibp.Envelope{
-		V: 1, Type: "context",
+		V: aibp.ProtocolMajor, Type: "context",
 		Sender:  aibp.Sender{PID: os.Getpid(), Name: "microNeo", Instance: *instance},
 		TS:      float64(time.Now().UnixNano()) / 1e9,
 		Payload: payloadJSON,
