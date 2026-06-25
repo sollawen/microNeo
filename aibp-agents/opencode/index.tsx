@@ -169,6 +169,7 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
     regFile,
     JSON.stringify({
       name,
+      agent: "opencode",
       pid: process.pid,
       transport: "unix",
       socket: socketPath,

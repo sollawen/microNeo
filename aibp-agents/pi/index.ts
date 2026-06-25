@@ -238,7 +238,7 @@ export default function (pi: ExtensionAPI) {
     // 写注册文件（server 已在 allocateName 内 listen 完成）
     regFile = path.join(registryDir(), `ai-${name}.json`);
     fs.writeFileSync(regFile, JSON.stringify({
-      name, pid: process.pid, transport: "unix",
+      name, agent: "pi", pid: process.pid, transport: "unix",
       socket: socketPath, protocol: PROTOCOL,
       startedAt: Math.floor(Date.now()/1000), cwd: process.cwd(), labels: ["default"],
     }));
