@@ -110,7 +110,7 @@ AIBPVersion → 成功 : 比对协议版本 ↓
 | HasAIBP / no entry | plugin[] 其他插件 → false |
 | HasAIBP / tui.json missing | 文件不存在 → false |
 | HasAIBP / tui.json corrupt | 非 JSON → false |
-| AIBPVersion / normal | `aibp.protocol` 存在 → "aibp-1" |
+| AIBPVersion / normal | `aibp.protocol` 存在 → "aibp-2.0" |
 | AIBPVersion / missing | package.json 不存在 → error |
 | AIBPVersion / corrupt | 非 JSON → error |
 | AIBPVersion / protocol missing | 无 `aibp.protocol` 字段 → error |

@@ -33,7 +33,7 @@ type AgentEnsurer interface {
 
 	HasAgent() bool           // 本机有没有这个 agent 程序
 	HasAIBP() bool            // 该 agent 装没装 aibp 扩展
-	AIBPVersion() (string, error) // 已装扩展实现的协议（如 "aibp-1"）。
+	AIBPVersion() (string, error) // 已装扩展实现的协议（如 "aibp-2.0"）。
 	                               //   注意：协议版本，非包版本。读静态声明（package.json），不启动 agent
 	InstallAIBP() error       // 装 aibp 扩展到该 agent
 }

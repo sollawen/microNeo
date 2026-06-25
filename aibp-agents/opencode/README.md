@@ -5,7 +5,7 @@ AIBP (AI Bridge Protocol) 接收端插件，让 **opencode** 成为 microNeo 的
 ## 工作原理
 
 - **形态**：opencode **TUI 插件**（`export default { id, tui }`）。在 opencode 主界面就绪时立即加载（不受 instance bootstrap gating 影响），完成「注册名字 + 显示名字 + 开 socket」。
-- **协议**：与 [`aibp-pi`](../pi) 同协议（`aibp-1`），共用同一名字池文件与 registryDir，pi 与 opencode 并存时自动分配不同名字（如 Alpha / Bravo）。
+- **协议**：与 [`aibp-pi`](../pi) 同协议（`aibp-2.0`），共用同一名字池文件与 registryDir，pi 与 opencode 并存时自动分配不同名字（如 Alpha / Bravo）。
 - **递送**：收到 microNeo 消息后，通过 `api.client.tui.*`（`clearPrompt` + `appendPrompt` + `submitPrompt`）填输入框并触发 LLM 对话；纯上下文则只填输入框不提交。
 
 详见 `docs/agent-comm/D19-aibp-opencode.md`。

@@ -2,7 +2,7 @@
   "name": "aibp-opencode",
   "version": "1.0.1",
   "aibp": {
-    "protocol": "aibp-1.1"
+    "protocol": "aibp-2.0"
   },
   "description": "AIBP (AI Bridge Protocol) receiver plugin for opencode",
   "license": "MIT",

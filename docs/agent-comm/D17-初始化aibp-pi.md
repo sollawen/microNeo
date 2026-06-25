@@ -92,7 +92,7 @@ cmd/micro ──▶ action ──▶ aibp/ensure_agents ──▶ aibp
 
 | 数据点 | 来源 | 形态 |
 |--------|------|------|
-| **microNeo 期望的协议** | `internal/aibp.Protocol`（已存在的常量 `"aibp-1"`） | 字符串 |
+| **microNeo 期望的协议** | `internal/aibp.Protocol`（已存在的常量 `"aibp-2.0"`） | 字符串 |
 | **已装扩展实现的协议** | 扩展包 `package.json` 的 `aibp.protocol` 字段 | 字符串 |
 
 兼容性判定用**主版本相等**（复用 `internal/aibp.MajorVersion()`，§6.3 导出）：
@@ -103,7 +103,7 @@ cmd/micro ──▶ action ──▶ aibp/ensure_agents ──▶ aibp
 | 扩展 < microNeo | 扩展过旧 | InfoBar 提示用户运行 `pi update npm:aibp-pi`（**D9：不自动升级**） |
 | 扩展 > microNeo | microNeo 过旧 | InfoBar 提示"请升级 microNeo" |
 
-> **协议版本的字段为什么是 `aibp.protocol` 而不是 package.json 的 `version`**：包版本是 npm 迭代用的（`1.0.0` → `1.0.1` → `1.1.0`），不对应协议兼容性。协议可能多个包版本都实现 `aibp-1`；也可能一个包版本实现 `aibp-2`。两者是正交维度。
+> **协议版本的字段为什么是 `aibp.protocol` 而不是 package.json 的 `version`**：包版本是 npm 迭代用的（`1.0.0` → `1.0.1` → `1.1.0`），不对应协议兼容性。协议可能多个包版本都实现 `aibp-1`；也可能一个包版本实现 `aibp-2.0`。两者是正交维度。
 
 ### 3.3 自举流程（幂等）
 
@@ -158,7 +158,7 @@ type AgentEnsurer interface {
 
 	HasAgent() bool                             // 本机有没有这个 agent 程序
 	HasAIBP() bool                              // 该 agent 装没装 aibp 扩展
-	AIBPVersion() (string, error)               // 已装扩展实现的协议（如 "aibp-1"）。
+	AIBPVersion() (string, error)               // 已装扩展实现的协议（如 "aibp-2.0"）。
 	                                            //   注意：协议版本，非包版本。读静态声明（package.json），不启动 agent
 	InstallAIBP() error                         // 装 aibp 扩展到该 agent
 }
@@ -359,7 +359,7 @@ func InitGlobals() {
 | 编译通过 | `make build` 成功 | ✅ |
 | aibp-pi 在 npm 上可装 | `pi install npm:aibp-pi` 成功 | ✅（[aibp-pi@1.0.1](https://www.npmjs.com/package/aibp-pi)） |
 | AIBP 基线链路通 | 开 pi → microNeo Alt-Enter → 发消息 → pi 收到 | ✅（实测） |
-| 静态字段 + 运行时同源 | jiti 读 package.json 写注册表 `protocol: aibp-1` | ✅（实测） |
+| 静态字段 + 运行时同源 | jiti 读 package.json 写注册表 `protocol: aibp-2.0` | ✅（实测） |
 
 基线全过。回滚靠 git。
 

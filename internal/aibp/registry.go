@@ -32,7 +32,7 @@ type RegFile struct {
 	PID       int      `json:"pid"`
 	Transport string   `json:"transport"` // "unix"
 	Socket    string   `json:"socket"`
-	Protocol  string   `json:"protocol"` // "aibp-1"
+	Protocol  string   `json:"protocol"` // "aibp-2.0"
 	StartedAt int64    `json:"startedAt"`
 	Cwd       string   `json:"cwd,omitempty"`
 	Labels    []string `json:"labels,omitempty"`
@@ -56,7 +56,7 @@ func Discover() ([]RegFile, error) {
 		} else if json.Unmarshal(b, &rf) != nil {
 			continue
 		}
-		// 主版本不符 → 跳过（说明-AIBP §7.2）。字符串形如 "aibp-1"
+		// 主版本不符 → 跳过（说明-AIBP §7.2）。字符串形如 "aibp-2.0"
 		if MajorVersion(rf.Protocol) != MajorVersion(Protocol) {
 			continue
 		}
@@ -81,8 +81,9 @@ func alive(socket string) bool {
 	return true
 }
 
-// MajorVersion — 解析 "aibp-1" 取 1（说明-AIBP §7.3）
-// 被 ensure_agents 子包使用，导出为公共 API
+// MajorVersion — 解析 "aibp-1" 取 1（说明-AIBP §7.3）。
+// ⚠️ Deprecated: 仅兼容旧版 "aibp-X" 形式（无 minor 段）。新版 "aibp-X.Y" 会解析失败返回 -1。
+// 改用 ParseProtocol（任务4 实施）。本函数计划在任务4 中删除。
 func MajorVersion(protocol string) int {
 	i := strings.LastIndexByte(protocol, '-')
 	if i < 0 {

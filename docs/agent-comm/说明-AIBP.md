@@ -2,7 +2,7 @@
 
 > **本文档是 AIBP（**A**rtificial **I**ntelligence **B**ridge **P**rotocol）的权威文档**。协议定义、约束、契约、生命周期、开放问题**全部**以本文档为准。
 >
-> **状态**：v1 协议（`aibp-1`）当前实现状态。
+> **状态**：v2 协议（`aibp-2.0`）当前实现状态。v1（`aibp-1`）为历史版本，不再支持。
 >
 > **覆盖范围**：注册表、传输、报文 schema、版本、接收端契约、生命周期边界、安全性、开放问题。
 >
@@ -126,7 +126,7 @@ dir  = base + "/aibp-" + $UID
   "pid": 12345,
   "transport": "unix",
   "socket": "/tmp/.../aibp-501/ai-pi-12345.sock",
-  "protocol": "aibp-1",
+  "protocol": "aibp-2.0",
   "startedAt": 1717000000,
   "cwd": "/Users/me/project",
   "labels": ["default"]
@@ -139,7 +139,7 @@ dir  = base + "/aibp-" + $UID
 | `pid` | ✅ | 接收端进程 PID，用于存活检测 |
 | `transport` | ✅ | 传输类型，v1 固定 `"unix"` |
 | `socket` | ✅ | 该接收端监听的 Unix socket 绝对路径 |
-| `protocol` | ✅ | 协议版本号（`aibp-1`）。发送端发现版本不匹配时跳过 |
+| `protocol` | ✅ | 协议版本号（`aibp-2.0`）。发送端发现版本不匹配时跳过 |
 | `startedAt` | ✅ | 启动时间（Unix 秒）。发送端展示「选择目标」列表时的稳定排序依据 |
 | `cwd` | ❌ | 接收端工作目录，发送端可据此判断"是不是同一个项目" |
 | `labels` | ❌ | 自由标签数组，发送端可按标签筛选（如 `["default"]`、`["frontend"]`）。**v1 未使用** |
@@ -406,47 +406,57 @@ dir  = base + "/aibp-" + $UID
 
 ### 7.1 版本号方案
 
-- 注册文件 `protocol` 字段格式：`aibp-<major>`，如 `aibp-1`（"AI Bridge Protocol v1"）
-- 信封 `v` 字段：主版本整数，如 `1`
-- **主版本**：报文结构不兼容变更时 +1（增删必需字段、改语义）
-- **次版本/兼容 additions**：新增可选字段、新增报文类型——**不改主版本**。接收端应忽略未知字段、忽略未知 `type`（前向兼容）
+- 注册文件 `protocol` 字段格式：`aibp-<major>.<minor>`，如 `aibp-2.0`（"AI Bridge Protocol v2.0"）
+- 信封 `v` 字段：主版本整数，如 `2`（minor 不进信封，详见 §5.1）
+- **主版本（major）**：报文结构不兼容变更时 +1（增删必需字段、改语义、**或实现层耦合变更**——见 §7.1.2）
+- **次版本（minor）**：新增可选字段、新增报文类型——**不改主版本**。接收端应忽略未知字段、忽略未知 `type`（前向兼容）
+
+#### 7.1.2 实现层耦合变更按 major 处理
+
+**按业内 semver 共识**：major +1 表示「升级完成后两边不能通信」。
+
+对于**实现层耦合变更**（如注册表目录名、socket 路径算法、握手流程），虽**报文结构本身未变**，但**两端必须同步升级**才能维持通信——这种「升级过程中断连」的窗口期按 major 处理（如 `aibp-1` → `aibp-2.0`，即 D20 注册表目录改名时所做的升级）。
+
+参考：D25-aibp-update-v1.1.md §一「major bump 的理由」。
 
 ### 7.1.1 协议版本的单一事实来源（**重要**）
 
-协议版本字符串（如 `"aibp-1"`）在系统中有**静态**和**运行时**两个使用场景，必须始终指向同一个事实来源，避免硬编码漂移：
+协议版本字符串（如 `"aibp-2.0"`）在系统中有**静态**和**运行时**两个使用场景，必须始终指向同一个事实来源，避免硬编码漂移：
 
 | 使用场景 | 谁用 | 形态 | 来源 |
 |---------|------|------|------|
 | **静态检测** | microNeo 启动期（D17 的 startup） | 读扩展包的 `package.json` | ↓ |
 | **运行时声明** | 接收端扩展（如 `aibp-pi`） | 派生为字符串（写注册表）和整数（校验信封） | ↓ |
-| **运行时校验** | microNeo 发送端 | 常量 `aibp-1` | ← 与接收端比对 |
+| **运行时校验** | microNeo 发送端 | 常量 `aibp-2.0` | ← 与接收端比对 |
 
 **权威来源**：接收端扩展的 `package.json` 里声明：
 
 ```json
 {
-  "aibp": { "protocol": "aibp-1" }
+  "aibp": { "protocol": "aibp-2.0" }
 }
 ```
 
-**接收端实现**：不硬编码 `const PROTOCOL = "aibp-1"`，而是启动时从自身 `package.json` 的 `aibp.protocol` 读出，再派生出字符串和整数两种形态（实现见 `aibp-agents/pi/index.ts`，靠 `import.meta.url` 定位同级 package.json）。
+**接收端实现**：不硬编码 `const PROTOCOL = "aibp-2.0"`，而是启动时从自身 `package.json` 的 `aibp.protocol` 读出，再派生出字符串和整数两种形态（实现见 `aibp-agents/pi/index.ts`，靠 `import.meta.url` 定位同级 package.json）。
 
 **为何单一来源**：接收端扩展（aibp-pi 等）独立于 microNeo 发 npm 包、独立发版，如果硬编码字符串散落多处，升级主版本时漏改一处会造成“静态声明 vs 运行时声明”撕裂——调试极难。收敛到 package.json 后，microNeo 的 startup 静态读到的协议版本与运行时接收端写进注册表的版本**必然一致**（两者读的是同一个文件字段）。
 
 ### 7.2 版本协商
 
-- 发送端读注册文件 `protocol`（字符串如 `aibp-1`），解析取主版本整数（`1`），与信封 `v` 比较；不匹配 → 跳过该接收端 + 告警提示
-- 接收端读信封 `v`（整数），与自身版本的主版本比较；不匹配 → 忽略该报文 + 可选告警
-- v1 不做复杂的 capabilities 协商（YAGNI）
+- 发送端读注册文件 `protocol`（字符串如 `aibp-2.0`），解析取 `(major, minor)`，与自身协议版本的 `(major, minor)` 比较；**major 不等** → 跳过该接收端 + 告警提示（不兼容）；**major 相等、minor 不等** → 视为向后兼容，仍可通信（仅功能范围不同）
+- 接收端读信封 `v`（整数，major），与自身版本的主版本比较；不匹配 → 忽略该报文 + 可选告警
+- 不做复杂的 capabilities 协商（YAGNI）
 
 ### 7.3 解析规则
 
-- **主版本解析**：注册文件 `protocol` 形如 `aibp-1`，取最后一个 `-` 之后的整数；解析失败 → 视为不匹配。实现：`internal/aibp/registry.go:major()`
+- **major.minor 解析**：注册文件 `protocol` 形如 `aibp-2.0`，取最后一个 `-` 之后的字符串，再按 `.` 拆分为 `(major, minor)`；任一段解析失败 → 视为不匹配。实现：`internal/aibp/protocol.go:ParseProtocol()`
 - **信封校验**：接收端从自身 `package.json` 的 `aibp.protocol` 派生主版本整数（§7.1.1），要求 `v === PROTOCOL_MAJOR` 且 `type === "context"`，否则静默忽略。实现：`aibp-agents/pi/index.ts:handleLine()`
 
 ### 7.4 当前版本
 
-**v1（`aibp-1`）**——本文档定义的全部内容。报文类型仅 `context`（`bye` 预留）。
+**v2.0（`aibp-2.0`）**——当前实现状态。报文类型仅 `context`（`bye` 预留）。
+
+**v1（`aibp-1`）**——历史版本。文档保留作为协议演进参考（§7.1 的「实现层耦合变更按 major 处理」即从 v1 → v2.0 时确立）。
 
 ---
 

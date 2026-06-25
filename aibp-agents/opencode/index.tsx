@@ -39,7 +39,7 @@ function log(message: string, data?: unknown) {
 log("===== module loaded =====")
 
 // —— 协议版本单一事实来源：package.json 的 aibp.protocol ——
-let PROTOCOL = "aibp-1.1"
+let PROTOCOL = "aibp-2.0"
 let PROTOCOL_MAJOR = 1
 try {
   const __dirname = path.dirname(fileURLToPath(import.meta.url))
