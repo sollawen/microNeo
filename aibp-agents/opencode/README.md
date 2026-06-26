@@ -67,6 +67,15 @@ opencode plugin aibp-opencode -g
 opencode plugin aibp-opencode -g
 ```
 
+验证（规范形态）：
+
+```bash
+jq '.plugin' ~/.config/opencode/tui.json     # 应是 ["aibp-opencode"]（无版本后缀）
+ls ~/.cache/opencode/packages/ | grep aibp    # 应只有 aibp-opencode@latest
+```
+
+启动 opencode，左下角应有 `● 名字` 标记。
+
 #### 升级到新版本（清除旧版 → 安装新版）
 
 > ⚠️ **必须先完全退出 opencode TUI**。opencode 运行时持有 cache，不退出就删 cache 会被重建，新版没法真正装上——这是「明明装了新版却还是旧版 / 不生效」最常见的坑。
@@ -74,8 +83,9 @@ opencode plugin aibp-opencode -g
 > 💡 下面用**无版本号安装**（`aibp-opencode`，加载 `@latest`，每次拉 npm 最新），与 microNeo 自动托管（`ensure_opencode.go`）一致。**要锁版本**就把第 3 步换成 `opencode plugin aibp-opencode@<版本号> -g`（tui.json 写成 `aibp-opencode@<版本号>`、cache 目录为 `aibp-opencode@<版本号>`）。
 
 ```bash
-# 1. 从 tui.json 删除 aibp-opencode 条目（startswith 覆盖带/不带版本号两种写法）
-jq 'del(.plugin[] | select(. | startswith("aibp-opencode")))' \
+# 1. 从 tui.json 删除所有 aibp-opencode 条目（与「删除（卸载）」步骤 1 相同）
+#    startswith 覆盖带/不带版本号两种写法；|= 只改 plugin 数组，其它键保留。
+jq 'if .plugin then .plugin |= map(select(. | startswith("aibp-opencode") | not)) else . end' \
    ~/.config/opencode/tui.json > /tmp/tui.json.new \
    && mv /tmp/tui.json.new ~/.config/opencode/tui.json
 
@@ -126,19 +136,33 @@ cat ~/.config/aibp/aibp-names.json
 - 带消息 → 自动发起对话（输入框被填 + 提交）；
 - 纯上下文 → 仅填入输入框，等用户编辑后手动发送。
 
-## 卸载
+## 删除（卸载）
 
-opencode 1.17.9 的 `plugin` 子命令**没有** remove / uninstall，需要手动清理：
+opencode 的 `plugin` 子命令**没有** remove / uninstall，需要手动清理。下面是经实测验证的完整删除流程（opencode 1.17.11 / aibp-opencode 1.0.2）。
+
+> 💡 删除前建议**完全退出 opencode TUI**——运行时它会持有 cache 和注册文件，退出后清理最干净（否则 opencode 可能把 cache 重建回来）。
 
 ```bash
-# 1. 从 tui.json 删条目（aibp-opencode 是 TUI 插件，不在 opencode.json 里）
-#    用 jq 更安全，或者手动编辑文件把 "aibp-opencode" 从 plugin[] 删掉
-jq 'del(.plugin[] | select(. == "aibp-opencode"))' \
+# 1. 从 tui.json 删除所有 aibp-opencode 条目
+#    startswith 同时覆盖 "aibp-opencode" 与 "aibp-opencode@<version>" 两种写法；
+#    |= 只改 plugin 数组，其它键（$schema / keybinds / …）原样保留。
+jq 'if .plugin then .plugin |= map(select(. | startswith("aibp-opencode") | not)) else . end' \
    ~/.config/opencode/tui.json > /tmp/tui.json.new \
    && mv /tmp/tui.json.new ~/.config/opencode/tui.json
 
-# 2. 可选：清掉 opencode 的本地包缓存
-rm -rf ~/.cache/opencode/packages/aibp-opencode@latest
+# 2. 删除所有版本的插件 cache
+#    @* 清掉 @latest 与所有 pinned 版本（@1.0.x）残留——只删 @latest 会泄漏 pinned cache。
+rm -rf ~/.cache/opencode/packages/aibp-opencode@*
 ```
+
+验证删除干净：
+
+```bash
+jq '.plugin' ~/.config/opencode/tui.json          # 应是 [] 或不含 aibp 开头的条目
+ls ~/.cache/opencode/packages/ | grep aibp         # 应无输出
+jq 'keys' ~/.config/opencode/tui.json              # $schema / keybinds 等仍在（未被破坏）
+```
+
+> 注册表目录（`$XDG_RUNTIME_DIR/aibp-<uid>`，fallback `$TMPDIR/aibp-<uid>`）是 opencode 运行时写的状态，卸载时**不必管**——它随 opencode 退出自然失效，下次启动按名字池重建。
 
 microNeo 侧零改动，协议 agent 无关。
