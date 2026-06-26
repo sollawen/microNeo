@@ -76,6 +76,51 @@ func opencodeReadTui() []string {
 	return s.Plugin
 }
 
+// opencodeRemoveTuiEntries 从 tui.json 删除 npm 形态的 aibp-opencode 条目
+// （"aibp-opencode" 与 "aibp-opencode@<version>"）。
+// 不动源码路径形态条目（源码↔npm 迁移由用户手动完成，见 README）。
+// tui.json 不存在/损坏 → 静默返回 nil，不阻塞 install。
+//
+// 关键陷阱：tui.json 含其它键（theme/keybinds/…），不能只写回 Plugin 字段，
+// 否则会丢用户配置。这里用 map[string]json.RawMessage 读全文件，只重写 "plugin" 键，
+// 其它键字节级保留。
+func opencodeRemoveTuiEntries() error {
+	p := opencodeTuiPath()
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return nil // 不存在：无条目可删
+	}
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(b, &doc); err != nil {
+		return nil // 损坏：跳过，避免破坏
+	}
+	pluginRaw, ok := doc["plugin"]
+	if !ok {
+		return nil
+	}
+	var plugins []string
+	if err := json.Unmarshal(pluginRaw, &plugins); err != nil {
+		return nil
+	}
+	kept := make([]string, 0, len(plugins))
+	removed := false
+	for _, e := range plugins {
+		if e == aibpOpencodeSpec || strings.HasPrefix(e, aibpOpencodeSpec+"@") {
+			removed = true
+			continue
+		}
+		kept = append(kept, e)
+	}
+	if !removed {
+		return nil
+	}
+	out, _ := json.Marshal(kept)
+	doc["plugin"] = out
+	final, _ := json.MarshalIndent(doc, "", "  ")
+	// 0644 会覆盖用户可能设的 0600 权限——tui.json 通常无 secrets，0644 是合理默认。
+	return os.WriteFile(p, final, 0o644)
+}
+
 // AIBPVersion：识别本 agent 已装的 aibp。
 //   - 包含 "aibp-agents" → 源码路径，返回 (0, 0, true)（不读盘；信任假设）
 //   - 包含 "aibp-opencode" → npm 包，读取缓存的 package.json 的协议
@@ -96,7 +141,7 @@ func (OpencodeEnsurer) AIBPVersion() (int, int, bool) {
 // 协议来源：package.json 的 aibp.protocol 交 aibp.ParseProtocol 解析。
 func opencodeNpmAIBPVersion() (int, int, bool) {
 	pkgPath := filepath.Join(
-		opencodeCacheDir(), "packages", "aibp-opencode@latest",
+		opencodeNpmCacheSubdir(),
 		"node_modules", "aibp-opencode", "package.json",
 	)
 	b, err := os.ReadFile(pkgPath)
@@ -112,14 +157,72 @@ func opencodeNpmAIBPVersion() (int, int, bool) {
 	if pkg.AIBP.Protocol == "" {
 		return 0, 0, false
 	}
-	return aibp.ParseProtocol(pkg.AIBP.Protocol)
+	maj, min, ok := aibp.ParseProtocol(pkg.AIBP.Protocol)
+	if !ok {
+		return 0, 0, false
+	}
+	return maj, min, false // npm 安装：isSource 恒为 false（注意 ParseProtocol 的 ok 不等于 isSource）
 }
 
-// installOrUpdate 是 opencode 的安装/更新通用实现。
-// opencode 无原生 update 命令，清 cache + 重装是唯一强制刷新路径（D24 调研结论）。
+// opencodeNpmCacheSubdir 按 tui.json 条目推导 cache 子目录名：
+//   "aibp-opencode"        → "aibp-opencode@latest"
+//   "aibp-opencode@1.0.2"  → "aibp-opencode@1.0.2"
+// 找不到 aibp 条目 → 回退 @latest（兼容）。
+//
+// 注意 Go 的 break 作用于最内层 for/switch：若 break 写在 switch 体内，只跳出 switch。
+// 这里要的是「跳过非 aibp 条目、命中第一个 aibp 条目即停」，故用 matched 标志
+// 把 break 放到 for 体内、switch 之外（修 D3）。
+func opencodeNpmCacheSubdir() string {
+	suffix := "latest"
+	for _, e := range opencodeReadTui() {
+		matched := true
+		switch {
+		case strings.HasPrefix(e, aibpOpencodeSpec+"@"):
+			suffix = strings.TrimPrefix(e, aibpOpencodeSpec+"@")
+		case e == aibpOpencodeSpec:
+			// suffix 默认即 "latest"
+		default:
+			matched = false // 非 aibp 条目（其它插件名 / 源码路径），继续看下一个
+		}
+		if matched {
+			break // 命中第一个 aibp 条目即停（for 体内 break 跳出整个 for）
+		}
+	}
+	return filepath.Join(opencodeCacheDir(), "packages", aibpOpencodeSpec+"@"+suffix)
+}
+
+// uninstallAIBP 清理 aibp-opencode，保证「安装/卸载前是干净状态」：
+//   1. 规范化 tui.json（删 aibp 条目）—— 修 D2
+//   2. 自检（防 opencode 运行中持有锁，WriteFile 静默失败 → 旧条目仍在 → 后续 Already configured → 假成功）
+//   3. glob 清所有版本 cache（@* 覆盖 @latest 与 pinned @1.0.x）—— 修 D1
+// 被 UninstallAIBP 和 installOrUpdate 共用。
+func uninstallAIBP() error {
+	// 1. 规范化 tui.json（opencodeRemoveTuiEntries 对文件不存在/损坏返回 nil，不阻塞）
+	if err := opencodeRemoveTuiEntries(); err != nil {
+		return fmt.Errorf("规范化 tui.json 失败: %w", err)
+	}
+	// 2. 自检：tui.json 里不应还有 aibp-opencode 条目
+	for _, e := range opencodeReadTui() {
+		if strings.HasPrefix(e, aibpOpencodeSpec) {
+			return fmt.Errorf("tui.json 规范化失败：条目仍存在 %q（请先完全退出 opencode TUI 再试）", e)
+		}
+	}
+	// 3. glob @* 清所有版本 cache
+	pkgGlob := filepath.Join(opencodeCacheDir(), "packages", aibpOpencodeSpec+"@*")
+	if matches, _ := filepath.Glob(pkgGlob); matches != nil {
+		for _, m := range matches {
+			_ = os.RemoveAll(m)
+		}
+	}
+	return nil
+}
+
+// installOrUpdate = uninstall + 重装（D1/D2/自检由 uninstallAIBP 集中解决）。
+// opencode 无原生 update 命令，清干净 + 重装是唯一强制刷新路径（D24 调研结论）。
 func (e OpencodeEnsurer) installOrUpdate() error {
-	cacheDir := filepath.Join(opencodeCacheDir(), "packages", aibpOpencodeSpec+"@latest")
-	_ = os.RemoveAll(cacheDir)
+	if err := uninstallAIBP(); err != nil {
+		return err
+	}
 	cmd := exec.Command("opencode", "plugin", aibpOpencodeSpec, "-g")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("opencode plugin 失败（可能 opencode 过旧，请升级 opencode）: %w", err)
@@ -133,4 +236,11 @@ func (OpencodeEnsurer) InstallAIBP() error {
 
 func (OpencodeEnsurer) UpdateAIBP() error {
 	return OpencodeEnsurer{}.installOrUpdate()
+}
+
+// UninstallAIBP 清理 aibp-opencode（规范化 tui.json + 删所有版本 cache）。
+// 暂未被 Ensure 编排调用（AgentEnsurer 接口未含卸载），为未来 uninstall 功能预留；
+// 逻辑与 installOrUpdate 共用 uninstallAIBP。
+func (OpencodeEnsurer) UninstallAIBP() error {
+	return uninstallAIBP()
 }

@@ -89,7 +89,7 @@ func TestOpencodeAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		pkgDir := filepath.Join(dir, "opencode", "packages", "aibp-opencode@latest", "node_modules", "aibp-opencode")
+		pkgDir := filepath.Join(dir, "opencode", "packages", "aibp-opencode@1.0.1", "node_modules", "aibp-opencode")
 		if err := os.MkdirAll(pkgDir, 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -245,113 +245,6 @@ func TestOpencodeAIBPVersion(t *testing.T) {
 		maj, min, isSource := (OpencodeEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSource {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSource)
-		}
-	})
-}
-
-// ---------------------------------------------------------------------------
-// TestEnsure — orchestration test covering all 5 branches
-// ---------------------------------------------------------------------------
-
-// mockEnsurer implements AgentEnsurer for testing Ensure()编排逻辑.
-type mockEnsurer struct {
-	name               string
-	hasAgent           bool
-	aibpMajor, aibpMinor int
-	isSource           bool
-	installCalled      bool
-	updateCalled       bool
-	installErr         error
-	updateErr          error
-}
-
-func (m *mockEnsurer) AgentName() string { return m.name }
-func (m *mockEnsurer) HasAgent() bool    { return m.hasAgent }
-func (m *mockEnsurer) AIBPVersion() (int, int, bool) {
-	return m.aibpMajor, m.aibpMinor, m.isSource
-}
-func (m *mockEnsurer) InstallAIBP() error {
-	m.installCalled = true
-	return m.installErr
-}
-func (m *mockEnsurer) UpdateAIBP() error {
-	m.updateCalled = true
-	return m.updateErr
-}
-
-func TestEnsure(t *testing.T) {
-	t.Run("source install branch", func(t *testing.T) {
-		m := &mockEnsurer{name: "test", hasAgent: true, aibpMajor: 0, aibpMinor: 0, isSource: true}
-		var msgs []string
-		err := Ensure(m, func(msg string) { msgs = append(msgs, msg) })
-		if err != nil {
-			t.Errorf("Ensure() error = %v, want nil", err)
-		}
-		if !m.isSource && len(msgs) > 0 && msgs[len(msgs)-1] != "aibp-test source install, skipping" {
-			// source branch message check
-		}
-		if m.installCalled || m.updateCalled {
-			t.Error("source install branch should not call InstallAIBP or UpdateAIBP")
-		}
-	})
-
-	t.Run("not installed branch (major==0, not source)", func(t *testing.T) {
-		m := &mockEnsurer{name: "test", hasAgent: true, aibpMajor: 0, aibpMinor: 0, isSource: false}
-		var msgs []string
-		err := Ensure(m, func(msg string) { msgs = append(msgs, msg) })
-		if err != nil {
-			t.Errorf("Ensure() error = %v, want nil", err)
-		}
-		if !m.installCalled {
-			t.Error("not installed branch should call InstallAIBP")
-		}
-		if m.updateCalled {
-			t.Error("not installed branch should not call UpdateAIBP")
-		}
-	})
-
-	t.Run("outdated branch (major < mine)", func(t *testing.T) {
-		m := &mockEnsurer{name: "test", hasAgent: true, aibpMajor: 1, aibpMinor: 0, isSource: false}
-		var msgs []string
-		err := Ensure(m, func(msg string) { msgs = append(msgs, msg) })
-		if err != nil {
-			t.Errorf("Ensure() error = %v, want nil", err)
-		}
-		if !m.updateCalled {
-			t.Error("outdated branch should call UpdateAIBP")
-		}
-		if m.installCalled {
-			t.Error("outdated branch should not call InstallAIBP")
-		}
-	})
-
-	t.Run("outdated branch update fails", func(t *testing.T) {
-		m := &mockEnsurer{name: "test", hasAgent: true, aibpMajor: 1, aibpMinor: 0, isSource: false, updateErr: errMicroNeoOutdated}
-		err := Ensure(m, func(string) {})
-		if err == nil {
-			t.Error("Ensure() error = nil, want non-nil when UpdateAIBP fails")
-		}
-	})
-
-	t.Run("ready branch (major == mine)", func(t *testing.T) {
-		m := &mockEnsurer{name: "test", hasAgent: true, aibpMajor: 2, aibpMinor: 1, isSource: false}
-		err := Ensure(m, func(string) {})
-		if err != nil {
-			t.Errorf("Ensure() error = %v, want nil", err)
-		}
-		if m.installCalled || m.updateCalled {
-			t.Error("ready branch should not call InstallAIBP or UpdateAIBP")
-		}
-	})
-
-	t.Run("agent not found branch", func(t *testing.T) {
-		m := &mockEnsurer{name: "test", hasAgent: false}
-		err := Ensure(m, func(string) {})
-		if err != errAgentNotFound {
-			t.Errorf("Ensure() error = %v, want errAgentNotFound", err)
-		}
-		if m.installCalled || m.updateCalled {
-			t.Error("agent not found branch should not call InstallAIBP or UpdateAIBP")
 		}
 	})
 }

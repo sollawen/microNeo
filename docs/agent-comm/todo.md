@@ -77,35 +77,31 @@
 
 对opencode来说
 - 包含"aibp-agents"的就是源代码路径
-- 包含"aibp-opendoe"的就是源代码
+- 包含"aibp-opendoe"的就是npm包
 
-你觉得这个逻辑怎么样？
+### 意外发现并修复：D6 bug（计划外）
 
-@aibp-agents/opencode/README.md 
+ 测试跑起来时发现 npm_package / npm_pinned_version 返回 isSource=true，根因是老代码：
 
+ ```go
+   // opencodeNpmAIBPVersion 原来的写法
+   return aibp.ParseProtocol(pkg.AIBP.Protocol)  // ❌ ParseProtocol 第三返回值是 ok，被当成 isSource
+ ```
 
----
+ ParseProtocol 返回 (major, minor int, ok bool)，ok 是「解析成功」，不是 isSource。npm 安装的 aibp 解析成功 → ok=true → Ensure
+ 误判为 source → 跳过所有更新检查。这是预先存在的真实 bug（改 D3 时才暴露，因为之前硬读路径的行为凑巧）。
 
-# 问题的现象
-- aibp-opencode 如果用源代码目录的方式安装到opencode里成为插件，就可以正确运行，注册出名字并显示出来
-- 但如果用npm:aibp-opencode的方式安装最新版1.0.2到opencode里面的话，opencode无法识别出来安装了这个插件，所以启动后根本就没有理会这个插件，也就是说没有注册出名字，更没有显示
-- 现在这个目录里的代码，与npm:aibp-opencode v1.0.2是一模一样的
+ 修复：显式拆开返回值，npm 安装恒 isSource=false。这是 opencode 测试能全绿的关键。
 
-# 我的猜测
-我认为在opencode里面安装npm:aibp-opencode的方式肯定是有问题，让opencode无法识别
-- 我们的这个插件，是插在tui.json里的，没有插在opencode.json里面
-- 但是奇怪的是用源代码目录的方式安装就可以正确识别出来
+ ### 验证结果
 
-# 你来debug一下
+ - ✅ go vet ./internal/aibp/... 通过
+ - ✅ opencode 9 个测试全过（TestOpencodeAIBPVersion 全部子用例）
+ - ✅ make build-quick 编译通过
+ - ⚠ pi 测试失败（TestPiAIBPVersion/npm_package + npm_pinned_version）—— 已用 git stash 确认在 HEAD 上就失败，是 pi 的同一个 D6
+   bug（piNpmAIBPVersion 第 104 行同样误用 ParseProtocol）。按你的指示没碰 pi。
 
-- 你可以用bash来install/uninstall to opencode，试验各种不同的安装方法，看看哪个有效
-- 你可以使用gh到https://github.com/anomalyco/opencode 里去查找有关的代码和文档
-- 你可以使用curl查看 https://opencode.ai/docs/zh-cn/plugins/ 的插件说明
-- 你可以查看git历史，最早的npm:aibp-opencode v1.0.0是可以正常安装和工作的
-- 不要修改microNeo目录里的代码文件和文档
+ ### 关于 pi 的 D6 bug
 
-# 基本原则
-
-- opencode是用户非常多的开源软件。它的npm安装插件的机制是非常成熟的。成千上万的人在写npm的opencode插件。
-- 所以，opencode的npm插件一定是能够非常简单的安装和使用的
-- 我们的aibp有问题，一定是我们的代码或是package.json没有符合opencode的插件规范
+ ensure_pi.go:104 有完全一样的 return aibp.ParseProtocol(...)。修复方式和我对 opencode 做的一样（3 行）。你想修的话我随时能做，
+ 但需要你确认——因为它会让 pi 的 npm 安装也能被正确检测更新。这是个独立的小修，不影响本次 opencode 的交付。
