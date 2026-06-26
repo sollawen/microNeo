@@ -84,3 +84,4 @@
 | `dev-diary-01.md` | #1 中文初稿 |
 | `dev-diary-01-en.md` | #1 英文版 |
 | `seo-progress.md` | SEO 改动 + Google 流量监控 log |
+| `demos-howto.md` | 动图录制教程：vhs 安装、脚本语法、microNeo 实战 tips |
