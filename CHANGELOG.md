@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2026-06-26
+
+Second minor version after dev2: opencode joins AIBP as the second AI agent receiver available to microNeo; `:check-agent` now covers both pi and opencode; AIBP protocol number upgraded to `aibp-2.0` alongside the registry directory rename (major bump — see compatibility note in Changed).
+
+### Added
+- opencode receiver (`aibp-opencode` npm package): microNeo can now deliver code selections / cursor context to opencode's current conversation, matching aibp-pi behavior. After the plugin loads, the AIBP-allocated name (e.g. `● Bravo`) is shown persistently at the bottom of opencode's TUI, making it easy to identify the current owner in multi-receiver setups.
+- opencode auto-create-session delivery: when opencode has no active session, sending automatically creates a new session and writes the message into the prompt — no need to manually open a conversation first.
+- `:check-agent` now covers opencode: in addition to pi, the command now checks opencode too. If not installed, it prompts to install opencode + the aibp-opencode extension; if installed, it validates protocol version compatibility.
+
+### Changed
+- AIBP protocol number `aibp-1` → `aibp-2.0`: the registry directory was renamed from `microneo-agent-bridge-<UID>` to `aibp-<UID>`. This is an implementation-coupling change (both ends must upgrade in lockstep to keep talking), treated as a major bump by semver convention. **aibp-pi / aibp-opencode 1.0.1+ requires microNeo 1.1.2+; an old microNeo paired with a new agent = silently dropped messages.**
+- `:check-agent` Install / Update flow split: pinned versions and source-tree installations are now handled correctly.
+- Registry json gains an `agent` field: records which agent owns a name (`pi` / `opencode`), making it easy to tell ownership at a glance during troubleshooting. GC behavior is unchanged.
+
+### Fixed
+- `aibp-opencode` self-install / upgrade on the opencode side no longer silently fails in pinned-version, pinned-cache, or `tui.json` mishandle scenarios.
+- After the protocol number upgrade, the envelope V field was not refreshed in sync, causing messages to be silently dropped by the receiver.
+
 ## [1.1.1] - 2026-06-24
 
 ### Added
