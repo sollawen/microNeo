@@ -7,43 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+**Changed**
 - `:check-agent` TUI command migrated to `microneo --check-agent` CLI flag: agent extension self-heal (check / install / update) is now a shell command that prints progress to stdout and exits, rather than a TUI command blocking the editor loop. Run `microneo --check-agent` to verify and self-heal aibp-pi / aibp-opencode extensions for all installed AI agents. The flag works before config/screen init, so it can diagnose even when the config directory is corrupted.
 
-### Fixed
+**Fixed**
 - npm-installed aibp-pi was misidentified as a source install: `piNpmAIBPVersion` transparently forwarded `aibp.ParseProtocol`'s three return values, so the `ok` (parse success) flag was silently repurposed as `isSource`. Any npm install with a parseable protocol got `isSource=true`, short-circuiting all version checks (no update / upgrade prompts ever fired for aibp-pi). Now explicitly drops `ok` and forces `isSource=false`, matching the already-correct `opencodeNpmAIBPVersion`.
 
 ## [1.1.2] - 2026-06-26
 
 Second minor version after dev2: opencode joins AIBP as the second AI agent receiver available to microNeo; `:check-agent` now covers both pi and opencode; AIBP protocol number upgraded to `aibp-2.0` alongside the registry directory rename (major bump — see compatibility note in Changed).
 
-### Added
+**Added**
 - opencode receiver (`aibp-opencode` npm package): microNeo can now deliver code selections / cursor context to opencode's current conversation, matching aibp-pi behavior. After the plugin loads, the AIBP-allocated name (e.g. `● Bravo`) is shown persistently at the bottom of opencode's TUI, making it easy to identify the current owner in multi-receiver setups.
 - opencode auto-create-session delivery: when opencode has no active session, sending automatically creates a new session and writes the message into the prompt — no need to manually open a conversation first.
 - `:check-agent` now covers opencode: in addition to pi, the command now checks opencode too. If not installed, it prompts to install opencode + the aibp-opencode extension; if installed, it validates protocol version compatibility.
 
-### Changed
+**Changed**
 - AIBP protocol number `aibp-1` → `aibp-2.0`: the registry directory was renamed from `microneo-agent-bridge-<UID>` to `aibp-<UID>`. This is an implementation-coupling change (both ends must upgrade in lockstep to keep talking), treated as a major bump by semver convention. **aibp-pi / aibp-opencode 1.0.1+ requires microNeo 1.1.2+; an old microNeo paired with a new agent = silently dropped messages.**
 - `:check-agent` Install / Update flow split: pinned versions and source-tree installations are now handled correctly.
 - Registry json gains an `agent` field: records which agent owns a name (`pi` / `opencode`), making it easy to tell ownership at a glance during troubleshooting. GC behavior is unchanged.
 
-### Fixed
+**Fixed**
 - `aibp-opencode` self-install / upgrade on the opencode side no longer silently fails in pinned-version, pinned-cache, or `tui.json` mishandle scenarios.
 - After the protocol number upgrade, the envelope V field was not refreshed in sync, causing messages to be silently dropped by the receiver.
 
 ## [1.1.1] - 2026-06-24
 
-### Added
+**Added**
 - `InfoBarNow(msg)` helper: synchronous InfoBar refresh during blocking commands. `Ensure` now reports progress via `Reporter` callback — agent init shows `aibp-pi downloading.....` / `installed` / `ready` in real time instead of a frozen screen.
 
-### Changed
+**Changed**
 - `Ensure` signature takes a `Reporter` parameter. `CheckAibpCmd` simplified to one line: `_ = Ensure(PiEnsurer{}, InfoBarNow)`.
 
 ## [1.1.0] - 2026-06-23
 
 dev2 分支合并到 master。这是 microNeo 第一个 minor 版本，引入 microNeo ↔ ai agent 通信的完整闭环：notePane 浮窗 + AIBP 协议 + pi 接收端（`aibp-agents/pi` npm 包）。从此 microNeo 不只是 Markdown 编辑器，而是 ai agent 的"前端外设"。
 
-### Added
+**Added**
 - **AIBP 协议层**（`internal/aibp/`）：microNeo ↔ ai agent 通信的 LSP 式协议。注册表 = `$XDG_RUNTIME_DIR/microneo-agent-bridge-$UID/ai-*.json`；传输 = Unix socket + 逐行 JSON；line/col 1-based 对齐 LLM 工具链。协议版本号单一事实来源（`aibp.Protocol`）。
 - **notePane 浮窗**（`internal/action/notepane.go`）：嵌入式 `*BufPane` + 白名单 bindings（约 80 个安全 action，从根上隔离 `Quit`/`Shell`/`OpenFile` 等危险 action）+ 独立 binding 树 + `BTScratch` 无文件 buffer（关闭即清空）。光标下方定位，主编辑器冻结。
 - **`:check-agent` 命令**（`internal/action/command_neo.go`）：用户主动运行，检查本机是否装了 pi，没装就提示先装；装了但没 aibp-pi 就自动 `pi install npm:aibp-pi`；装了则校验协议版本兼容性（扩展过旧只提示不自动升，microNeo 过旧提示升级）。逻辑通过 `AgentEnsurer` 接口编排，未来接 opencode/claude 只新增 `ensure_<agent>.go` 即可。
@@ -53,109 +53,109 @@ dev2 分支合并到 master。这是 microNeo 第一个 minor 版本，引入 mi
 - **pi 接收端**（`aibp-agents/pi/index.ts`，独立 npm 包 `aibp-pi`）：pi 启动时注册到 AIBP 注册表并监听 Unix socket；收到 microNeo 的报文后解析，把 selection/message/file cursor 转给 pi 的 LLM 工具链。
 - **FloatFrame 浮窗框架**（`internal/action/floatframe.go`）：事件路由与 Display 顺序的集中管理，`SelectPane` 等浮窗通过它统一盖在 notePane 之上，确保鼠标/键盘事件被浮窗优先截获、绘制层叠正确。
 
-### Changed
+**Changed**
 - 主编辑器默认绑定 `Alt-Enter` 从原 micro 默认（`InsertNewline`）改为 `NotePaneOpen`。`internal/action/defaults_{darwin,other}.go` 各加一行。
 - 协议名从早期 `EABP` 重命名为 `AIBP`（`Agent-IDE Bridge Protocol`），代码与文档全量同步；接收端目录从 `aibp-receivers/` 重命名为 `aibp-agents/`；注册表文件前缀从 `receiver-` 改为 `ai-`。
 - `notePane.open()` 改造成 D16 参数化版本：`open(receiver)` 接收显式 receiver 入参，主编辑器打开前先 `aibp.Discover()`，≥2 个 receiver 时通过 SelectPane 让用户选。
 
-### Fixed
+**Fixed**
 - notePane 关闭后 `BufPane.HandleEvent` 内访问 nil buffer 的 panic（D7 v2 修复）：v1 实现依赖 `close()` 时销毁 buffer，但 `open()` 重建 buffer 与 close 时序存在窗口期，会触发 nil 访问。v2 改成 `open()` 总是 `Close` 旧 buffer + `NewBufferFromString` 新 buffer，buffer 生命周期与 isOpen 状态机解耦。
 - FloatFrame 关闭后终端光标残留在前序 pane 上：浮窗关闭前显式调用 `screen.ShowCursor(hideX, hideY)` 把光标藏到屏外，避免与主编辑器光标位置错位。
 - 主编辑器选区在 notePane 发送后不清空，导致下一次发送时 selection 内容与已发送的不一致：发送成功后自动调 `Deselect` 清空主编辑器选区。
 
-### Docs
+**Docs**
 - `docs/agent-comm/` 整目录从 dev2 迁入，含 8 份"说明-*"当前态文档（架构设计 / AIBP / 发送端 / 接收端 / notepane）+ 8 份"Dx"决策文档（D11 名字分配、D12 多 receiver、D13 SelectPane、D14-D16 notePane 演化、D17 `:check-agent`）。README.md 提供"何时读哪份"导航矩阵。
 
 ## [1.0.12] - 2026-06-23
 
-### Added
+**Added**
 - New `--reset-settings` CLI flag: copies the embedded `runtime/settings.json` (all 82 fields including MD extensions) to the user's config directory (`~/.config/microNeo/settings.json`), backing up any existing file to `settings.json.backup` first. Independent from `--clean`, which only does diff-only writes via `WriteSettings`.
 - New docs site at https://sollawen.github.io/microNeo/ powered by mkdocs-material, bilingual EN/ZH, deployed via GitHub Actions. Includes `.github/workflows/deploy-docs.yml`, `mkdocs.yml`, and `docs/website/{en,zh}/index.md`.
 
-### Changed
+**Changed**
 - `runtime/settings.json` is now a complete reference file (JSON5) with inline comments for all 82 fields. Field values sourced from `internal/config/settings.go` + `internal/config/settings_md.go`; comments for the 74 native fields sourced from micro's `runtime/help/options.md`, plus hand-written descriptions for the 7 MD extension fields and `status-separator` (Powerline arrow U+E0B0). 11 fields are marked `[microNeo]` for git-overlay overrides. Layout reorganized into themed groups (theme / UI / Edit / Search / Brace / Files / Clipboard / Terminal / Plugin / Markdown) with English comments.
 - `--options` flag removed; its listing role is subsumed by `--reset-settings` plus the newly-commented `runtime/settings.json` source.
 
-### Fixed
+**Fixed**
 - Docs site no longer 404s at the root URL — `mkdocs-static-i18n` plugin now builds English content at `/` and Chinese at `/zh/`, with the 🌐 language switcher auto-generated in the header.
 
-### Docs
+**Docs**
 - New `docs/MKT/mkdocs-website-plan.md` capturing the mkdocs-material setup decisions (moved from dev2 working notes), including a new section 11 "Decision change history" covering the i18n plugin switch.
 
 ## [1.0.11] - 2026-06-22
 
-### Fixed
+**Fixed**
 - Pasting a large block of text into an empty Markdown file no longer shows only the last `scrollmargin + 1` rows of the buffer. The cursor's vertical relocation in MD files was missing the `end-pin` branch (micro native Relocate branch 4): when the cursor lands near `bEnd` (short buffer / paste / goto-end), the view start was over-pushed toward the end and `coversExtent`'s buffer-end exception then locked the wrong state in place. `relocateVerticalMD` case C now branches on cursor position relative to `bEnd` — middle region keeps the old estimate, end region pins `bEnd` to the viewport bottom — restoring one-to-one alignment with micro's native 4-branch Relocate.
 
 ## [1.0.10] - 2026-06-19
 
-### Fixed
+**Fixed**
 - Multi-cursor display regression in Markdown files: pressing `Shift-Alt-Up/Down` now shows all cursors again, instead of only the last one. Input/delete already worked correctly — only the on-screen rendering of secondary cursors was lost. Introduced in v1.0.6 (screenBuffer refactor).
 
 ## [1.0.9] - 2026-06-19
 
-### Fixed
+**Fixed**
 - Typing at end of last line that triggers a softwrap no longer yanks the cursor to the top of the viewport.
 
 ## [1.0.8] - 2026-06-17
 
-### Fixed
+**Fixed**
 - Pressing ESC in a Markdown file no longer collapses the whole screen back to raw markdown formatting.
 
 ## [1.0.7] - 2026-06-17
 
-### Changed
+**Changed**
 - MD diagnostic log now follows micro's debug switch, off by default in release builds.
 
-### Fixed
+**Fixed**
 - Pressing Enter at the end of a buffer no longer causes incorrect screen scrolling.
 
 ## [1.0.6] - 2026-06-17
 
-### Added
+**Added**
 - Export screen↔buffer coordinate conversion functions.
 
-### Changed
+**Changed**
 - Rewrite MD rendering pipeline to eliminate cursor drift when navigating across table and code-block segments.
 - Improve table rendering and add display-package unit tests.
 
-### Fixed
+**Fixed**
 - Cursor no longer drifts or disappears when navigating across table/code-block segments.
 - Scrolling up no longer hides the cursor or leaves blank regions.
 - Mouse scroll no longer gets stuck or falls back to raw formatting mid-scroll.
 - Continuous ↓ across a table no longer makes the viewport jump.
 - Clicking a table or code-block decoration row no longer jumps the cursor unexpectedly.
 
-### Removed
+**Removed**
 - `MDRender` and `MDRenderIdle` config options (rendering is now unconditional when MD is enabled).
 
 ## [1.0.5] - 2026-06-15
 
-### Changed
+**Changed**
 - Cursor vertical scrolling now works correctly in MD files, including across table and code-block segments.
 - Tweak s-dark colorscheme status line colors.
 
-### Fixed
+**Fixed**
 - End-of-file panic when softwrapping at the last line.
 
-### Removed
+**Removed**
 - Debug log from `initMDConfig`.
 
 ## [1.0.4] - 2026-06-11
 
-### Added
+**Added**
 - Add screen offset reverse lookup function.
 
-### Changed
+**Changed**
 - Screen row → buffer line lookup now uses O(1) flat array.
 
-### Fixed
+**Fixed**
 - Code-block borders now map to real buffer lines.
 
 ## [1.0.3] - 2026-06-09
 
-### Changed
+**Changed**
 - Tweak s-light colors.
 
-### Fixed
+**Fixed**
 - Inline-code background color now renders correctly in all renderers.
