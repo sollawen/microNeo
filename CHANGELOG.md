@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- `:check-agent` TUI command migrated to `microneo --check-agent` CLI flag: agent extension self-heal (check / install / update) is now a shell command that prints progress to stdout and exits, rather than a TUI command blocking the editor loop. Run `microneo --check-agent` to verify and self-heal aibp-pi / aibp-opencode extensions for all installed AI agents. The flag works before config/screen init, so it can diagnose even when the config directory is corrupted.
+
 ## [1.1.2] - 2026-06-26
 
 Second minor version after dev2: opencode joins AIBP as the second AI agent receiver available to microNeo; `:check-agent` now covers both pi and opencode; AIBP protocol number upgraded to `aibp-2.0` alongside the registry directory rename (major bump — see compatibility note in Changed).

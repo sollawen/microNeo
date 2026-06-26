@@ -7,12 +7,12 @@ import (
 	"github.com/micro-editor/micro/v2/internal/aibp"
 )
 
-// AllEnsurers 注册所有已知 agent 的 aibp 扩展自举实现。
+// allEnsurers 注册所有已知 agent 的 aibp 扩展自举实现。
 // 新加 agent 只需追加一行：把对应的 <Agent>Ensurer{} 加进 slice。
 //
-// 注意：AllEnsurers 与 Pi/Opencode/... 文件的相对顺序无所谓，
+// 注意：allEnsurers 与 Pi/Opencode/... 文件的相对顺序无所谓，
 // 但建议把"主要 / 优先 / 更普及"的 agent 放前面（D11 §4.1 名字池顺序逻辑类似）。
-var AllEnsurers = []AgentEnsurer{
+var allEnsurers = []AgentEnsurer{
 	PiEnsurer{},
 	OpencodeEnsurer{},
 }
@@ -22,8 +22,27 @@ var (
 	errMicroNeoOutdated = errors.New("aibp 扩展协议版本较新，请升级 microNeo")
 )
 
+// EnsureAll 对所有已注册 agent 执行 Ensure 编排（跳过未安装的）。
+// report 透传给各 agent 的 Ensure；nil 则静默。
+// 返回 hadError：是否有 agent 出错，调用方据此决定退出码。
+func EnsureAll(report Reporter) (hadError bool) {
+	if report == nil {
+		report = func(string) {}
+	}
+	for _, e := range allEnsurers {
+		if !e.HasAgent() {
+			report(e.AgentName() + ": not installed, skipping")
+			continue
+		}
+		if err := Ensure(e, report); err != nil {
+			hadError = true
+		}
+	}
+	return
+}
+
 // Reporter 汇报进度 / 状态消息的回调。
-// 签名的格式由调用方（action/command_neo.go InfoBarNow）定义。
+// 签名格式由调用方（cmd/micro/micro_neo.go 的 fmt.Println）定义。
 type Reporter func(msg string)
 
 // AgentEnsurer 描述一个 agent 的 aibp 扩展自举。
@@ -46,8 +65,8 @@ type AgentEnsurer interface {
 }
 
 // Ensure 是统一编排逻辑，各 ensure_<agent>.go 共用。
-// 返回的 error 由调用方（action/command_neo.go）决定如何交互（InfoBar 提示等）——
-// 本函数不预设交互模式，不依赖 action 包。
+// 返回的 error 由调用方（cmd/micro/micro_neo.go 的 DoCheckAgent）决定如何处理（退出码等）——
+// 本函数不预设交互模式，不依赖任何 UI / action 包。
 //
 // report 会在每一步业务进展和每一种结果时被调用，调用方负责渲染到 UI。
 // 如果 report 为 nil，则静默执行。
@@ -57,7 +76,7 @@ func Ensure(e AgentEnsurer, report Reporter) error {
 	}
 	prefix := "aibp-" + e.AgentName()
 	report("checking " + e.AgentName() + " ...")
-	if !e.HasAgent() { // 兜底；CheckAibpCmd 已先过滤
+	if !e.HasAgent() { // 兜底；EnsureAll 已先过滤
 		report(e.AgentName() + " not found")
 		return errAgentNotFound
 	}

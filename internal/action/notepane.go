@@ -139,7 +139,7 @@ func NotePaneSwitchReceiver(h *BufPane) bool {
 
 	// 2. case 0：提示用户
 	if len(receivers) == 0 {
-		InfoBar.Message("✗ no receiver found")
+		InfoBar.Message(`✗ no receiver — run "microneo --check-agent"`)
 		return false
 	}
 
@@ -207,7 +207,7 @@ func notePaneOpen(h *BufPane) bool {
 		return false
 	}
 	if len(receivers) == 0 {
-		InfoBar.Message("✗ no receiver found")
+		InfoBar.Message(`✗ no receiver — run "microneo --check-agent"`)
 		return false
 	}
 

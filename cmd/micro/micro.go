@@ -37,6 +37,7 @@ var (
 	flagProfile       = flag.Bool("profile", false, "Enable CPU profiling (writes profile info to ./micro.prof)")
 	flagPlugin        = flag.String("plugin", "", "Plugin command")
 	flagClean         = flag.Bool("clean", false, "Clean configuration directory")
+	flagCheckAgent    = flag.Bool("check-agent", false, "Check and self-heal aibp extensions for installed AI agents (pi/opencode), then exit")
 	optionFlags   map[string]*string
 
 	sighup chan os.Signal
@@ -51,6 +52,10 @@ func InitFlags() {
 		fmt.Println("       micro [OPTION]... [FILE[:LINE[:COL]]]...  (only if the `parsecursor` option is enabled)")
 		fmt.Println("-clean")
 		fmt.Println("    \tClean the configuration directory and exit")
+		fmt.Println("-check-agent")
+		fmt.Println("    \tCheck aibp extensions for all installed AI agents (pi, opencode).")
+		fmt.Println("    \tInstalls missing extensions, updates outdated ones, prints status to stdout, and exits.")
+		fmt.Println("    \tDoes not open the editor.")
 		fmt.Println("-config-dir dir")
 		fmt.Println("    \tSpecify a custom location for the configuration directory")
 		fmt.Println("FILE:LINE[:COL] (only if the `parsecursor` option is enabled)")
@@ -289,6 +294,7 @@ func main() {
 	var err error
 
 	InitFlags()
+	DoCheckAgent() // -check-agent early exit; zero config/screen dependency
 
 	if *flagProfile {
 		f, err := os.Create("micro.prof")

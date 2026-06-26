@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/micro-editor/micro/v2/internal/aibp/ensure_agents"
 	"github.com/micro-editor/micro/v2/internal/config"
 	rt "github.com/micro-editor/micro/v2/runtime"
 )
@@ -23,4 +24,19 @@ func ResetSettings() {
 	}
 	os.WriteFile(dst, data, 0644)
 	fmt.Println("Wrote", dst)
+}
+
+// DoCheckAgent executes -check-agent: runs aibp extension self-heal for all
+// installed agents, printing progress to stdout. Exits when done, never enters TUI.
+// Placed before config/screen init — ensure_agents has zero dependency on either,
+// so it works even if the config is corrupted.
+func DoCheckAgent() {
+	if !*flagCheckAgent {
+		return
+	}
+	hadErr := ensure_agents.EnsureAll(func(msg string) { fmt.Println(msg) })
+	if hadErr {
+		exit(1)
+	}
+	exit(0)
 }
