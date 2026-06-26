@@ -32,9 +32,10 @@ func (PiEnsurer) HasAgent() bool {
 // 注意：设了环境变量时 pi 直接用展开结果作 agent 目录，不附加 .pi/agent（与未设时的 fallback 不同）。
 //
 // 派生路径（与 pi 读写一致）：
-//   settings.json:                   <agentDir>/settings.json
-//   aibp 扩展的 package.json:        <agentDir>/npm/node_modules/aibp-pi/package.json
-//                                    （npm: spec 走 agentDir/npm，见 pi package-manager.js:1597）
+//
+//	settings.json:                   <agentDir>/settings.json
+//	aibp 扩展的 package.json:        <agentDir>/npm/node_modules/aibp-pi/package.json
+//	                                 （npm: spec 走 agentDir/npm，见 pi package-manager.js:1597）
 func piAgentDir() string {
 	if env := os.Getenv("PI_CODING_AGENT_DIR"); env != "" {
 		if env == "~" {
@@ -61,7 +62,9 @@ func piReadSetting() []string {
 	if err != nil {
 		return nil
 	}
-	var s struct{ Packages []string `json:"packages"` }
+	var s struct {
+		Packages []string `json:"packages"`
+	}
 	if err := json.Unmarshal(b, &s); err != nil {
 		return nil
 	}
@@ -93,7 +96,9 @@ func piNpmAIBPVersion() (int, int, bool) {
 		return 0, 0, false
 	}
 	var pkg struct {
-		AIBP struct{ Protocol string `json:"protocol"` } `json:"aibp"`
+		AIBP struct {
+			Protocol string `json:"protocol"`
+		} `json:"aibp"`
 	}
 	if err := json.Unmarshal(b, &pkg); err != nil {
 		return 0, 0, false
@@ -101,7 +106,11 @@ func piNpmAIBPVersion() (int, int, bool) {
 	if pkg.AIBP.Protocol == "" {
 		return 0, 0, false
 	}
-	return aibp.ParseProtocol(pkg.AIBP.Protocol)
+	maj, min, ok := aibp.ParseProtocol(pkg.AIBP.Protocol)
+	if !ok {
+		return 0, 0, false
+	}
+	return maj, min, false // npm 安装：isSource 恒为 false（与 opencodeNpmAIBPVersion 同构，防 ParseProtocol 的 ok 被当 isSource）
 }
 
 func (PiEnsurer) InstallAIBP() error {
