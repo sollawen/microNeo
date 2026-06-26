@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.3] - 2026-06-26
 
 **Changed**
 - `:check-agent` TUI command migrated to `microneo --check-agent` CLI flag: agent extension self-heal (check / install / update) is now a shell command that prints progress to stdout and exits, rather than a TUI command blocking the editor loop. Run `microneo --check-agent` to verify and self-heal aibp-pi / aibp-opencode extensions for all installed AI agents. The flag works before config/screen init, so it can diagnose even when the config directory is corrupted.
