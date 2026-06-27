@@ -10,6 +10,7 @@ site_dir: site
 theme:
   name: material
   language: en
+  custom_dir: docs/website/_overrides
   features:
     - navigation.tracking
     - navigation.top
