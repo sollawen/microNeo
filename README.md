@@ -11,7 +11,7 @@
 Every Markdown editor splits your screen — source left, preview right.
 Terminal screens aren't wide to begin with. **microNeo renders and edits in the same window.**
 
-<img src="./assets/microneo-demo2.png" width="70%" alt="microNeo terminal Markdown editor showing rendered README.md with live preview and syntax highlighting"/>
+<img src="./assets/markdown-normal.gif" width="70%" alt="microNeo terminal Markdown editor live demo: rendered README.md with live preview and syntax highlighting"/>
 
 - Click anywhere to edit the source
 - See the result instantly, no split panes

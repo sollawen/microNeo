@@ -10,7 +10,6 @@ This line has ***bold italic text*** (if terminal supports).
 Nested plain text with **bold containing `inline code` inside** various combinations.
 Also plain `code` and **bold** and *italic* mixed together on the same line.
 
-
 # Lists
 
 - List item 1
