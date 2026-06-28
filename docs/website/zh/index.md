@@ -24,7 +24,8 @@ AI就知道你是对哪段文字发表了意见了。
 curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/install.sh | sh
 ```
 
-*完美支持Linux/Mac。Windows需要终端命令行的运行环境，没有实测。*
+- 完美支持Linux/Mac。Windows需要终端命令行的运行环境，没有实测
+- 请查阅 [QuickStart](quick-start.md) 开始使用 MicroNeo
 
 ---
 
