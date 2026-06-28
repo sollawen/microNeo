@@ -49,6 +49,9 @@ markdown_extensions:
   - pymdownx.tabbed:
       alternate_style: true
 
+extra_css:
+  - stylesheets/extra.css
+
 plugins:
   - search
   - i18n:
@@ -57,12 +60,15 @@ plugins:
         - locale: en
           name: English
           build: true
-          default: true
         - locale: zh
           name: 中文
           build: true
+          default: true
           nav_translations:
-            Home: 首页
+            Introduction: 简介
+            Quick Start: 快速开始
+            Config: 配置
+            FAQ: 常见问题
 
 # extra.alternate 由 i18n 插件自动生成，无需手写
 extra:
@@ -71,4 +77,7 @@ extra:
       link: https://github.com/sollawen/microNeo
 
 nav:
-  - Home: index.md
+  - Introduction: index.md
+  - Quick Start: quick-start.md
+  - Config: config.md
+  - FAQ: faq.md

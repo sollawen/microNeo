@@ -1,0 +1,9 @@
+/* 各级标题统一粗体（Material 主题默认 h1/h2 是 300 细体，不符合预期） */
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4,
+.md-typeset h5,
+.md-typeset h6 {
+  font-weight: 700;
+}
