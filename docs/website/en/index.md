@@ -6,11 +6,11 @@
 [![awesome-tuis](https://awesome.re/mentioned-badge.svg)](https://github.com/rothgar/awesome-tuis)
 [![中文](https://img.shields.io/badge/📖-中文-red)](https://sollawen.github.io/microNeo/)
 
-## The terminal editor for discussing plans with AI
+## The terminal editor that can discuss with AI agents
 
-In the era of AI coding, I almost never write code by hand anymore. Instead, I spend most of my time discussing plans and strategies with the AI. I often need to tell the AI exactly which part of a plan I have thoughts about — something traditional editors can hardly do.
+Since vibe coding, I write code by hand less and less, and spend more and more time discussing with the AI. I always need to tell the AI exactly which part of a document I have thoughts about. I have to ctrl-c/ctrl-v all day long — it's given my fingers tendonitis.
 
-So here comes **microNeo AI Partner**.
+So here comes **microNeo, an AI Partner**.
 
 - Open a markdown document with microNeo and select the text you want to comment on
 - Press `alt-enter` to open the input box, and write down your thoughts
@@ -33,10 +33,12 @@ curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/install.sh
 
 ---
 
-## microNeo Highlights
-- Full-featured terminal editor with syntax highlighting for 100+ languages and mouse support. Shortcuts are similar to VS Code.
+## Features
+
+- Full-featured terminal editor with syntax highlighting for 100+ languages 
+- Communicate with AI agents to send your thoughts to the AI. Supports multiple AI agents.
 - Markdown real-time rendering in the same window — comfortable for reading AI-written plan documents.
-- Communicate with AI agents to send your thoughts to the AI. Supports talking to multiple AIs at once.
+- Mouse support. Shortcuts are similar to VS Code.
 - Small and fast — only 13 MB.
 
 
@@ -45,7 +47,7 @@ curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/install.sh
 
 **Relationship with Micro**
 
-microNeo originated from [Micro](https://github.com/micro-editor/micro). The codebase inherits Micro's editor architecture (zero dependencies, intuitive operation, Lua plugins, mouse support) and adds many features for the AI era on top of it.
+microNeo originated from [Micro](https://github.com/micro-editor/micro). The codebase inherits Micro's editor architecture (zero dependencies, intuitive operation, Lua plugins, mouse support) and adds many features for vibe coding on top of it.
 
 microNeo is now developed independently, with the goal of becoming the best AI agent partner in the terminal.
 
