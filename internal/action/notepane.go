@@ -40,6 +40,12 @@ var TheNotePane *NotePane
 // 接收端 fallback 到 @path :lineA-lineB 让 LLM 自己读文件。
 const MaxSelectionLines = 30
 
+// rightMargin 是 notePane 右侧留白（字符）。
+// 左侧不写死，而是对齐主编辑器正文左边缘（BufView().X），
+// 这样 notePane 视觉上像是正文延伸出来的输入框；
+// 主编辑器关掉 ruler 时正文贴左边缘，notePane 也跟着贴左边缘。
+const rightMargin = 4
+
 // NotePaneBindings is the whitelist KeyTree for NotePane
 var NotePaneBindings *KeyTree
 
@@ -475,8 +481,11 @@ func (n *NotePane) reposition() {
 	lowestRow := n.lowestCursorScreenRow(bw, view)
 
 	// 2. Calculate NotePane position
-	n.x = view.X
-	n.width = view.Width
+	// 左边缘对齐主编辑器正文左边缘（含 gutter：行号/diffgutter/message 栏），
+	// 这样 notePane 像是正文区延伸出来的输入框。
+	textX := pane.BWindow.BufView().X
+	n.x = textX
+	n.width = (view.X + view.Width) - textX - rightMargin
 	notePaneTopBorder := lowestRow + 1
 	notePaneBottomBorder := notePaneTopBorder + n.height + 1
 
