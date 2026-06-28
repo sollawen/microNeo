@@ -27,7 +27,7 @@ func (h *BufPane) ThemeCmd(args []string) {
 	// anchor.Y = -1 是 FloatFrame sentinel：紧贴 statusLine 上方 1 行
 	anchor := Pos{X: 0, Y: -1}
 
-	NewSelectPane().Open(items, "Themes", anchor, tcell.Style{}, 5, false, func(picked *string) {
+	NewSelectPane().Open(items, "Themes", anchor, tcell.Style{}, 8, false, func(picked *string) {
 		if picked == nil {
 			return // 用户按 Esc / resize，关闭即结束
 		}
