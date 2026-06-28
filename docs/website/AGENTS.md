@@ -44,3 +44,15 @@ pkill -f "mkdocs serve"
 - 监听机制：mkdocs 用轮询（PollingObserver，0.5 秒一次），**不是** fsevents。这是 mkdocs 源码写死的，没有开关切换。对本项目完全够用。
 - 文件改动后约 0.5 秒检测到，再 0.3 秒重建完成。
 - `--dirty` 模式改了 `mkdocs.yml` / nav / 新增页面时，要重启服务才生效。
+
+## GitHub README 视频：必须用 .mov
+
+GitHub README 用 `<img src="./repo_file">` 渲染视频，**认 `.mov` 后缀，与 codec 无关**。mp4 不行，mov 行（H.264 / H.265 都行）。
+
+从源 mp4 remux 出 mov（不重编码）：
+
+```bash
+ffmpeg -i xxx.mp4 -c copy -tag:v hvc1 -f mov xxx.mov
+```
+
+本项目：`assets/aibp-opencode-hevc.mov`（README 用）/ `aibp-opencode_h265_x265_crf28.mp4`（网站 `<video>` 用）。换新演示时两个一起更新。
