@@ -399,6 +399,7 @@ func main() {
 
 	action.InitBindings()
 	action.InitCommands()
+	action.InitNeoCommands()
 
 	timerChan = make(chan func())
 
