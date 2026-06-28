@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4] - 2026-06-28
+
+**Added**
+- `:theme` command: VS Code-style colorscheme selector popup. Replaces the legacy `set colorscheme <name>` flow — `↑/↓` browse, `Enter` picks, `Esc` cancels. The old command still works.
+- New `default` 16-color ANSI colorscheme.
+
+**Changed**
+- Bundled colorschemes slimmed from 27 to 9 (kept the most representative; 18 redundant ones removed).
+- SelectPane supports list scrolling (with `▲▼` overflow indicators) and caller-configured viewport height / wrap behavior.
+- FloatFrame supports bottom-anchored popups via negative `anchor.Y`, so popups can snap to just above the status line.
+- NotePane left edge now aligns with the main editor text area.
+
+**Docs**
+- Website: added Theme and Syntax Highlighting sections, full EN translation, restyled header.
+- Language switcher replaced with a one-click `中文/English` chip.
+- README: replaced screenshot with a live demo video, added Chinese-docs badge.
+
 ## [1.1.3] - 2026-06-26
 
 **Changed**
