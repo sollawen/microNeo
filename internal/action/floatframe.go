@@ -105,7 +105,12 @@ func (f *FloatFrame) Open(
 	}
 
 	// 通过几何检查，准备打开
-	f.anchor = anchor
+	ax, ay := anchor.X, anchor.Y
+	if ay < 0 {
+		ay = bottomLimit + ay + 1 // sentinel：负数 = statusLine 上方 |ay| 行（bottomLimit 已在失败前置检查处算好）
+	}
+
+	f.anchor = Pos{X: ax, Y: ay}
 	f.contentSize = contentSize
 	f.title = title
 	if frameColor == (tcell.Style{}) {
@@ -117,7 +122,7 @@ func (f *FloatFrame) Open(
 
 	f.outerW = outerW
 	f.outerH = outerH
-	f.fx, f.fy = expandAnchor(anchor.X, anchor.Y, outerW, outerH)
+	f.fx, f.fy = expandAnchor(ax, ay, outerW, outerH)
 	f.isOpen = true
 	screen.Redraw()
 	return true
