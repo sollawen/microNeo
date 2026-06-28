@@ -164,7 +164,7 @@ func NotePaneSwitchReceiver(h *BufPane) bool {
 		names[i] = r.Name
 	}
 	// 锚点 = notePane 左上角。展开方向交给 FloatFrame 自适应（D13）。
-	NewSelectPane().Open(names, "Receivers", Pos{X: n.x, Y: n.y}, tcell.Style{}, func(s *string) {
+	NewSelectPane().Open(names, "Receivers", Pos{X: n.x, Y: n.y}, tcell.Style{}, 10, true, func(s *string) {
 		if s == nil {
 			// Esc：selectedReceiver 不变（伪代码明确要求）
 			return
@@ -244,7 +244,7 @@ func notePaneOpen(h *BufPane) bool {
 	for i, r := range receivers {
 		names[i] = r.Name
 	}
-	NewSelectPane().Open(names, "Receiver", Pos{X: ax, Y: ay}, tcell.Style{}, func(s *string) {
+	NewSelectPane().Open(names, "Receiver", Pos{X: ax, Y: ay}, tcell.Style{}, 10, true, func(s *string) {
 		if s == nil {
 			// Esc：清零缓存（走到此分支时缓存已失效，决策 14）
 			n.selectedReceiver = aibp.RegFile{}
