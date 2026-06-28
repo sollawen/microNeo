@@ -3,6 +3,7 @@ package action
 import (
 	"sort"
 
+	"github.com/micro-editor/micro/v2/internal/screen"
 	"github.com/micro-editor/tcell/v2"
 )
 
@@ -31,11 +32,14 @@ func (h *BufPane) ThemeCmd(args []string) {
 			return // 用户按 Esc / resize，关闭即结束
 		}
 		// 选中 → 切换并持久化（writeToFile=true）
+		// SetGlobalOption 内部会调 InitColorscheme + UpdateRules，但不显式 redraw；
+		// 原生 set colorscheme 靠主循环自然渲染，这里显式补一次避免依赖时序假设。
 		err := SetGlobalOption("colorscheme", *picked, true)
 		if err != nil {
 			InfoBar.Error(err)
 		} else {
 			InfoBar.Message("theme: ", *picked)
+			screen.Redraw() // 只在切换成功后刷新；err 时 colorscheme 未变，不刷新
 		}
 	})
 }
