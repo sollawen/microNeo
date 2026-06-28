@@ -7,3 +7,24 @@
 .md-typeset h6 {
   font-weight: 700;
 }
+
+/* 顶部导航条：覆盖 Material 默认的 primary（indigo）色
+   .md-header 背景用 --md-primary-fg-color，文字/图标用 --md-primary-bg-color。
+   只在 .md-header 作用域内覆盖，避免影响其它用到 primary 的元素。
+   - 浅色模式：浅灰底 + 黑字
+   - 暗色模式：深灰底 + 白字 */
+[data-md-color-scheme="default"] .md-header {
+  --md-primary-fg-color: #ebebeb;
+  --md-primary-fg-color--light: #f4f4f4;
+  --md-primary-fg-color--dark: #cccccc;
+  --md-primary-bg-color: #000000;
+  --md-primary-bg-color--light: #525252;
+}
+
+[data-md-color-scheme="slate"] .md-header {
+  --md-primary-fg-color: #2b2b2b;
+  --md-primary-fg-color--light: #383838;
+  --md-primary-fg-color--dark: #1f1f1f;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: #b0b0b0;
+}

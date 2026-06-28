@@ -18,23 +18,26 @@ microneo --check-agent
 **第三步：用microNeo打开你想和AI讨论的那个文件**
 
 ```bash
-# 打开任意文件，可以是markdown，也可以是程序代码,json,yaml，任意文本文件
 microneo README.md
 ```
+
+- 打开任意文件，可以是markdown，也可以是程序代码、json、yaml等任意文本文件
+- 和其它编辑器一样对文件进行编辑，快捷键与VScode类似
+- `Alt-Enter`在当前光标处打开与AI的对话框，再按`Alt-Enter`发送消息给 AI agent
 
 ---
 
 ## 常用快捷键
 
-| 操作         | 快捷键      | 操作         | 快捷键      |
-| ------------ | ---------- | ------------ | ---------- |
-| 保存         | `Ctrl-S`   | 撤销         | `Ctrl-Z`   |
-| 退出         | `Ctrl-Q`   | 搜索         | `Ctrl-F`   |
-| Select | `Shift-up/down` | 给AI发送消息 | `Alt-Enter` |
-| 命令模式     | `Ctrl-E`   |              |            |
+| 操作         | 快捷键      | 操作 | 快捷键 | 操作 | 快捷键 |
+| ---- | ----- | ---- | ---- | -----|----- |
+| 保存         | Ctrl-S   | 撤销         | Ctrl-Z   | 复制 | Ctrl-C |
+| 退出         | Ctrl-Q   | 搜索         | Ctrl-F   | 剪切 | Ctrl-X |
+| Select | Shift-Up/Down | 给AI发送消息 | Alt-Enter | 粘贴 | Ctrl-V |
+| 命令模式     | Ctrl-E   | Help    |  Ctrl-G     |
 
 - 大部份快捷键与VScode相同
-- 按 `Ctrl-E` 后输入 `help` 查看更多快捷键和命令。
+- 按 `Ctrl-G` 查看更多快捷键和命令。
 
 ---
 
@@ -44,6 +47,6 @@ microneo README.md
 export EDITOR=microneo
 ```
 
-- 与 `Claude Code`、`Yazi` 等尊重 `$EDITOR` 的工具无缝协作。
+- 与 `Claude Code`、`Yazi` 等使用 `$EDITOR` 的工具无缝协作。
 - microNeo非常小巧和快速，很适合做为这些工具的默认编辑器
 
