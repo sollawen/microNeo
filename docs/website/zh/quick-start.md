@@ -29,7 +29,7 @@ microneo README.md
 - 打开任意文件，可以是markdown，也可以是程序代码、json、yaml等任意文本文件
 - 和其它编辑器一样对文件进行编辑，快捷键与VScode类似
 - `Alt-Enter` 在当前光标处打开与AI的对话框，再按 `Alt-Enter` 发送消息给 AI agent
-- 如果你同时运行着多个Ai agent，那么在消息框里面按 `Ant-i` 选择你想对话的那个agent
+- 如果你同时运行着多个Ai agent，那么在消息框里面按 `Alt-i` 选择你想对话的那个agent
 
 ---
 

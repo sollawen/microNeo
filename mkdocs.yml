@@ -16,6 +16,7 @@ theme:
   features:
     - navigation.tracking
     - navigation.top
+    - navigation.expand
     - search.highlight
     - search.suggest
     - content.code.copy
@@ -69,6 +70,8 @@ plugins:
           nav_translations:
             Introduction: 简介
             Quick Start: 快速开始
+            Settings: Settings.json
+            Syntax: 语法高亮
             Config: 配置
             FAQ: 常见问题
 
@@ -81,5 +84,8 @@ extra:
 nav:
   - Introduction: index.md
   - Quick Start: quick-start.md
-  - Config: config.md
+  - Config:
+      - Settings.json: settings.md
+      - theme.md
+      - Syntax: syntax.md
   - FAQ: faq.md

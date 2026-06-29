@@ -28,3 +28,34 @@
   --md-primary-bg-color: #ffffff;
   --md-primary-bg-color--light: #b0b0b0;
 }
+
+/* 收窄左侧导航栏（Material 默认 12rem，本项目目录项较短，缩到 9rem）
+   只在桌面端（≥ 1220px）生效，移动端 drawer 保持原宽度 */
+@media screen and (min-width: 76.25em) {
+  .md-sidebar--primary {
+    width: 7rem;
+  }
+}
+
+/* 压缩 list 行间距（Material 默认 list-item 垂直间距偏松，
+   有序/无序都调小，保持紧凑）*/
+.md-typeset ul li,
+.md-typeset ol li {
+  margin-block: 0.1em;
+}
+
+/* 放大表格字号（Material 默认表格 0.64rem 偏小，提升到 0.74rem）
+   同时压缩行高（默认偏松，调小 td/th padding）*/
+.md-typeset table:not([class]) {
+  font-size: 0.74rem;
+}
+.md-typeset table:not([class]) th,
+.md-typeset table:not([class]) td {
+  padding-block: 0.25em;
+}
+
+/* 表格加上完整边框（Material 默认只有表头底线、无竖线，加上完整网格更清晰）*/
+.md-typeset table:not([class]) th,
+.md-typeset table:not([class]) td {
+  border: 1px solid var(--md-default-fg-color--lightest);
+}

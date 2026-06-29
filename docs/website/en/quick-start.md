@@ -6,13 +6,17 @@
 curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/tools/install.sh | sh
 ```
 
+> Works perfectly on Linux/Mac. Windows requires full shell support and hasn't been tested.
+
 **Step 2: Detect which AI agents you have**
 
 ```bash
 microneo --check-agent
 ```
 
-> You only need to run this once — microNeo will remember which AIs are installed on your machine. Of course, if you install another AI agent later, just run this command again.
+- You only need to run this once — microNeo will remember which AIs are installed on your machine.
+- Of course, if you install another AI agent later, just run this command again.
+- Currently supports OpenCode and Pi; support for Claude is under development...
 
 **Step 3: Open the file you want to discuss with the AI**
 
@@ -23,6 +27,7 @@ microneo README.md
 - Open any file — a Markdown doc, source code, JSON, YAML, or any text file.
 - Edit the file like in any other editor; shortcuts are similar to VS Code.
 - `Alt-Enter` opens a dialog with the AI at the current cursor; press `Alt-Enter` again to send the message to the AI agent.
+- If you're running multiple AI agents at the same time, press `Alt-I` in the message box to pick the one you want to talk to.
 
 ---
 
