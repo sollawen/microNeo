@@ -17,7 +17,7 @@ So here comes **microNeo, an AI Partner**.
 - Press `alt-enter` to open the input box, and write down your thoughts
 - Press `alt-enter` again to send it to the AI. The AI will then receive your comment.
 
-<img src="https://sollawen.github.io/microNeo/assets/aibp-opencode.mp4">
+![demo](./assets/aibp-opencode.gif)
 
 Currently supports `pi` and `opencode`; support for `claude cli` is under development.
 
