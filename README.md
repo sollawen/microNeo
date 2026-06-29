@@ -5,7 +5,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.19+-00ADD8.svg)](https://golang.org/)
 [![Single Binary](https://img.shields.io/badge/single%20binary-yes-green.svg)]()
 [![awesome-tuis](https://awesome.re/mentioned-badge.svg)](https://github.com/rothgar/awesome-tuis)
-[![中文](https://img.shields.io/badge/📖-中文-red)](https://sollawen.github.io/microNeo/)
+[![中文说明](https://img.shields.io/badge/📖-中文说明-red)](https://sollawen.github.io/microNeo/)
 
 ## The terminal editor that can discuss with AI agents
 
@@ -17,7 +17,7 @@ So here comes **microNeo, an AI Partner**.
 - Press `alt-enter` to open the input box, and write down your thoughts
 - Press `alt-enter` again to send it to the AI. The AI will then receive your comment.
 
-![demo](./assets/aibp-opencode.gif)
+[![demo](./assets/aibp-opencode.gif)](https://sollawen.github.io/microNeo/)
 
 Currently supports `pi` and `opencode`; support for `claude cli` is under development.
 
