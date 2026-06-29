@@ -3,7 +3,7 @@
 
 {% for alt in config.extra.alternate %}
   {% if alt.lang == target_lang %}
-    <a href="{{ alt.link }}"
+    <a href="{{ alt.link | url }}"
        hreflang="{{ alt.lang }}"
        class="md-header__button"
        aria-label="Switch to {{ alt.name }}"
