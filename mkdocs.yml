@@ -6,6 +6,8 @@ repo_name: sollawen/microNeo
 edit_uri: edit/master/docs/website/
 docs_dir: docs/website
 site_dir: site
+exclude_docs: |
+  AGENTS.md
 
 theme:
   name: material

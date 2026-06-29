@@ -16,7 +16,7 @@ AI编程之后，我几乎不再手敲代码了，而是把大部份时间花在
 - 按`alt-enter`打开输入框，在里面写下你的意见
 - 写好之后，再次按`alt-enter`发送给AI。AI就收到你的意见了。
 
-<video src="/microNeo/assets/aibp-opencode_h265_x265_crf28.mp4" controls autoplay muted loop playsinline style="width:100%;max-width:880px;border-radius:8px"></video>
+<video src="/microNeo/assets/aibp-opencode.mp4" controls autoplay muted loop playsinline style="width:100%;max-width:880px;border-radius:8px"></video>
 
 目前支持`pi`和`opencode`，对`claude cli`的支持正在开发中。
 
