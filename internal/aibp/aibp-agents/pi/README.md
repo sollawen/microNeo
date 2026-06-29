@@ -14,10 +14,10 @@ microNeo 是基于 [micro](https://github.com/zyedidia/micro) 增强的终端编
 
 ### 方式一：本地源码路径（开发推荐）
 
-源码在 `aibp-agents/pi/`，直接加载 `index.ts`，无需预编译。
+源码在 `internal/aibp/aibp-agents/pi/`（在 microNeo 仓库内），直接加载 `index.ts`，无需预编译。
 
 ```bash
-pi install /path/to/microNeo/aibp-agents/pi
+pi install /path/to/microNeo/internal/aibp/aibp-agents/pi
 ```
 
 会写入 `~/.pi/agent/settings.json` 的 `packages` 字段：
@@ -26,7 +26,7 @@ pi install /path/to/microNeo/aibp-agents/pi
 {
   "packages": [
     // ... 已有项 ...
-    "/Users/you/path/to/microNeo/aibp-agents/pi"
+    "/Users/you/path/to/microNeo/internal/aibp/aibp-agents/pi"
   ]
 }
 ```
@@ -42,7 +42,7 @@ pi install /path/to/microNeo/aibp-agents/pi
 pi remove npm:aibp-pi
 
 # 2. 装源码版
-pi install /path/to/microNeo/aibp-agents/pi
+pi install /path/to/microNeo/internal/aibp/aibp-agents/pi
 ```
 
 #### 从源码版迁回 npm 版
@@ -51,7 +51,7 @@ pi install /path/to/microNeo/aibp-agents/pi
 
 ```bash
 # 1. 卸掉源码版（spec 是装时的绝对路径）
-pi remove /path/to/microNeo/aibp-agents/pi
+pi remove /path/to/microNeo/internal/aibp/aibp-agents/pi
 
 # 2. 装 npm 版
 pi install npm:aibp-pi

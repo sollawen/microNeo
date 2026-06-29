@@ -5,7 +5,7 @@ mkdir -p micro-$1
 
 cp LICENSE micro-$1
 cp README.md micro-$1
-cp LICENSE-THIRD-PARTY micro-$1
+cp docs/LICENSE-THIRD-PARTY micro-$1
 
 HASH="$(git rev-parse --short HEAD)"
 VERSION="$(go run tools/build-version.go)"

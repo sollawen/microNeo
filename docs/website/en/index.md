@@ -25,7 +25,7 @@ Currently supports `pi` and `opencode`; support for `claude cli` is under develo
 ## One-line Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/tools/install.sh | sh
 ```
 
 - Fully supported on Linux/Mac. Windows requires a terminal command-line environment; not tested yet.

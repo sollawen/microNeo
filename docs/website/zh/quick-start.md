@@ -4,8 +4,10 @@
 **第一步：一句话安装 microNeo**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/tools/install.sh | sh
 ```
+
+> 在Linux/Mac上面运行完美。Windows需要完整的shell支持，没有实测
 
 **第二步：检测有哪些 AI agent**
 
@@ -13,7 +15,10 @@ curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/install.sh
 microneo --check-agent
 ```
 
-> 这个检测只需要做一次，microNeo会记录已有哪些AI在电脑里。当然，如果你安装了另一个AI agent的时候，再运行一次这个命令就可以了。
+- 这个检测只需要做一次，microNeo 会记录已有哪些AI在电脑里。
+- 当然，如果你安装了另一个AI agent的时候，需要再运行一次这个命令
+- 目前支持 OpenCode and Pi, 对 Claude 的支持正在开发中......
+
 
 **第三步：用microNeo打开你想和AI讨论的那个文件**
 
@@ -23,7 +28,8 @@ microneo README.md
 
 - 打开任意文件，可以是markdown，也可以是程序代码、json、yaml等任意文本文件
 - 和其它编辑器一样对文件进行编辑，快捷键与VScode类似
-- `Alt-Enter`在当前光标处打开与AI的对话框，再按`Alt-Enter`发送消息给 AI agent
+- `Alt-Enter` 在当前光标处打开与AI的对话框，再按 `Alt-Enter` 发送消息给 AI agent
+- 如果你同时运行着多个Ai agent，那么在消息框里面按 `Ant-i` 选择你想对话的那个agent
 
 ---
 

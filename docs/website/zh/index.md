@@ -25,7 +25,7 @@ AI编程之后，我几乎不再手敲代码了，而是把大部份时间花在
 ## 一句话安装
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/tools/install.sh | sh
 ```
 
 - 完美支持Linux/Mac。Windows需要终端命令行的运行环境，没有实测

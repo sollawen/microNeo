@@ -274,7 +274,7 @@ So I built microNeo: a standalone terminal Markdown editor that renders and edit
 [截图]
 
 Built in Go, single binary. One-line install:
-curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/tools/install.sh | sh
 
 Works great as $EDITOR for Claude Code, Yazi, etc.
 
@@ -509,7 +509,7 @@ source. No split panes.
 
 - Built in Go, single binary
 - Works as `$EDITOR` for Claude Code, Yazi, etc.
-- One-line install: `curl -fsSL .../install.sh | sh`
+- One-line install: `curl -fsSL .../tools/install.sh | sh`
 
 Differentiation from existing entries:
 - Micro/nano: no Markdown rendering

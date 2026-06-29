@@ -1,5 +1,5 @@
 
-# <img src="./assets/microNeo-logo-mark.svg" style="width:48px;height:auto" alt="microNeo logo" align="absmiddle"/> microNeo -- AI Partner
+# <img src="./docs/website/assets/microNeo-logo-mark.svg" style="width:48px;height:auto" alt="microNeo logo" align="absmiddle"/> microNeo -- AI Partner
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Go Version](https://img.shields.io/badge/Go-1.19+-00ADD8.svg)](https://golang.org/)
@@ -17,7 +17,7 @@ So here comes **microNeo, an AI Partner**.
 - Press `alt-enter` to open the input box, and write down your thoughts
 - Press `alt-enter` again to send it to the AI. The AI will then receive your comment.
 
-[![demo](./assets/aibp-opencode.gif)](https://sollawen.github.io/microNeo/)
+[![demo](./docs/website/assets/aibp-opencode.gif)](https://sollawen.github.io/microNeo/)
 
 Currently supports `pi` and `opencode`; support for `claude cli` is under development.
 
@@ -26,7 +26,7 @@ Currently supports `pi` and `opencode`; support for `claude cli` is under develo
 ## One-line Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/tools/install.sh | sh
 ```
 
 - Fully supported on Linux/Mac. Windows requires a terminal command-line environment; not tested yet.

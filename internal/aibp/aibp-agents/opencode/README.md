@@ -14,12 +14,12 @@ AIBP (AI Bridge Protocol) 接收端插件，让 **opencode** 成为 microNeo 的
 
 > 📌 **总原则：opencode `plugin` 命令按插件名去重，不是只追加**。tui.json 里已有同名条目时，重装只打印 `Already configured` 并**保留旧条目不变**（cache 会刷新，但 tui.json 不改）。因此任何形态/版本切换（npm→源码、源码→npm、或换版本）**都必须先手动从 tui.json 删掉旧条目**，否则新装被静默忽略——症状就是「命令成功执行却没生效」。具体迁移步骤见各方式末尾的两个子节。
 
-源码在 `aibp-agents/opencode/`，Bun 直接加载 `.ts`，无需预编译。
+源码在 `internal/aibp/aibp-agents/opencode/`（在 microNeo 仓库内），Bun 直接加载 `.ts`，无需预编译。
 
 ### 方式一：path plugin（推荐，源码就在本地）
 
 ```bash
-opencode plugin /path/to/microNeo/aibp-agents/opencode -g   # 写入全局 ~/.config/opencode/tui.json
+opencode plugin /path/to/microNeo/internal/aibp/aibp-agents/opencode -g   # 写入全局 ~/.config/opencode/tui.json
 ```
 
 > ⚠️ 上面写入的是 **`tui.json`**（TUI 插件登记表），不是 `opencode.json`。本插件是 TUI-only，`opencode.json` 里不会出现它（那里是 server 插件和 MCP 的位置）。
@@ -42,7 +42,7 @@ jq 'del(.plugin[] | select(. | startswith("aibp-opencode")))' \
 rm -rf ~/.cache/opencode/packages/aibp-opencode@*
 
 # 3. 装源码版
-opencode plugin /path/to/microNeo/aibp-agents/opencode -g
+opencode plugin /path/to/microNeo/internal/aibp/aibp-agents/opencode -g
 ```
 
 #### 从源码版迁回 npm 版
@@ -51,7 +51,7 @@ opencode plugin /path/to/microNeo/aibp-agents/opencode -g
 
 ```bash
 # 1. 从 tui.json 删掉源码版条目（spec 是装时的绝对路径）
-jq 'del(.plugin[] | select(. == "/path/to/microNeo/aibp-agents/opencode"))' \
+jq 'del(.plugin[] | select(. == "/path/to/microNeo/internal/aibp/aibp-agents/opencode"))' \
    ~/.config/opencode/tui.json > /tmp/tui.json.new \
    && mv /tmp/tui.json.new ~/.config/opencode/tui.json
 

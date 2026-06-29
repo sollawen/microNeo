@@ -12,10 +12,10 @@ mkdir -p microneo-$VERSION
 
 cp LICENSE microneo-$VERSION
 cp README.md microneo-$VERSION
-cp LICENSE-THIRD-PARTY microneo-$VERSION
-cp assets/packaging/micro.1 microneo-$VERSION
-cp assets/packaging/micro.desktop microneo-$VERSION
-cp assets/micro-logo-mark.svg microneo-$VERSION/microneo.svg
+cp docs/LICENSE-THIRD-PARTY microneo-$VERSION
+cp tools/packaging/micro.1 microneo-$VERSION
+cp tools/packaging/micro.desktop microneo-$VERSION
+cp tools/packaging/micro-logo-mark.svg microneo-$VERSION/microneo.svg
 
 create_artefact_generic()
 {

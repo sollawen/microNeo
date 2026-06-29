@@ -3,7 +3,7 @@
 **Step 1: One-line install of microNeo**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/tools/install.sh | sh
 ```
 
 **Step 2: Detect which AI agents you have**
