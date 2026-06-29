@@ -42,9 +42,11 @@ microneo README.md
 
 ## Set as Default Editor
 
+- microNeo is small and fast, making it a great default editor for these tools.
+- Works seamlessly with `Claude Code`, `Yazi`, and other tools that respect `$EDITOR`.
+- Since `microNeo` is a long name, it's recommended to set an alias in your `.zshrc` or `.bashrc` for easier typing.
+
 ```bash
 export EDITOR=microneo
+alias edit='microneo'
 ```
-
-- Works seamlessly with `Claude Code`, `Yazi`, and other tools that respect `$EDITOR`.
-- microNeo is small and fast, making it a great default editor for these tools.

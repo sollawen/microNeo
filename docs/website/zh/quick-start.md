@@ -42,11 +42,12 @@ microneo README.md
 ---
 
 ## 设为默认编辑器
+- microNeo非常小巧和快速，很适合做为这些工具的默认编辑器
+- 与 `Claude Code`、`Yazi` 等使用 `$EDITOR` 的工具无缝协作。
+- 因为`microNeo`名字比较长，建议在`zshrc` or `bashrc`里面设置alias，方便输入命令
 
 ```bash
 export EDITOR=microneo
+alias edit='microneo'
 ```
-
-- 与 `Claude Code`、`Yazi` 等使用 `$EDITOR` 的工具无缝协作。
-- microNeo非常小巧和快速，很适合做为这些工具的默认编辑器
 
