@@ -3,6 +3,14 @@
 ## Location
 microNeo config file: `~/.config/microNeo/settings.json`
 
+Reset to a complete, full default `settings.json`:
+```bash
+# bash
+# This generates a complete ~/.config/microNeo/settings.json
+
+microneo --reset-settings
+```
+
 ## Most commonly used options
 
 ### Basic
