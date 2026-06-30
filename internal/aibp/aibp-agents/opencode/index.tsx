@@ -477,8 +477,10 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
     const selText = sel?.text && sel.text.length > 0 ? sel.text : ""
 
     if (sel && selText) {
-      const header = `<selection: ${p.path} lines ${sel.start.line}-${sel.end.line}>`
-      return p.message ? `${header}\n\n${selText}\n\n<user input>\n\n${p.message}` : `${header}\n\n${selText}`
+      const header = `<selection path="${p.path}" lines="${sel.start.line}-${sel.end.line}">`
+      return p.message
+        ? `${header}\n${selText}\n</selection>\n<user-input>\n${p.message}\n</user-input>`
+        : `${header}\n${selText}\n</selection>`
     }
 
     const focus = sel ? `line${sel.start.line}-${sel.end.line}` : `${p.cursor.line}`

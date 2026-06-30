@@ -272,8 +272,10 @@ export default function (pi: ExtensionAPI) {
 
     if (sel && selText) {
       // 有选区且文字未截断：内联 + 尖括号标签分隔（不用 @ 语法 → 不触发 LLM 读文件）
-      const header = `<selection: ${p.path} lines ${sel.start.line}-${sel.end.line}>`;
-      return p.message ? `${header}\n\n${selText}\n\n<user input>\n\n${p.message}` : `${header}\n\n${selText}`;
+      const header = `<selection path="${p.path}" lines="${sel.start.line}-${sel.end.line}">`;
+      return p.message
+        ? `${header}\n${selText}\n</selection>\n<user-input>\n${p.message}\n</user-input>`
+        : `${header}\n${selText}\n</selection>`;
     }
 
     // 无选区 / 选区文字被截断（超过 MaxSelectionLines）：走 @ 引用，让 LLM 自己读
