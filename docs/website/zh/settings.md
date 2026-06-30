@@ -3,6 +3,14 @@
 ## 目录
 microNeo 的用户配置文件：`~/.config/microNeo/settings.json`
 
+重置为缺省的、完整的、全套 settings.json:
+```bash
+# bash
+# 这个命令会生成一套完整的 ~/.config/microNeo/settings.json
+
+microneo --reset-settings
+```
+
 ## 比较常用的配置项
 
 ### Basic

@@ -40,8 +40,12 @@ curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/tools/inst
 - Communicate with AI agents to send your thoughts to the AI. Supports multiple AI agents.
 - Markdown real-time rendering in the same window — comfortable for reading AI-written plan documents.
 - Mouse support. Shortcuts are similar to VS Code.
+- Multiple themes, including dark and light mode.
 - Small and fast — only 13 MB.
 
+## Configuration
+
+For more configuration options, see https://sollawen.github.io/microNeo/
 
 ---
 
