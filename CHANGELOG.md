@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.5] - 2026-06-30
+
+**Changed**
+
+- AIBP selection context sent to AI agents now uses paired XML tags (e.g. `<selection ...> ... </selection>`) instead of single-sided markers. Removes ambiguity when selected text contains `<...>` strings (common in Markdown / HTML / config files), and shrinks each message by a few lines. (aibp-pi / aibp-opencode 1.0.4)
+
+**Docs**
+
+- README hero refreshed with an AI Partner intro and demo.
+- Website gained a Changelog page and a custom 404 page.
+- Repo root slimmed from 23 to 17 entries (moved `install.sh` to `tools/`, relocated `aibp-agents/` under `internal/aibp/`, etc.); no functional impact.
+
 ## [1.1.4] - 2026-06-28
 
 **Added**
