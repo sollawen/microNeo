@@ -34,3 +34,6 @@ tools/vscode-tests/
 
 # vhs 动图产物（脚本 .tape / 布局 .kdl 入 git，生成的 .gif 由 CI 在 release 时重生成）
 docs/MKT/vhs/*.gif
+
+# Node（internal/aibp/aibp-agents 下各 agent 若装依赖产生的 node_modules）
+node_modules/

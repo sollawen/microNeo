@@ -4,10 +4,13 @@
   "description": "AIBP (AI Bridge Protocol) receiver plugin for Claude Code — receive editor context from microNeo",
   "license": "MIT",
   "keywords": ["claude-plugin", "microNeo", "aibp"],
-  "channels": [
-    {
-      "server": "aibp-channel",
-      "userConfig": {}
-    }
-  ]
+  "experimental": {
+    "monitors": [
+      {
+        "name": "aibp-daemon",
+        "command": "bun \"${CLAUDE_PLUGIN_ROOT}/index.ts\"",
+        "description": "microNeo editor context & messages (AIBP)"
+      }
+    ]
+  }
 }

@@ -5,15 +5,11 @@
   "description": "AIBP (AI Bridge Protocol) receiver plugin for Claude Code",
   "license": "MIT",
   "type": "module",
-  "bin": { "aibp-channel": "./aibp-channel.ts" },
+  "bin": { "aibp-daemon": "./index.ts" },
   "keywords": ["claude-plugin", "microNeo", "aibp"],
-  "dependencies": {
-    "@modelcontextprotocol/sdk": ">=1.0.0"
-  },
   "files": [
     ".claude-plugin/plugin.json",
-    ".mcp.json",
-    "aibp-channel.ts",
+    "index.ts",
     "package.json",
     "README.md"
   ],

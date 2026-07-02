@@ -13,7 +13,7 @@ const PROTOCOL_MAJOR = Number(PROTOCOL.split("-").pop()) // 整数，校验信�
 
 // ============================================================
 // 诊断日志（v1 调试期常开；链路对齐 aibp-opencode 的 log）
-// 关键约束：stdout 专用于 MCP JSON-RPC，严禁 console.log 污染；诊断一律写文件。
+// 关键约束：stdout 专用于 Monitor 事件流，严禁 console.log 污染；诊断一律写文件。
 // claude 子进程的 stderr 被父进程接管看不到，故写 /tmp/aibp-claude.log。
 // ============================================================
 const LOG_FILE = process.env.MNAB_LOG || "/tmp/aibp-claude.log"
@@ -55,7 +55,7 @@ export function normalizeNames(raw: string[]): string[] {
   // 里的 `ai-` 分隔标记产生视觉歧义
   return deduped.filter((n) => {
     if (/[/\0: -]/.test(n)) {
-      console.warn(`[aibp-channel] skip illegal name: ${JSON.stringify(n)}`)
+      console.warn(`[aibp-daemon] skip illegal name: ${JSON.stringify(n)}`)
       return false
     }
     return true
@@ -168,7 +168,7 @@ export async function allocateName(
         if (ok) {
           // listen 成功 → 切换为运行态：移除抢锁阶段的 once error，换成持久日志 handler
           s.removeAllListeners("error")
-          s.on("error", (err) => console.warn(`[aibp-channel] server runtime error: ${err}`))
+          s.on("error", (err) => console.warn(`[aibp-daemon] server runtime error: ${err}`))
           server = s
           resolve(true)
         } else {
@@ -179,7 +179,7 @@ export async function allocateName(
       s.once("listening", () => finish(true))
       s.once("error", (err: NodeJS.ErrnoException) => {
         if (err.code !== "EADDRINUSE") {
-          console.warn(`[aibp-channel] listen error on ${sockPath}: ${err}`)
+          console.warn(`[aibp-daemon] listen error on ${sockPath}: ${err}`)
         }
         finish(false)
       })
@@ -228,7 +228,7 @@ export async function allocateName(
 }
 
 // ============================================================
-// 段 D：formatText（从 aibp-pi 复制）
+// 段 B：formatText（输出格式化，从 aibp-pi 复制）
 // ============================================================
 export function formatText(p: any): string {
   const sel = p.selection
@@ -251,34 +251,21 @@ export function formatText(p: any): string {
 }
 
 // ============================================================
-// 段 B：MCP server 构造（来自方案 §4.4.2）
+// emitMonitorEvent：stdout 事件（替代 MCP notification）
 // ============================================================
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-
-const mcp = new Server(
-  { name: 'aibp', version: pkg.version },  // ⭐ 按 §5.2 决策用 'aibp'
-  {
-    capabilities: {
-      // channel 必需——注册 notification listener
-      experimental: { 'claude/channel': {} },
-      // v1 不开 tools（单向）；不开 channel/permission
-    },
-    instructions:
-      'Events from the AIBP channel arrive as <channel source="aibp" path="..." lines="...">. ' +
-      'They contain a code selection from the microNeo editor (inline as <selection>...</selection>) ' +
-      'optionally followed by a user message (wrapped in <user-input>...</user-input>). ' +
-      'Act on them directly when the user message asks you to do something; treat selection-only ' +
-      'events as background context for your next user turn.',
-  },
-)
+function emitMonitorEvent(p: any) {
+  const text = formatText(p)
+  const event = { type: "aibp-context", content: text }
+  process.stdout.write(JSON.stringify(event) + "\n")
+  log("emitted monitor event", { path: p.path, hasMsg: !!p.message })
+}
 
 // ============================================================
-// 段 C：Unix socket listener（来自方案 §4.4.3）
+// 段 C：Unix socket listener
 // ============================================================
-const names = loadNamePool({ ui: { notify: (msg: string) => console.warn(`[aibp-claude] ${msg}`) } })
+const names = loadNamePool({ ui: { notify: (msg: string) => console.warn(`[aibp-daemon] ${msg}`) } })
 if (!names) {
-  console.error('[aibp-claude] loadNamePool failed, exit')
+  console.error('[aibp-daemon] loadNamePool failed, exit')
   process.exit(1)
 }
 
@@ -298,7 +285,7 @@ const connectionHandler = (conn: net.Socket) => {
 
 const alloc = await allocateName(names, connectionHandler)
 if (!alloc) {
-  console.error('[aibp-claude] allocateName failed (pool exhausted or socket busy), exit')
+  console.error('[aibp-daemon] allocateName failed (pool exhausted or socket busy), exit')
   process.exit(1)
 }
 const { name, socketPath } = alloc
@@ -318,11 +305,11 @@ fs.writeFileSync(regFile, JSON.stringify({
 }))
 
 LOG_TAG = name
-console.error(`[aibp-claude] listening as ${name} at ${socketPath}`)
+console.error(`[aibp-daemon] listening as ${name} at ${socketPath}`)
 log("listening", { name, socketPath, agent: "claude", pid: process.pid })
 
 // ============================================================
-// 段 D：投递 mcp.notification（来自方案 §4.4.4）
+// 段 D：投递（Monitor stdout 事件）
 // ============================================================
 function handleLine(line: string) {
   log("line received", { len: line.length, line })
@@ -337,40 +324,11 @@ function handleLine(line: string) {
   void onMessage(env)  // fire-and-forget
 }
 
+// v1：对齐 opencode，所有报文都触发
 async function onMessage(env: any) {
   const p = env.payload
-  log("onMessage", {
-    path: p?.path,
-    hasSelection: !!p?.selection,
-    selectionLen: p?.selection?.text?.length,
-    selectionStart: p?.selection?.start,
-    selectionEnd: p?.selection?.end,
-    cursor: p?.cursor,
-    hasMessage: !!p?.message,
-    message: p?.message,
-  })
-  const text = formatText(p)
-  log("formatText output (sent as channel content)", { text })
-  try {
-    log("mcp.notification calling", { method: "notifications/claude/channel" })
-    await mcp.notification({
-      method: 'notifications/claude/channel',
-      params: {
-        content: text,
-        meta: {
-          path: p.path,
-          ...(p.selection && {
-            lines: `${p.selection.start.line}-${p.selection.end.line}`,
-          }),
-          with_message: p.message ? 'true' : 'false',
-        },
-      },
-    })
-    log("mcp.notification resolved (OK)")
-  } catch (e) {
-    log("mcp.notification FAILED", { name: (e as Error).name, message: (e as Error).message, stack: (e as Error).stack })
-    console.warn(`[aibp-claude] notification failed: ${(e as Error).message}`)
-  }
+  log("onMessage", { path: p?.path, hasSelection: !!p?.selection, hasMessage: !!p?.message })
+  emitMonitorEvent(p)
 }
 
 // 清理：Claude 关闭 stdin 时退出（触发 socket + registry 清理）
@@ -382,5 +340,3 @@ process.on('exit', () => {
   try { fs.unlinkSync(regFile) } catch {}
   try { fs.unlinkSync(socketPath) } catch {}
 })
-
-await mcp.connect(new StdioServerTransport())
