@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "aibp-channel": {
+      "command": "bun",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/aibp-channel.ts"],
+      "env": {}
+    }
+  }
+}

@@ -48,7 +48,7 @@ microNeo  ──Unix socket──▶  Channel MCP Server (aibp-channel)
 
 所以 `.claude-plugin/plugin.json` 用 `channels` 字段挂载 MCP server，是最直接的形态。**不是裸 MCP server 单独跑**——而是按 Claude 插件规范打包成可分发单元。
 
-> ⚠️ **Channels 在 research preview**（v2.1.80+）。开发期需 `claude --dangerously-load-development-channels server:aibp-channel`（或 `plugin:aibp-claude`）。生产期需要上 Anthropic 的 allowlist 或自己托管 marketplace。详见 §9。
+> ⚠️ **Channels 在 research preview**（v2.1.80+）。开发期需 `claude --dangerously-load-development-channels server:aibp-channel`（或 `plugin:aibp-claude`）。生产期需要上 Anthropic 的 allowlist 或自己托管 marketplace（**v1 不涉及发布，详见 §8.1/8.2**）。
 
 ---
 
@@ -221,9 +221,9 @@ const mcp = new Server(
   { name: 'aibp-channel', version: pkg.version },
   {
     capabilities: {
-      // ⭐ 这是 channel 唯一需要的能力
+      // ⭐ channel 必需的能力——注册 notification listener；与可选的 tools 并存即变双向
       experimental: { 'claude/channel': {} },
-      // 不开 tools（我们是一向：microNeo → Claude；不需要 Claude → microNeo 的 reply tool）
+      // v1：不开 tools（单向：microNeo → Claude 已满足需求）
       // 不开 channel/permission（用不到权限中继——那是聊天桥场景）
     },
     // ⭐ 写好 instructions；Claude 在 system prompt 里会看到这些
@@ -443,12 +443,51 @@ var allEnsurers = []AgentEnsurer{
 | **Phase 2** | 端到端：microNeo Alt-Enter → Claude Code session 看见 `<channel source="aibp">` → Claude 行动 | 选区+消息能正确递交；连接断开不影响 microNeo 其它 receiver（多 receiver 并存） |
 | **Phase 3** | `ensure_claude.go`（Go 端自举，参考 `ensure_opencode.go` 的 9 个测试用例） | `go test ./internal/aibp/ensure_agents` 全绿；`--check-agent` 走到 Claude |
 
-**发布流程**（Phase 2 后）：
+**发布策略**：v1 范围内**只做开发调试**，不涉及正式发布。Phase 2 后只验证 Phase 2 build gate（端到端），不进入对外分发流程。详细分发策略作为"未来参考"留档（§8.2），但 v1 不执行。
+
+### 8.1 开发期加载方式（v1 唯一交付目标）
+
+```bash
+# Claude Code v2.1.80+ 用 --dangerously-load-development-channels 加载未在 allowlist 的 plugin
+claude --plugin-dir ./internal/aibp/aibp-agents/claude \
+       --dangerously-load-development-channels plugin:aibp-claude
+```
+
+**优势**：
+- ✅ 改源码立即生效（无需 `npm publish` + 重装）
+- ✅ 不需要 marketplace 注册
+- ✅ 不需要 Anthropic allowlist
+- ✅ 与 aibp-pi / aibp-opencode 开发期惯例一致
+
+**要求**：
+- Bun ≥ 1.0（已验证本机 1.3.6）
+- Claude Code ≥ 2.1.80（已验证本机 2.1.132）
+- DEBUG 默认 `true`（开发期需要看 `/tmp/aibp-claude.log`；发布前才改 `false`——本节范围不涉及）
+
+### 8.2 未来发布参考（v1 不执行）
+
+> 📌 **本节仅为未来参考，不在 v1 范围**。当 v1 稳定后想公开发布时再启动。
+> 核心原则：**不依赖 Anthropic 官方 marketplace 即可分发**——走 GitHub / npmjs.com 的"自助式分发"完全够用。Anthropic 官方 allowlist 是**可选锦上添花**，不是必需。
+
 ```bash
 # 1. DEBUG = false（README 也加一遍 ⚠️ 提示）
-# 2. 改 package.json version → npm publish
-# 3. 渠道分发：自家 marketplace + 申请 Anthropic allowlist
+
+# 2. npm publish（用于 npm source marketplace，与 aibp-pi / aibp-opencode 工作流对齐）
+#    路径：internal/aibp/aibp-agents/claude/ → npm publish
+
+# 3. 渠道分发（按优先级，可全做可只做 1-2）：
+#    a. GitHub marketplace（默认走这条，零审批）
+#       - microNeo 主仓库的 .claude/marketplace.json 注册 aibp-claude 条目
+#       - source 指向 GitHub raw 或 git URL（github source）
+#       - 用户一行装：claude plugin install aibp-claude@microNeo-marketplace
+#    b. npmjs.com publish + npm source marketplace（兼容 aibp 系列工作流）
+#       - npm publish 后在自家 marketplace.json 用 "source": "npm" 引用 aibp-claude 包
+#    c. 内网/自家 marketplace（GitLab / Gitea + url source）
+#       - 内网部署场景，与公网完全隔离
+#    d. （可选）申请 Anthropic 官方 allowlist——非必需，仅追求最大公网曝光时考虑
 ```
+
+**为什么这样设计**：分发自助化意味着 **Anthropic 政策变化 / allowlist 申请被拒都不影响 microNeo 用户正常使用 aibp-claude**。三条主路径（a/b/c）都不需要任何审批。
 
 ---
 
@@ -480,14 +519,14 @@ var allEnsurers = []AgentEnsurer{
 
 | # | 风险 / 限制 | 应对 |
 |---|------------|------|
-| R1 | **Channels 是 research preview**：生产期需 `--dangerously-load-development-channels` flag；默认 allowlist 受 Anthropic 管制 | 文档明示；自家 marketplace 部署；联系 Anthropic partner 上 allowlist；企业用户用 `allowedChannelPlugins` 私有 allowlist |
+| R1 | **Channels 是 research preview**：生产期需 `--dangerously-load-development-channels` flag；Anthropic 官方 marketplace 走 allowlist 机制 | 文档明示；**v1 只做开发调试，用 `--plugin-dir` 加载（§8.1），不涉及发布**；未来发布时优先走 GitHub / npm 自助分发（§8.2 a/b/c），不依赖官方 allowlist；企业用户用 `allowedChannelPlugins` 私有 allowlist；只有追求 Anthropic 官方 marketplace 曝光时才联系 partner |
 | R2 | **org policy 可能禁 channels**（`channelsEnabled=false`） | README 给出 IT admin 操作指引；T15 测 |
 | R3 | **没有"只填输入框"语义**（§5.1） | README 标注差异化；不算 bug |
 | R4 | **meta key 强约束**（letters/digits/underscores only） | 不能传 `lines: "12-14"` 给 meta（带连字符）——我已改为单 key 不带连字符的 `lines_a` 与 `lines_b`（或干脆不传 meta、用 content 表达） |
 | R5 | **`<selection>` / `<user-input>` 是纯文本片段而非结构化标签**（是否被 Claude 正确理解为语义分隔符，取决于 prompt 工程实际效果；可能需要根据反馈微调表述） | 靠 tunning + 测试矩阵 |
 | R6 | **依赖 Bun 运行时**（Bun 直接跑 TypeScript、零编译；只需本机装 Bun ≥ 1.0） | README 明示安装需求；如需兼容 Node，可把 `.ts` 编译为 `.js` |
 | R7 | **`name: 'aibp'` 与 `.mcp.json` key 名可能冲突** | `.mcp.json` 的 key 也叫 `aibp-channel`（不要叫 `aibp`）——避免混淆但 source 还是取 server.name 字段 |
-| R8 | **Channel 不支持 reply tool / 双向** | 本场景不需要——单向已满足需求 |
+| R8 | **v1 单向**：不暴露 `tools`，Claude 无法主动调 reply tool（**注：Channel 机制本身支持双向**——`claude/channel` capability 与 `tools` 可并存，v1 是设计选择非机制限制；见 channels-reference.md §Expose a reply tool） | v1 满足需求 |
 
 ---
 

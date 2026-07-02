@@ -1,9 +1,23 @@
 {
   "name": "aibp-claude",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "aibp": { "protocol": "aibp-2.0" },
-  "description": "AIBP (AI Bridge Protocol) receiver extension for Claude Code (placeholder)",
+  "description": "AIBP (AI Bridge Protocol) receiver plugin for Claude Code",
   "license": "MIT",
-  "keywords": ["pi-package", "microNeo", "claude"],
-  "files": ["README.md"]
+  "type": "module",
+  "bin": { "aibp-channel": "./aibp-channel.ts" },
+  "keywords": ["claude-plugin", "microNeo", "aibp"],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": ">=1.0.0"
+  },
+  "files": [
+    ".claude-plugin/plugin.json",
+    ".mcp.json",
+    "aibp-channel.ts",
+    "package.json",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "bun test"
+  }
 }
