@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.6] - 2026-07-03
+这次写Claude的通信机制，是我开发microNeo以来最难受的一次
+- Claude不是开源软件，好多api没有对外
+- Claude对于使用第三方LLM的用户，额外的封锁了很多TUI的接口
+- Claude像个贼一样的给中国区的用户埋设木马
+
+这些种种都让我处在捏着鼻子写代码的状态中。我估计这是我最后一次为Claude写扩展程序了
+
+**Added**
+
+- Claude Code joins AIBP as the third AI agent receiver: microNeo can now deliver selections / cursor context to Claude Code, alongside the existing pi and opencode receivers. Install via the `microNeo-plugins` marketplace (`claude plugin install aibp-claude@microNeo-plugins`), or `claude --plugin-dir <path>` for dev iteration. (aibp-claude 1.0.1)
+- `:check-agent` / `microneo --check-agent` now covers Claude Code too (in addition to pi / opencode): detects the plugin, prompts to add the marketplace + install if missing, validates protocol compatibility otherwise.
+
+**Fixed**
+
+- aibp-claude install flow for third-party LLM relay users (ccmm / other `ANTHROPIC_BASE_URL` proxies): marketplace install now works regardless of `ANTHROPIC_BASE_URL`, so relay users only need the env vars — no `--plugin-dir` flag required.
+
+aibp-claude 1.0.1 also drops the always-on `/tmp/aibp-claude.log` diagnostic log that v1.0.0 carried over from the dev cycle.
+
 ## [1.1.5] - 2026-06-30
 
 **Changed**
