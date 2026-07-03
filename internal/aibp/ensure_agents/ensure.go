@@ -15,6 +15,7 @@ import (
 var allEnsurers = []AgentEnsurer{
 	PiEnsurer{},
 	OpencodeEnsurer{},
+	ClaudeEnsurer{},
 }
 
 var (
