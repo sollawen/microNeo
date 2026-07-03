@@ -18,30 +18,55 @@ AIBP (AI Bridge Protocol) 接收端插件，让 **Claude Code** 成为 microNeo 
 - **未设 `DISABLE_TELEMETRY` 与 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`**（任一设置都会完全禁用 Monitor）
 - **bun** 在 `PATH` 上（运行 `index.ts`）
 
-## 激活
+## 安装
 
-通过 `claude --plugin-dir` 加载本插件目录。源码在 `internal/aibp/aibp-agents/claude/`（microNeo 仓库内），bun 直接加载 `.ts`，无需预编译、无需 `npm install`（零外部依赖）。
+两种方式：**正式安装**（持久，推荐）或**开发期临时加载**（改源码即测，免发布）。
 
-### 方式一：直连 Anthropic
+> 共同前置：**bun** 在 `PATH` 上（monitor 用它跑 `index.ts`）。源码零外部依赖，bun 直接加载 `.ts`，无需预编译、无需 `npm install`。
+
+### 方式一：正式安装（npm + marketplace，推荐）
+
+aibp-claude 以 npm 包 `aibp-claude` 发布（与 [`aibp-pi`](../pi) / [`aibp-opencode`](../opencode) 同渠道）。Claude 经 microNeo 自建的 marketplace（`microNeo-plugins`）安装——**装一次，之后任何 `claude` 启动自动加载**，无需每次带 flag、无需 clone microNeo。
+
+```bash
+# 1. 登记 marketplace（一次性）
+claude plugin marketplace add sollawen/microNeo-plugins
+
+# 2. 安装插件（一次性，默认 user scope → 进 enabledPlugins）
+claude plugin install aibp-claude@microNeo-plugins
+```
+
+之后直接 `claude` 即可，插件自动起。验证：`/plugin list` 应见 `aibp-claude@microNeo-plugins`。
+
+**更新**：第三方 marketplace 的自动更新默认**关闭**。拿新版两种方式——
+
+- 手动：`claude plugin update aibp-claude@microNeo-plugins`（版本没变就跳过）。
+- 自动：交互界面 `/plugin` → Marketplaces → 选 `microNeo-plugins` → `Enable auto-update`（开一次，之后每次启动自动拉新版并提示 `/reload-plugins`）。
+
+### 方式二：开发期临时加载（--plugin-dir）
+
+改 `index.ts` 后**重启 Claude 即生效**，无需 `npm publish`，适合本地迭代：
 
 ```bash
 claude --plugin-dir /path/to/microNeo/internal/aibp/aibp-agents/claude
 ```
 
-### 方式二：第三方 LLM 中转（ccmm 风格）
+> 与方式一同名时，`--plugin-dir` 的本地目录在该 session **优先生效**（官方设计：便于测已装插件的改动），无需先卸 npm 版。
 
-把中转 env 和 `--plugin-dir` 一起包成 shell 函数：
+### 第三方 LLM 中转（ccmm 风格）
+
+经 `ANTHROPIC_BASE_URL` 走 MiniMax / GLM / DeepSeek 等中转的用户：**先用方式一装好插件**（marketplace 安装与 LLM 来源无关），再把中转 env 包成 shell 函数——**无需** `--plugin-dir`（插件已自动加载）：
 
 ```bash
 ccaibp(){
     ANTHROPIC_BASE_URL="https://your-relay.example/anthropic" \
     ANTHROPIC_AUTH_TOKEN="your-token" \
     ANTHROPIC_MODEL="your-model" \
-    claude --plugin-dir /path/to/microNeo/internal/aibp/aibp-agents/claude "$@"
+    claude "$@"
 }
 ```
 
-然后 `ccaibp` 起会话即可。`"$@"` 透传额外参数。
+然后 `ccaibp` 起会话即可，`"$@"` 透传额外参数。
 
 ### Bash 权限（视情况）
 
@@ -86,5 +111,6 @@ ls "$TMPDIR/aibp-$(id -u)/"        # 见 ai-Bravo.json 等
 
 ## 相关
 
-- 设计与选型：`aibp-claude-实施方案.md`
+- 设计与选型：`aibp-claude-实施方案.md`（microNeo 仓库内）
+- 分发/安装方式分析：`分发安装方式分析.md`（microNeo 仓库内）
 - 源码与协议详情：[microNeo](https://github.com/sollawen/microNeo)
