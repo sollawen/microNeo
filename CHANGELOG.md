@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [1.1.6] - 2026-07-03
+
 这次写Claude的通信机制，是我开发microNeo以来最难受的一次
 - Claude不是开源软件，好多api没有对外
 - Claude对于使用第三方LLM的用户，额外的封锁了很多TUI的接口
