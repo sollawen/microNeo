@@ -1,12 +1,20 @@
 {
   "name": "aibp-claude",
-  "version": "1.0.0",
-  "aibp": { "protocol": "aibp-2.0" },
+  "version": "1.0.1",
+  "aibp": {
+    "protocol": "aibp-2.0"
+  },
   "description": "AIBP (AI Bridge Protocol) plugin for Claude Code",
   "license": "MIT",
   "type": "module",
-  "bin": { "aibp-daemon": "./index.ts" },
-  "keywords": ["claude-plugin", "microNeo", "aibp"],
+  "bin": {
+    "aibp-daemon": "./index.ts"
+  },
+  "keywords": [
+    "claude-plugin",
+    "microNeo",
+    "aibp"
+  ],
   "files": [
     ".claude-plugin/plugin.json",
     "index.ts",
