@@ -11,23 +11,7 @@ const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json"), "ut
 const PROTOCOL = pkg.aibp.protocol                       // 字符串，写注册表用
 const PROTOCOL_MAJOR = Number(PROTOCOL.split("-").pop()) // 整数，校验信封用
 
-// ============================================================
-// 诊断日志（v1 调试期常开；链路对齐 aibp-opencode 的 log）
-// 关键约束：stdout 专用于 Monitor 事件流，严禁 console.log 污染；诊断一律写文件。
-// claude 子进程的 stderr 被父进程接管看不到，故写 /tmp/aibp-claude.log。
-// ============================================================
-const LOG_FILE = process.env.MNAB_LOG || "/tmp/aibp-claude.log"
-let LOG_TAG = "boot"
-function log(message: string, data?: unknown) {
-  try {
-    const ts = new Date().toISOString()
-    const body = data === undefined
-      ? ""
-      : typeof data === "string" ? " " + data : " " + JSON.stringify(data)
-    fs.appendFileSync(LOG_FILE, `${ts} [${LOG_TAG}] ${message}${body}\n`)
-  } catch {}
-}
-log("===== module loaded =====", { pid: process.pid, protocol: PROTOCOL, major: PROTOCOL_MAJOR })
+// 关键约束：stdout 专用于 Monitor 事件流（见 emitMonitorEvent），严禁 console.log 污染。
 
 // D11 §4.2：默认 NATO 音标字母表前 15 个 A–O（去连字符满足 §4.3 字符约束）
 const DEFAULT_NAMES_STR = "Alpha Bravo Charlie Delta Echo Foxtrot Golf Hotel India Juliet Kilo Lima Mike November Oscar"
@@ -55,7 +39,6 @@ export function normalizeNames(raw: string[]): string[] {
   // 里的 `ai-` 分隔标记产生视觉歧义
   return deduped.filter((n) => {
     if (/[/\0: -]/.test(n)) {
-      console.warn(`[aibp-daemon] skip illegal name: ${JSON.stringify(n)}`)
       return false
     }
     return true
@@ -166,9 +149,9 @@ export async function allocateName(
         if (settled) return
         settled = true
         if (ok) {
-          // listen 成功 → 切换为运行态：移除抢锁阶段的 once error，换成持久日志 handler
+          // listen 成功 → 切换为运行态：移除抢锁阶段的 once error，换成持久 error handler（吞掉运行态错误防崩）
           s.removeAllListeners("error")
-          s.on("error", (err) => console.warn(`[aibp-daemon] server runtime error: ${err}`))
+          s.on("error", () => {})  // 运行态错误吞掉，避免 Node 抛未处理 'error' 崩进程
           server = s
           resolve(true)
         } else {
@@ -177,12 +160,7 @@ export async function allocateName(
         }
       }
       s.once("listening", () => finish(true))
-      s.once("error", (err: NodeJS.ErrnoException) => {
-        if (err.code !== "EADDRINUSE") {
-          console.warn(`[aibp-daemon] listen error on ${sockPath}: ${err}`)
-        }
-        finish(false)
-      })
+      s.once("error", () => finish(false))
       s.listen(sockPath)
     })
   }
@@ -257,20 +235,17 @@ function emitMonitorEvent(p: any) {
   const text = formatText(p)
   const event = { type: "aibp-context", content: text }
   process.stdout.write(JSON.stringify(event) + "\n")
-  log("emitted monitor event", { path: p.path, hasMsg: !!p.message })
 }
 
 // ============================================================
 // 段 C：Unix socket listener
 // ============================================================
-const names = loadNamePool({ ui: { notify: (msg: string) => console.warn(`[aibp-daemon] ${msg}`) } })
+const names = loadNamePool({ ui: { notify: () => {} } })
 if (!names) {
-  console.error('[aibp-daemon] loadNamePool failed, exit')
   process.exit(1)
 }
 
 const connectionHandler = (conn: net.Socket) => {
-  log("connection accepted")
   let buf = ''
   conn.on('data', chunk => {
     buf += chunk.toString('utf8')
@@ -280,12 +255,11 @@ const connectionHandler = (conn: net.Socket) => {
       buf = buf.slice(nl + 1)
     }
   })
-  conn.on('error', (e) => log("connection error", { error: e.message }))
+  conn.on('error', () => {})  // 连接错误吞掉（断连等正常情况，避免崩进程）
 }
 
 const alloc = await allocateName(names, connectionHandler)
 if (!alloc) {
-  console.error('[aibp-daemon] allocateName failed (pool exhausted or socket busy), exit')
   process.exit(1)
 }
 const { name, socketPath } = alloc
@@ -304,20 +278,13 @@ fs.writeFileSync(regFile, JSON.stringify({
   labels: ['default'],
 }))
 
-LOG_TAG = name
-console.error(`[aibp-daemon] listening as ${name} at ${socketPath}`)
-log("listening", { name, socketPath, agent: "claude", pid: process.pid })
-
 // ============================================================
 // 段 D：投递（Monitor stdout 事件）
 // ============================================================
 function handleLine(line: string) {
-  log("line received", { len: line.length, line })
   let env: any
-  try { env = JSON.parse(line) } catch (e) { log("parse failed", { line, error: (e as Error).message }); return }
-  log("envelope parsed", { v: env.v, type: env.type, hasPayload: !!env.payload })
+  try { env = JSON.parse(line) } catch { return }
   if (env.v !== PROTOCOL_MAJOR || env.type !== 'context') {
-    log("envelope rejected (version/type mismatch)", { gotV: env.v, expectedV: PROTOCOL_MAJOR, gotType: env.type, expectedType: "context" })
     return
   }
 
@@ -326,9 +293,7 @@ function handleLine(line: string) {
 
 // v1：对齐 opencode，所有报文都触发
 async function onMessage(env: any) {
-  const p = env.payload
-  log("onMessage", { path: p?.path, hasSelection: !!p?.selection, hasMessage: !!p?.message })
-  emitMonitorEvent(p)
+  emitMonitorEvent(env.payload)
 }
 
 // 清理：Claude 关闭 stdin 时退出（触发 socket + registry 清理）

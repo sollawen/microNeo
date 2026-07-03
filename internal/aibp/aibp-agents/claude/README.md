@@ -138,9 +138,8 @@ claude --plugin-dir /path/to/microNeo/internal/aibp/aibp-agents/claude
 ## 注意事项
 
 1. **退出清理**：**正常退出**（`:exit` / `/quit` / Ctrl-D）干净无残留——Claude 发 SIGTERM → daemon 的 `process.on('SIGTERM')` → `process.exit(0)` → 同步触发 `process.on('exit')` 跑 `unlinkSync(regFile)` + `unlinkSync(socketPath)`（见 `index.ts` 末尾信号处理）。**仅异常终止**才会残留 `ai-<name>.json` + `.sock`，例如：直接关 terminal 窗口（发 SIGHUP，daemon 未注册该 handler）、`kill -9`、Claude 崩溃、机器硬重启。残留无害：下次任一 AIBP agent 启动时 `allocateName` 的 GC 会探测 pid 存活、死的 unlink。与 pi/opencode 同一套容错设计。
-2. **日志**：`/tmp/aibp-claude.log`（可用 `MNAB_LOG` 环境变量覆盖路径）。
-3. **多 session**：同时开多个 Claude 会话，各抢不同名字，互不冲突。
-4. **stdout 专用**：daemon 的 stdout 是 Monitor 事件流，**严禁 `console.log`**（会污染成伪事件）；诊断一律走日志文件。
+2. **多 session**：同时开多个 Claude 会话，各抢不同名字，互不冲突。
+3. **stdout 专用**：daemon 的 stdout 是 Monitor 事件流，**严禁 `console.log`**（会污染成伪事件）。
 
 ## 验证
 
