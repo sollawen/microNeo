@@ -155,5 +155,4 @@ ls "$TMPDIR/aibp-$(id -u)/"        # 见 ai-Bravo.json 等
 ## 相关
 
 - 设计与选型：`aibp-claude-实施方案.md`（microNeo 仓库内）
-- 分发/安装方式分析：`分发安装方式分析.md`（microNeo 仓库内）
 - 源码与协议详情：[microNeo](https://github.com/sollawen/microNeo)

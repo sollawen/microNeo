@@ -3,14 +3,13 @@
 > 目标：把本机 Claude 里 aibp-claude 的加载方式，从 `ccaibp` 带 `--plugin-dir <源码路径>`（session-only），
 > 换成经 marketplace + npm 的持久安装——之后任何 `claude` 启动都自动加载，`ccaibp` 退化为纯 env 中转。
 >
-> 关键文档依据：`internal/aibp/aibp-agents/claude/README.md`、`分发安装方式分析.md`、
+> 关键文档依据：`internal/aibp/aibp-agents/claude/README.md`、
 > `reference/claude-plugin-doc.md`（§Plugin caching："Through `claude --plugin-dir` … for the duration of a session"）。
 
 > 🔒 **硬约束：不走 Claude 官方 plugin-market**
 >
 > 本计划全程使用**自建 marketplace**（`sollawen/microNeo-plugins`，GitHub 公开仓库）。
 > 绝不提交 / 不依赖 `@claude-plugins-official`、`@claude-plugins-community`（不需审核、不与 Anthropic 绑定）。
-> 这与 `分发安装方式分析.md` §3 第 5 行的排除决策一致。
 >
 > ⚠ 注意：本机 `known_marketplaces.json` 里现存的 `claude-plugins-official` 是给 `superpowers` 插件用的，**与 aibp 无关，本次不动它**。
 
