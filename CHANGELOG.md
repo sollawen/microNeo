@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.7] - 2026-07-04
+
 **Fixed**
 
 - Indented fenced code blocks (1-3 leading spaces before the ```` ``` ```` fence, common in AI-generated markdown) are now detected and rendered as code blocks instead of plain text.
