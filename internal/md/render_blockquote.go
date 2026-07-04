@@ -63,7 +63,8 @@ func RenderBlockquote(seg Segment, width int, cfg MDConfig) *RenderedSegment {
 		// highlight 对 > 行是整行匹配，行内规则不会生效，无需走 renderInline
 		// 直接逐 rune 输出，只设斜体属性，颜色由 highlight 决定
 		cells := make([]Cell, 0, utf8.RuneCountInString(content))
-		col := 0
+		// col 从前缀宽度开始，让 tab 对齐到绝对列网格（与 edit 原生渲染一致）
+		col := len(prefixCells)
 		runeIdx := 0
 		tabSize := cfg.TabSize
 		if tabSize <= 0 {
