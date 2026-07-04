@@ -46,6 +46,8 @@ import "fmt"
 
 func main() {
     fmt.Println("Hello, World!")
+	test1
+		test2
 }
 ```
 
@@ -62,6 +64,24 @@ func main() {
 
 > Blockquote first line
 > Blockquote `second line`
+
+# Tab Rendering
+
+Normal leading tab (1 tab, should indent to tab stop):
+	normal 1 tab
+Normal leading tabs (2 tabs):
+		normal 2 tabs
+Normal mid tab (a TAB b, b should align to next tab stop):
+a	b
+
+> Blockquote leading tab (1 tab):
+>	quote 1 tab
+>
+> Blockquote leading tabs (2 tabs):
+>		quote 2 tabs
+>
+> Blockquote mid tab (a TAB b):
+> a	b
 
 # Mixed Long Paragraph
 

@@ -3,6 +3,7 @@ package md
 import (
 	"unicode/utf8"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/micro-editor/tcell/v2"
 )
 
@@ -14,6 +15,13 @@ import (
 // 颜色完全由 highlighter 决定，不在这里管。
 func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffset int) []Cell {
 	cells := make([]Cell, 0, utf8.RuneCountInString(line))
+
+	// col 追踪显示列位置，用于 tab 展开对齐
+	col := 0
+	tabSize := cfg.TabSize
+	if tabSize <= 0 {
+		tabSize = 4
+	}
 
 	// baseStyle 只携带文本属性，颜色由 highlighter 决定
 	// inline code 不需要特殊文本属性
@@ -29,14 +37,31 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 	// runeIdx 是当前位置的 rune 偏移
 	runeIdx := 0
 	runeCount := len(runes)
+	var endIdx int
 
 	for runeIdx < runeCount {
 		r := runes[runeIdx]
 
+		// 0. Tab 展开：必须最先处理（tab 不是任何标记符），BufX 指向 tab 原始位置
+		if r == '\t' {
+			ts := tabSize - (col % tabSize)
+			for j := 0; j < ts; j++ {
+				cells = append(cells, Cell{
+					Rune:    ' ',
+					Style:   baseStyle,
+					BufLine: bufLineOffset,
+					BufX:    runeIdx,
+				})
+			}
+			col += ts
+			runeIdx++
+			continue
+		}
+
 		// 1. 行内代码：`...`
 		if r == '`' {
 			// 在 rune 数组中找下一个反引号
-			endIdx := -1
+			endIdx = -1
 			for k := runeIdx + 1; k < runeCount; k++ {
 				if runes[k] == '`' {
 					endIdx = k
@@ -53,6 +78,7 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 						BufLine: bufLineOffset,
 						BufX:    x,
 					})
+					col += runewidth.RuneWidth(runes[x])
 				}
 				runeIdx = endIdx + 1 // 跳过闭标记的 `
 				continue
@@ -64,6 +90,7 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 				BufLine: bufLineOffset,
 				BufX:    runeIdx,
 			})
+			col += runewidth.RuneWidth(r)
 			runeIdx++
 			continue
 		}
@@ -79,6 +106,7 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 						BufLine: bufLineOffset,
 						BufX:    x,
 					})
+					col += runewidth.RuneWidth(runes[x])
 				}
 				runeIdx = endIdx + 3
 				continue
@@ -93,6 +121,7 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 						BufLine: bufLineOffset,
 						BufX:    x,
 					})
+					col += runewidth.RuneWidth(runes[x])
 				}
 				runeIdx = endIdx + 2
 				continue
@@ -107,6 +136,7 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 						BufLine: bufLineOffset,
 						BufX:    x,
 					})
+					col += runewidth.RuneWidth(runes[x])
 				}
 				runeIdx = endIdx + 1
 				continue
@@ -118,13 +148,14 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 				BufLine: bufLineOffset,
 				BufX:    runeIdx,
 			})
+			col += runewidth.RuneWidth(r)
 			runeIdx++
 			continue
 		}
 
 		// 3. ** → Bold
 		if runeIdx+1 < runeCount && runes[runeIdx] == '*' && runes[runeIdx+1] == '*' {
-			endIdx := findRuneSeq(runes, runeIdx+2, runeCount, "**")
+			endIdx = findRuneSeq(runes, runeIdx+2, runeCount, "**")
 			if endIdx >= 0 {
 				for x := runeIdx + 2; x < endIdx; x++ {
 					cells = append(cells, Cell{
@@ -133,6 +164,7 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 						BufLine: bufLineOffset,
 						BufX:    x,
 					})
+					col += runewidth.RuneWidth(runes[x])
 				}
 				runeIdx = endIdx + 2
 				continue
@@ -147,6 +179,7 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 						BufLine: bufLineOffset,
 						BufX:    x,
 					})
+					col += runewidth.RuneWidth(runes[x])
 				}
 				runeIdx = endIdx + 1
 				continue
@@ -158,6 +191,7 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 				BufLine: bufLineOffset,
 				BufX:    runeIdx,
 			})
+			col += runewidth.RuneWidth(r)
 			runeIdx++
 			continue
 		}
@@ -173,6 +207,7 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 						BufLine: bufLineOffset,
 						BufX:    x,
 					})
+					col += runewidth.RuneWidth(runes[x])
 				}
 				runeIdx = endIdx + 1
 				continue
@@ -184,6 +219,7 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 				BufLine: bufLineOffset,
 				BufX:    runeIdx,
 			})
+			col += runewidth.RuneWidth(r)
 			runeIdx++
 			continue
 		}
@@ -199,6 +235,7 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 						BufLine: bufLineOffset,
 						BufX:    x,
 					})
+					col += runewidth.RuneWidth(runes[x])
 				}
 				runeIdx = endIdx + 2
 				continue
@@ -210,6 +247,7 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 				BufLine: bufLineOffset,
 				BufX:    runeIdx,
 			})
+			col += runewidth.RuneWidth(r)
 			runeIdx++
 			continue
 		}
@@ -242,6 +280,7 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 							BufLine: bufLineOffset,
 							BufX:    x,
 						})
+						col += runewidth.RuneWidth(runes[x])
 					}
 					runeIdx = closeParenIdx + 1
 					continue
@@ -254,6 +293,7 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 				BufLine: bufLineOffset,
 				BufX:    runeIdx,
 			})
+			col += runewidth.RuneWidth(r)
 			runeIdx++
 			continue
 		}
@@ -265,6 +305,7 @@ func renderInline(line string, baseStyle tcell.Style, cfg MDConfig, bufLineOffse
 			BufLine: bufLineOffset,
 			BufX:    runeIdx,
 		})
+		col += runewidth.RuneWidth(r)
 		runeIdx++
 	}
 

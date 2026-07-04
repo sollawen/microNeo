@@ -4,6 +4,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/micro-editor/tcell/v2"
 )
 
@@ -62,14 +63,34 @@ func RenderBlockquote(seg Segment, width int, cfg MDConfig) *RenderedSegment {
 		// highlight 对 > 行是整行匹配，行内规则不会生效，无需走 renderInline
 		// 直接逐 rune 输出，只设斜体属性，颜色由 highlight 决定
 		cells := make([]Cell, 0, utf8.RuneCountInString(content))
+		col := 0
 		runeIdx := 0
+		tabSize := cfg.TabSize
+		if tabSize <= 0 {
+			tabSize = 4
+		}
 		for _, r := range content {
+			if r == '\t' {
+				ts := tabSize - (col % tabSize)
+				for j := 0; j < ts; j++ {
+					cells = append(cells, Cell{
+						Rune:    ' ',
+						Style:   baseStyle,
+						BufLine: lineIdx,
+						BufX:    runeIdx,
+					})
+				}
+				col += ts
+				runeIdx++
+				continue
+			}
 			cells = append(cells, Cell{
 				Rune:    r,
 				Style:   baseStyle,
 				BufLine: lineIdx,
 				BufX:    runeIdx,
 			})
+			col += runewidth.RuneWidth(r)
 			runeIdx++
 		}
 
