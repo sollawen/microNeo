@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Fixed**
 
 - Indented fenced code blocks (1-3 leading spaces before the ```` ``` ```` fence, common in AI-generated markdown) are now detected and rendered as code blocks instead of plain text.
+- Tab characters in normal paragraphs and blockquotes are now expanded to align to the tab stop. Previously each tab rendered as a single column, so tab-indented Markdown text lost its alignment in the rendered view.
+- Tab indentation inside blockquotes now aligns to the same absolute column as in edit mode, keeping the rendered and raw views consistent.
 
 ## [1.1.6] - 2026-07-03
 
