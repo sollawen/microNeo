@@ -32,12 +32,12 @@ This is a plain code block without syntax highlighting
 Second line 
 ```
 
- ```python
+  ```python
  def function(something: string):
      self.a = 0
      # This is a comment, but it's quite long. Let's test if this comment is quite long.
      return
- ```
+  ```
 
 ```go
 package main
