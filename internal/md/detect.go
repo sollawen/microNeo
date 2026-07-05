@@ -53,6 +53,33 @@ func DetectSegments(
 		// ── Codeblock 边界：用 highlighter state 转折点 ──
 		if lastState == nil && curState != nil {
 			codeblockStart = y // 进入 codeblock
+
+			// ★ 新增：进入 codeblock 前，先关闭未闭合的多行结构（list/blockquote/table）。
+			// 否则它们的兜底分支（detect.go:167-184）会把 BufEndLine 扩到 visibleEnd，
+			// 吞掉 codeblock 并导致 segment 顺序倒挂（issue #6）。
+			switch state {
+			case stateBlockquote:
+				segments = append(segments, Segment{
+					BufStartLine: startLine,
+					BufEndLine:   y - 1,
+					Render:       RenderBlockquote,
+				})
+				state = stateNormal
+			case stateTable:
+				segments = append(segments, Segment{
+					BufStartLine: startLine,
+					BufEndLine:   y - 1,
+					Render:       RenderTable,
+				})
+				state = stateNormal
+			case stateList:
+				segments = append(segments, Segment{
+					BufStartLine: startLine,
+					BufEndLine:   y - 1,
+					Render:       RenderList,
+				})
+				state = stateNormal
+			}
 		}
 		if lastState != nil && curState == nil {
 			segments = append(segments, Segment{

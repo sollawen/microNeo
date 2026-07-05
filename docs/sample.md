@@ -26,7 +26,6 @@ Also plain `code` and **bold** and *italic* mixed together on the same line.
 - [x] *Completed* task
 
 # Code Blocks
-
 ```
 This is a plain code block without syntax highlighting
 Second line 
@@ -59,6 +58,12 @@ func main() {
 | Data 4   | Data 5   | Data 6 |
 | **Bold** | `Code`   | *Italic* |
 
+| 场景 | 修复前（bug） | 修复后 |
+|---|---|---|
+| list 下一行紧跟 ` ```go ` | list 覆盖 codeblock，codeblock 错位/丢失 | list 正常收尾，codeblock 独立成块、顺序正确 |
+| blockquote 紧跟 codeblock | 同上 | blockquote 收尾，codeblock 独立 |
+| table 紧跟 codeblock | 同上 | table 收尾，codeblock 独立 |
+| 中间有空行分隔 | 本就正常 | 仍正常（回归） |
 
 # Blockquotes
 
@@ -98,3 +103,45 @@ Image: ![Image Description](https://example.com/image.png)
 
 # Special Symbols
 Copyright © Registered ® Trademark ™ Ellipsis… Em dash —
+
+---
+
+## List / Blockquote / Table + Codeblock 紧邻验证（修复 #6）
+
+以下四组用于验证「多行结构紧跟 codeblock 时 segment 乱序」修复：前三组（无空行分隔）触发修复前 bug，第四组（有空行分隔）是回归用例。
+
+
+
+- list item one
+- list item two
+```go
+const x = 1
+```
+
+# Case 2: blockquote 紧跟 codeblock（无空行）
+
+> quote line 1
+> quote line 2
+```go
+fmt.Println("x")
+```
+
+# Case 3: table 紧跟 codeblock（无空行）
+- list
+| col A | col B |
+|-------|-------|
+| data1 | data2 |
+```go
+code inside
+```
+
+# Case 4: list → 空行 → codeblock（回归，行为不变）
+
+- list item one
+- list item two
+```go
+const y = 2
+```
+
+```
+```
