@@ -516,3 +516,54 @@ func TestDetectVisibleRange(t *testing.T) {
 		t.Fatalf("first segment should start at line 1, got %d", segments[0].BufStartLine)
 	}
 }
+
+// TestIsTableRow 覆盖 isTableRow 的配对符号扫描逻辑。
+// 重点回归：奇数个反引号（或其它未闭合配对符号）不应导致整行漏判为非表格行。
+func TestIsTableRow(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want bool
+	}{
+		{"normal table", "| col A | col B |", true},
+		{"separator row", "|---|---|---|", true},
+		{"cjk table", "| 场景 | 修复前 | 修复后 |", true},
+		{"code span with pipe", "| `a|b` | c |", true},
+		{"balanced backticks", "| list 跟随 ```go ``` | 覆盖 | 独立 |", true},
+		{"odd backticks in cell", "| list 下一行紧跟 ` ```go ` | 覆盖 | 独立 |", true},
+		{"single unmatched backtick", "| unmatched ` backtick | data |", true},
+		{"unmatched single quote", "| it's a test | data |", true},
+		{"only one pipe", "| `unmatched end", false},
+		{"no pipe", "plain text", false},
+		{"empty", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isTableRow(tt.line); got != tt.want {
+				t.Errorf("isTableRow(%q) = %v, want %v", tt.line, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestDetectTableRowWithOddBackticks 回归 docs/isTableRow-奇数反引号导致表格行漏判.md：
+// 表格中某行含奇数个反引号时，不应把表格在该行切断。
+func TestDetectTableRowWithOddBackticks(t *testing.T) {
+	buf := &mockBuffer{lines: []string{
+		"| 场景 | 修复前（bug） | 修复后 |",
+		"|---|---|---|",
+		"| list 下一行紧跟 ` ```go ` | 覆盖 codeblock | 独立成块 |", // 5 个反引号
+		"| blockquote 紧跟 codeblock | 同上 | 独立 |",
+	}}
+	segments := DetectSegments(buf, 0, 3)
+	if len(segments) != 1 {
+		t.Fatalf("expected 1 table segment, got %d", len(segments))
+	}
+	if segType := getSegmentType(segments[0]); segType != typeTable {
+		t.Fatalf("expected table, got %v", segType)
+	}
+	if segments[0].BufStartLine != 0 || segments[0].BufEndLine != 3 {
+		t.Fatalf("expected table [0,3], got [%d,%d]",
+			segments[0].BufStartLine, segments[0].BufEndLine)
+	}
+}

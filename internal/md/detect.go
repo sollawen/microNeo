@@ -249,12 +249,23 @@ func isTableRow(s string) bool {
 			continue
 		}
 		// 跳过开符号本身，然后找闭符号
+		start := i
 		i++
-		for i < len(s) && s[i] != close {
+		found := false
+		for i < len(s) {
+			if s[i] == close {
+				found = true
+				i++ // 跳过闭符号
+				break
+			}
 			i++
 		}
-		// 跳过闭符号
-		i++
+		// 未找到闭符号：把开符号当普通字符，从下一个位置继续扫描。
+		// 否则奇数个反引号（或其它未闭合配对符号）会让 i 冲到字符串末尾，
+		// 吞掉剩余行里真正的 | 列分隔符，导致整行漏判为非表格行。
+		if !found {
+			i = start + 1
+		}
 	}
 	return false
 }

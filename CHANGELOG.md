@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Fixed**
+
+- Fenced code blocks that immediately follow a list, blockquote, or table now render correctly in place; previously the preceding structure overlapped and displaced the code block.
+- Table rows containing an odd number of backticks (or other unmatched paired delimiters like `'`/`"`/`(`/`[`/`{`) no longer break table detection; the table used to be split at that row.
+
 ## [1.1.7] - 2026-07-04
 
 **Fixed**

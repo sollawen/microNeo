@@ -378,7 +378,7 @@ func runeDisplayWidth(r rune) int {
 func TestMakeTableSeparator(t *testing.T) {
 	colWidths := []int{3, 5}
 	width := 20
-	row := makeTableSeparator(colWidths, width, tcell.StyleDefault, tcell.StyleDefault)
+	row := makeTableSeparator(colWidths, width, tcell.StyleDefault, tcell.StyleDefault, -1)
 
 	if len(row.Cells) != width {
 		t.Errorf("makeTableSeparator len = %d, want %d", len(row.Cells), width)
