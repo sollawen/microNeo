@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.8] - 2026-07-05
+
 **Fixed**
 
 - Fenced code blocks that immediately follow a list, blockquote, or table now render correctly in place; previously the preceding structure overlapped and displaced the code block.
