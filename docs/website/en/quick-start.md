@@ -16,7 +16,7 @@ microneo --check-agent
 
 - You only need to run this once — microNeo will remember which AIs are installed on your machine.
 - Of course, if you install another AI agent later, just run this command again.
-- Currently supports OpenCode and Pi; support for Claude is under development...
+- Currently supports OpenCode, Pi, and Claude. However, since Claude is not open source, it works but isn't perfect.
 
 **Step 3: Open the file you want to discuss with the AI**
 

@@ -34,9 +34,9 @@ microNeo 目前内置 9 种配色方案：
 
 ### 自定义theme
 
-用户自定义的theme文件放在 `~/.config/microNeo/colorschemes/` 下。
+用户自定义的 theme 文件放在 `~/.config/microNeo/colorschemes/` 下，文件后缀为 `.micro`（例如 `my-theme.micro`）。
 
-以内置的 `s-dark` 为例，一个 theme 文件的内容如下：
+以内置的 `s-dark.micro` 为例，一个 theme 文件的内容如下：
 
 ```micro
 color-link default "#b5b8b6,#100F0F"

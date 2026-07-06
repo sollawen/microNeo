@@ -3,7 +3,8 @@
 ## 目录
 microNeo 的用户配置文件：`~/.config/microNeo/settings.json`
 
-重置为缺省的、完整的、全套 settings.json:
+在需要时，可以运行 `microneo --reset-settings` 命令，在用户配置目录（`~/.config/microNeo`）下重建一个包含全部缺省值的 `settings.json` 文件，方便用户在此基础上自行调整各项参数。
+
 ```bash
 # bash
 # 这个命令会生成一套完整的 ~/.config/microNeo/settings.json
@@ -26,17 +27,17 @@ microneo --reset-settings
 ```json
 	// UI settings    
     "statusline": true,  			// display the status line at the bottom of the screen.
-    "status-separator": "\ue0b0",  	// string substituted into the $sep placeholder inside statusLine
+    "status-separator": "\ue0b0",  	// 状态栏里的三角形分隔符，需要nerd字体支持,不行的话可以改成"|"
 
     "ruler": true,  			// display line numbers.
     "relativeruler": false,  	// make line numbers display relatively. 
 
     "scrollbar": true,  		// display a scroll bar.  
-    "scrollbarchar": "\u2590",  // specifies the character used for displaying the scrollbar.  
+    "scrollbarchar": "\u2590",  // 滚动条的字符，需要nerd字体支持。不行的话可以改成"|"  
     "scrollmargin": 3.0,  		// margin of the scroll bar
     "scrollspeed": 2.0,  		// amount of lines to scroll for one scroll event.
 
-    "diffgutter": true,  // 显示diff，该行是否被修改过
+    "diffgutter": true,  // 显示diff，该行是否被修改过。支持git的diff状态
 ```
 
 - 有的终端字体不支持 `nerd` 字符。这时`statusLine`显示会有一点乱码。建议自行更换 `status-separator` and `scrollbarchar`，例如改成 "│"

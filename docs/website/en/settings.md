@@ -3,7 +3,8 @@
 ## Location
 microNeo config file: `~/.config/microNeo/settings.json`
 
-Reset to a complete, full default `settings.json`:
+When needed, run `microneo --reset-settings` to regenerate a complete `settings.json` with all default values in your user config directory (`~/.config/microNeo`), giving you a clean baseline to customize.
+
 ```bash
 # bash
 # This generates a complete ~/.config/microNeo/settings.json
@@ -26,17 +27,17 @@ microneo --reset-settings
 ```json
 	// UI settings    
     "statusline": true,  			// display the status line at the bottom of the screen.
-    "status-separator": "\ue0b0",  	// string substituted into the $sep placeholder inside statusLine
+    "status-separator": "\ue0b0",  	// triangular separator in the status bar, requires Nerd Font. Fallback: "|"
 
     "ruler": true,  			// display line numbers.
     "relativeruler": false,  	// make line numbers display relatively. 
 
     "scrollbar": true,  		// display a scroll bar.  
-    "scrollbarchar": "\u2590",  // specifies the character used for displaying the scrollbar.  
+    "scrollbarchar": "\u2590",  // character used for the scroll bar, requires Nerd Font. Fallback: "|"
     "scrollmargin": 3.0,  		// margin of the scroll bar
     "scrollspeed": 2.0,  		// amount of lines to scroll for one scroll event.
 
-    "diffgutter": true,  // show diff — whether each line has been modified
+    "diffgutter": true,  // show per-line diff (e.g. git-modified) status
 ```
 
 - Some terminal fonts don't support nerd characters. In that case the `statusLine` may render with garbled glyphs. It's recommended to swap out `status-separator` and `scrollbarchar` yourself — for example, change them to `│`.

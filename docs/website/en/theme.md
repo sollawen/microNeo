@@ -32,9 +32,9 @@ microNeo currently ships 9 color schemes:
 
 ### Custom themes
 
-Your custom theme files go in `~/.config/microNeo/colorschemes/`.
+Your custom theme files go in `~/.config/microNeo/colorschemes/` and must use the `.micro` extension (e.g. `my-theme.micro`).
 
-Using the built-in `s-dark` as an example, here is what a theme file looks like:
+Using the built-in `s-dark.micro` as an example, here is what a theme file looks like:
 
 ```micro
 color-link default "#b5b8b6,#100F0F"

@@ -17,7 +17,7 @@ microneo --check-agent
 
 - 这个检测只需要做一次，microNeo 会记录已有哪些AI在电脑里。
 - 当然，如果你安装了另一个AI agent的时候，需要再运行一次这个命令
-- 目前支持 OpenCode and Pi, 对 Claude 的支持正在开发中......
+- 目前支持 OpenCode、Pi 和 Claude。但是因为 Claude 不是开源的，所以能用但不够完美。
 
 
 **第三步：用microNeo打开你想和AI讨论的那个文件**

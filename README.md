@@ -19,7 +19,7 @@ So here comes **microNeo, an AI Partner**.
 
 [![demo](./docs/website/assets/aibp-opencode.gif)](https://sollawen.github.io/microNeo/)
 
-Currently supports `pi` and `opencode`; support for `claude cli` is under development.
+Currently supports `pi`, `opencode`, and `claude cli`. However, since `claude cli` is not open source, it works but isn't perfect.
 
 ---
 
