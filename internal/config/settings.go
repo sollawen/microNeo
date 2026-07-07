@@ -67,6 +67,7 @@ var defaultCommonSettings = map[string]any{
 	"eofnewline":      true,
 	"fastdirty":       false,
 	"fileformat":      defaultFileFormat(),
+	"fileselectwidth": 0.4,
 	"filetype":        "unknown",
 	"hlsearch":        false,
 	"hltaberrors":     false,

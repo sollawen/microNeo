@@ -71,6 +71,7 @@
     "rmtrailingws": false,  // micro will automatically trim trailing whitespaces at ends of lines.
     "mkparents": false,  // if a file is opened on a path that does not exist,
     "fileformat": "unix",  // this determines what kind of line endings micro will use for the file.
+    "fileselectwidth": 0.4,  // width fraction for file selector picker (0.0-1.0).
     "encoding": "utf-8",  // the encoding to open and save files with. 
     "fastdirty": false,  // this determines what kind of algorithm micro uses to determine if a buffer is modified.
     "readonly": false,  // when enabled, disallows edits to the buffer.
