@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Added**
+
+- New `:file` command opens a pane-local file picker to browse directories and open a file into the current pane — a visual alternative to `:open`.
+- The file picker shows a breadcrumb path (Enter/← goes up a level, → enters a directory), marks directories, toggles dotfile visibility with `.`, and starts with the cursor on the current file.
+- Git status indicators (`M`/`U`/`A`/`D`/`R`) appear next to file names when `diffgutter` is enabled, loaded in the background so the list is usable immediately.
+- `fileselectwidth` option (default `0.4`) controls the picker width as a fraction of the pane.
+
+**Changed**
+
+- Popups (theme picker, file picker) now close automatically when the terminal is resized, instead of leaving visual artifacts.
+
 ## [1.1.8] - 2026-07-05
 
 **Fixed**
