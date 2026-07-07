@@ -57,11 +57,11 @@ type FloatOpenSpec struct {
 }
 ```
 
-2. `FloatFrame` struct（现 `floatframe.go:39`）追加两个字段：
+2. `FloatFrame` struct（现 `floatframe.go:39`）追加一个字段：
 ```go
-    onCancel   func() // FloatFrame 自身关闭时回调(F0a §4); Close() 清空
-    autoExpand bool   // layout 模式(F0a §2.2)
+    onCancel func() // FloatFrame 自身关闭时回调(F0a §4); Close() 清空
 ```
+`AutoExpand` 只作入参读、不存容器副本（见 T2 §1 关键决策）。
 
 **验收**：`make build-quick` 通过；此时尚未切换 callsite，行为无变化。
 
@@ -92,23 +92,22 @@ func (f *FloatFrame) Open(spec FloatOpenSpec) bool {
 
     // —— 存字段 ——
     ax, ay := spec.Anchor.X, spec.Anchor.Y
-    if f.autoExpand && ay < 0 {                        // sentinel: 仅 SelectPane(autoExpand) 用, 贴 statusLine
-        ay = bottomLimit + ay + 1                      //   放在 f.anchor 赋值前, 与旧代码结构一致
+    if spec.AutoExpand && ay < 0 {                     // sentinel: 仅 SelectPane 用, 贴 statusLine
+        ay = bottomLimit + ay + 1                      // 直接读入参, 不抄到容器字段(避免抄写时机 bug)
     }
     fc := spec.FrameColor
     if fc == (tcell.Style{}) { fc = config.DefStyle }
-    f.anchor = Pos{X: ax, Y: ay}                       // 变换后(autoExpand) / 原值(false), 与旧代码等价
+    f.anchor = Pos{X: ax, Y: ay}                       // 变换后(spec.AutoExpand&&ay<0) / 原值(false)
     f.contentSize = spec.ContentSize
     f.title = spec.Title
     f.frameColor = fc
     f.display = spec.Display
     f.handleEvent = spec.HandleEvent
     f.onCancel = spec.OnCancel
-    f.autoExpand = spec.AutoExpand
     f.outerW, f.outerH = outerW, outerH
 
     // —— layout 分叉(F0a §3) ——
-    if f.autoExpand {
+    if spec.AutoExpand {
         f.fx, f.fy = expandAnchor(ax, ay, outerW, outerH)
     } else {
         f.fx, f.fy = ax, ay                            // FileSelector: 直接采用, 不二次决策, 不 clamp(F0a §7: 调用者保证非负)
@@ -119,7 +118,7 @@ func (f *FloatFrame) Open(spec FloatOpenSpec) bool {
 }
 ```
 
-   **关键决策**：sentinel（`ay<0`）是 SelectPane 的约定，**条件化为 `if f.autoExpand && ay<0`、放在 `f.anchor` 赋值之前**——既让 SelectPane 路径与旧代码逐字节等价（旧代码 sentinel 也在 `f.anchor` 赋值前），又让 FileSelector 走 `false` 时完全不经过 sentinel（anchor 恒正、pane 左上角）。
+   **关键决策**：sentinel（`ay<0`）是 SelectPane 的约定，**条件化为 `if spec.AutoExpand && ay<0`、放在 `f.anchor` 赋值之前**。直接读入参 `spec.AutoExpand`、**不抄到容器字段**——曾试过用 `f.autoExpand`，但它的赋值排在 sentinel 之后，导致 sentinel 读到上一次调用的残留值（bug）。因此容器不再需要 `autoExpand` 字段，T1 只追加 `onCancel` 一个。`false` 路径完全不经过 sentinel（FileSelector anchor 恒正、pane 左上角）。
 
 2. **`HandleEvent` 拦截 resize**（现 `floatframe.go:215`，当前是无条件转发）。加 resize 分支：
 
@@ -140,7 +139,7 @@ func (f *FloatFrame) HandleEvent(event tcell.Event) {
 ```go
     f.onCancel = nil   // 避免旧回调残留(F0a §4.4)
 ```
-   **清理策略（仿现有惯例）**：Close 只清**引用类型**字段（`display`/`handleEvent`/`onCancel`——断 GC 引用）；值类型字段（`autoExpand`/`anchor`/`title`/`contentSize` 等）不清——下次 `Open` 必覆盖，且两处 callsite 都显式写 `AutoExpand`（F0a §2.2 零值契约），无残留风险。
+   **清理策略（仿现有惯例）**：Close 只清**引用类型**字段（`display`/`handleEvent`/`onCancel`——断 GC 引用）；值类型字段（`anchor`/`title`/`contentSize` 等）不清——下次 `Open` 必覆盖，无残留风险。
 
 4. **`expandAnchor` 注释**（现 `floatframe.go:230` 上方 doc）补一句：layout 现由 `AutoExpand` 选择，`expandAnchor` 只服务 `true` 模式。
 
@@ -224,7 +223,7 @@ if !TheFloatFrame.Open(spec) {
 | # | 项 | 应对 |
 |---|----|------|
 | 1 | **onSelect 漏调 / 重复调** | 严格按 §4.4 顺序（存 cb → Close → 调 cb）；`OnCancel` 内**不得再调 `TheFloatFrame.Close()`**（重入，F0a §4.3）；`Close()` 幂等 |
-| 2 | **sentinel（ay<0）误作用到 false 路径** | 条件化为 `if f.autoExpand && ay<0`、放在 `f.anchor` 赋值前（T2 §1）；`false` 路径完全不经过 sentinel——FileSelector anchor 恒正 |
+| 2 | **sentinel（ay<0）误作用到 false 路径** | 条件化为 `if spec.AutoExpand && ay<0`、直接读入参不抄容器（T2 §1）；`false` 路径完全不经过 sentinel——FileSelector anchor 恒正 |
 | 3 | **误删 Esc/Enter 分支** | 只删 `case *tcell.EventResize`；Esc/Enter 是用户主动操作、保留 |
 | 4 | **`OnCancel` 零值** | 两处 callsite 都**显式写** `OnCancel`/`AutoExpand`，不依赖零值（F0a §2.2） |
 | 5 | **notePane 误伤** | notePane 不走 FloatFrame（嵌入式 overlay），本重构与它无关 |

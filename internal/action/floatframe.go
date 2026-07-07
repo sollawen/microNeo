@@ -35,6 +35,18 @@ type Size struct {
 	W, H int
 }
 
+// FloatOpenSpec 是打开浮窗的全部入参（options 模式）。
+type FloatOpenSpec struct {
+	Anchor      Pos                             // AutoExpand=true: 展开中心点; false: 外矩形左上角(含边框)
+	ContentSize Size                            // 纯内容尺寸(不含边框); FloatFrame 内部派生 outerW/outerH
+	Title       string                          // 嵌入上边框的标签; 空串=纯横线
+	FrameColor  tcell.Style                     // 边框色; 零值 = config.DefStyle
+	Display     func(contentArea Rect)          // 画内容(收到的 area 已扣除边框)
+	HandleEvent func(event tcell.Event)         // 处理键事件(resize 不会到达, FloatFrame 已拦截)
+	OnCancel    func()                          // FloatFrame 自身被关(resize)时回调; 具体浮窗在此清理业务回调
+	AutoExpand  bool                            // true: 锚点自适应展开(SelectPane); false: 钉死 Anchor(FileSelector)
+}
+
 // FloatFrame 容器本体。
 type FloatFrame struct {
 	isOpen bool
@@ -46,6 +58,7 @@ type FloatFrame struct {
 	frameColor  tcell.Style // 边框绘制颜色；零值 = config.DefStyle（见 ADR-7）
 	display     func(contentArea Rect)
 	handleEvent func(event tcell.Event)
+	onCancel    func()       // FloatFrame 自身关闭时回调(F0a §4); Close() 清空
 
 	// —— FloatFrame 自己算 ——
 	outerW, outerH int // 含边框总尺寸（contentSize + 2，title 撑宽取 max）
@@ -63,66 +76,55 @@ func NewFloatFrame() *FloatFrame {
 
 // Open 打开浮窗。
 //
-// 入参 anchor / contentSize 为纯内容语义（不含边框），title 撑宽由容器派生 outerW。
-// display / handleEvent 是具体浮窗把"画自己"与"处理事件"打包成函数值塞进来（ADR-2）。
+// 入参通过 FloatOpenSpec（options 模式）传入。layout 按 AutoExpand 分叉：
+//   - AutoExpand=true  → 锚点自适应展开（SelectPane 贴光标弹窗）
+//   - AutoExpand=false → 直接以 Anchor 为左上角（FileSelector 精确控制）
 //
-// 返回 bool（D-1 决策，语义扩展自设计 §四.1）：
+// 返回 bool：
 //   - true  = 成功 open
-//   - false = 没开成（调用方不区分原因）：FloatFrame 已有浮窗在打开（C1 拒绝再开）；
-//     或屏幕放不下（失败前置检查，几何归容器）。
-//
-// SelectPane 等调用方看到 false 时直接 onSelect(nil) 返回，对调用方完全透明。
-func (f *FloatFrame) Open(
-	anchor Pos,
-	contentSize Size,
-	title string,
-	frameColor tcell.Style,
-	display func(Rect),
-	handleEvent func(tcell.Event),
-) bool {
-	// C1：已有浮窗打开，拒绝再开
-	if f.isOpen {
-		return false
-	}
+//   - false = 没开成（已有浮窗在开 / 屏幕放不下），调用方应 onSelect(nil) 透明返回。
+func (f *FloatFrame) Open(spec FloatOpenSpec) bool {
+	if f.isOpen { return false } // C1 不变
 
-	// 由内容尺寸派生含边框外尺寸：宽度可能被 title 撑宽（与 selectpane.go 旧实现一致）
-	//   内容区：contentSize.W + 2（左右边框）
-	//   title 区：len(title) + 6（边框2 + 前后 ── 各 2）
-	outerW := contentSize.W + 2
-	if titleW := len(title) + 6; titleW > outerW {
+	// —— 派生 outerW/outerH（不变）——
+	outerW := spec.ContentSize.W + 2
+	if titleW := len(spec.Title) + 6; titleW > outerW {
 		outerW = titleW
 	}
-	outerH := contentSize.H + 2
+	outerH := spec.ContentSize.H + 2
 
-	// 失败前置检查（迁移自 selectpane.go §4.6）：屏幕完全放不下则放弃 open。
-	// 不修改任何状态（isOpen 保持 false），不 set fx/fy，不 Redraw。
+	// —— 失败前置检查（不变, size-only 安全兜底）——
 	w, h := screen.Screen.Size()
 	iOffset := config.GetInfoBarOffset()
-	statusLineY := h - iOffset - 1
-	bottomLimit := statusLineY - 1 // statusLine 上方 1 row 即显示底边界
+	bottomLimit := h - iOffset - 1 - 1
 	if outerH > bottomLimit+1 || outerW > w {
 		return false
 	}
 
-	// 通过几何检查，准备打开
-	ax, ay := anchor.X, anchor.Y
-	if ay < 0 {
-		ay = bottomLimit + ay + 1 // sentinel：负数 = statusLine 上方 |ay| 行（bottomLimit 已在失败前置检查处算好）
+	// —— 存字段 ——
+	ax, ay := spec.Anchor.X, spec.Anchor.Y
+	if spec.AutoExpand && ay < 0 { // sentinel: 仅 SelectPane 用, 贴 statusLine
+		ay = bottomLimit + ay + 1   // 直接读入参, 不抄到容器字段(避免抄写时机 bug)
 	}
-
-	f.anchor = Pos{X: ax, Y: ay}
-	f.contentSize = contentSize
-	f.title = title
-	if frameColor == (tcell.Style{}) {
-		frameColor = config.DefStyle
+	fc := spec.FrameColor
+	if fc == (tcell.Style{}) {
+		fc = config.DefStyle
 	}
-	f.frameColor = frameColor
-	f.display = display
-	f.handleEvent = handleEvent
+	f.anchor = Pos{X: ax, Y: ay} // 变换后(spec.AutoExpand&&ay<0) / 原值(false)
+	f.contentSize = spec.ContentSize
+	f.title = spec.Title
+	f.frameColor = fc
+	f.display = spec.Display
+	f.handleEvent = spec.HandleEvent
+	f.onCancel = spec.OnCancel
+	f.outerW, f.outerH = outerW, outerH
 
-	f.outerW = outerW
-	f.outerH = outerH
-	f.fx, f.fy = expandAnchor(ax, ay, outerW, outerH)
+	// —— layout 分叉(F0a §3) ——
+	if spec.AutoExpand {
+		f.fx, f.fy = expandAnchor(ax, ay, outerW, outerH)
+	} else {
+		f.fx, f.fy = ax, ay // FileSelector: 直接采用, 不二次决策, 不 clamp(F0a §7: 调用者保证非负)
+	}
 	f.isOpen = true
 	screen.Redraw()
 	return true
@@ -136,7 +138,8 @@ func (f *FloatFrame) Close() {
 	}
 	f.isOpen = false
 	f.display = nil
-	f.handleEvent = nil // 断引用，便于 GC（设计 §五）
+	f.handleEvent = nil       // 断引用，便于 GC（设计 §五）
+	f.onCancel = nil          // 避免旧回调残留(F0a §4.4)
 	screen.Redraw()
 }
 
@@ -210,18 +213,27 @@ func (f *FloatFrame) Display() {
 	f.display(Rect{X: f.fx + 1, Y: f.fy + 1, W: f.contentSize.W, H: f.contentSize.H})
 }
 
-// HandleEvent 转发事件给具体浮窗。所有事件（含 resize）一律转发，
-// 由具体浮窗自己决定如何处理（设计 §九 ADR-9：resize 归具体浮窗，SelectPane 视为取消）。
+// HandleEvent 转发事件给具体浮窗。resize 由 FloatFrame 统一拦截（resize 即关 + onCancel），
+// 不再转发；其它事件照旧转发。
 func (f *FloatFrame) HandleEvent(event tcell.Event) {
 	if !f.isOpen {
 		return
+	}
+	if _, ok := event.(*tcell.EventResize); ok {
+		cb := f.onCancel          // 先存(F0a §4.4 顺序)
+		f.Close()                 // 关容器(内部已清 onCancel)
+		if cb != nil { cb() }     // 再触发业务取消回调
+		return                    // 不再转发给具体浮窗
 	}
 	f.handleEvent(event)
 }
 
 // expandAnchor 算锚点自适应展开后的最终左上角 (fx, fy)。
 //
-// 算法体从 selectpane.go 旧实现原样迁移（设计 §七 / 实施计划 T1.2），保持逐字节一致：
+// 仅在 AutoExpand=true 时调用（SelectPane 贴光标弹窗路径）。
+// AutoExpand=false 时 FloatFrame 直接以 Anchor 为左上角，不调用本函数。
+//
+// 算法体从 selectpane.go 旧实现原样迁移，保持逐字节一致：
 //   - 输入 ax, ay（锚点屏坐标）、outerW, outerH（含边框总尺寸）
 //   - y 与 x 各自独立、各自对称（向 [右/下] 优先，向 [左/上] 次之，兜底偏向空间大的一侧）
 //   - 边界 clamp 是防御性代码，正常路径靠 Open 的失败前置检查保证不触发

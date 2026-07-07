@@ -71,7 +71,21 @@ func (s *SelectPane) Open(
 		H: visibleH,
 	}
 
-	if !TheFloatFrame.Open(anchor, contentSize, title, frameColor, s.display, s.handleEvent) {
+	spec := FloatOpenSpec{
+		Anchor:      anchor,
+		ContentSize: contentSize,
+		Title:       title,
+		FrameColor:  frameColor,
+		Display:     s.display,
+		HandleEvent: s.handleEvent,
+		AutoExpand:  true, // SelectPane: 贴光标/贴 statusLine 展开(旧行为)
+		OnCancel: func() { // resize 即关时清理业务回调
+			if s.onSelect != nil {
+				s.onSelect(nil)
+			}
+		},
+	}
+	if !TheFloatFrame.Open(spec) {
 		// 没开成：清状态 + 回调取消
 		s.items = nil
 		s.onSelect = nil
@@ -178,14 +192,7 @@ func (s *SelectPane) handleEvent(event tcell.Event) {
 			return
 		}
 		// 其它键（含字母 j / Ctrl-X 等）：完全吞掉
-	case *tcell.EventResize:
-		// ADR-9：resize 等同 Esc（Close + onSelect(nil)）
-		onSelect := s.onSelect
-		TheFloatFrame.Close()
-		if onSelect != nil {
-			onSelect(nil)
-		}
-		return
+
 	}
 }
 
