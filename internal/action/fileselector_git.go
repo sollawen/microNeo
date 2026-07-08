@@ -3,7 +3,6 @@ package action
 import (
 	"context"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -73,7 +72,15 @@ func (g *gitStatus) statusFor(dir string) (map[string]statusKind, bool) {
 		return nil, false
 	}
 
-	m = parsePorcelain(out)
+	// 多跑一次 rev-parse --show-prefix 拿「当前目录相对仓库根」的前缀
+	// 用来对齐 porcelain 恒输出「仓库根相对」路径（见 F1c §2）
+	prefix := ""
+	prefixCmd := exec.Command("git", "-C", dir, "rev-parse", "--show-prefix")
+	if out2, err2 := prefixCmd.Output(); err2 == nil {
+		prefix = strings.TrimSpace(string(out2))
+	}
+
+	m = parsePorcelain(out, prefix)
 
 	g.mu.Lock()
 	g.cache[dir] = m
@@ -82,6 +89,7 @@ func (g *gitStatus) statusFor(dir string) (map[string]statusKind, bool) {
 }
 
 // parsePorcelain 解析 git status --porcelain=v1 -z 的输出。
+// prefix 是「当前目录相对仓库根」的路径（带尾斜杠），由 rev-parse --show-prefix 提供。
 // 输入是字节串，每条记录格式：XY path\0（F1 §10.2）。
 // XY 两个字符表示索引状态和工作区状态，常见值：
 //   - "??" → stUntracked（未跟踪）
@@ -91,7 +99,8 @@ func (g *gitStatus) statusFor(dir string) (map[string]statusKind, bool) {
 //   - "R " → stRenamed
 //
 // 本函数只关心工作区状态（第二个字符），因为 FileSelector 只显示当前目录条目。
-func parsePorcelain(out []byte) map[string]statusKind {
+// 剥掉 prefix 后取顶层分量（F1c §3.1）：子目录内文件变更时，对应的子目录条目亮状态。
+func parsePorcelain(out []byte, prefix string) map[string]statusKind {
 	result := make(map[string]statusKind)
 	if len(out) == 0 {
 		return result
@@ -112,8 +121,14 @@ func parsePorcelain(out []byte) map[string]statusKind {
 			continue
 		}
 
-		// 取文件名（只显示当前目录条目名）
-		name := filepath.Base(path)
+		// 剥掉「当前目录相对仓库根」的前缀，得到「相对当前目录」的路径；再取顶层分量
+		rel := strings.TrimPrefix(path, prefix)
+		var name string
+		if i := strings.IndexByte(rel, '/'); i >= 0 {
+			name = rel[:i] // 含 / → 变更在子目录内，取顶层目录名
+		} else {
+			name = rel // 当前目录内的文件
+		}
 		if name == "." || name == "" {
 			continue
 		}

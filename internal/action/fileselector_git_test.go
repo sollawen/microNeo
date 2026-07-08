@@ -7,6 +7,7 @@ import (
 func TestParsePorcelain(t *testing.T) {
 	tests := []struct {
 		name     string
+		prefix   string
 		input    []byte
 		expected map[string]statusKind
 	}{
@@ -67,11 +68,10 @@ func TestParsePorcelain(t *testing.T) {
 			},
 		},
 		{
-			name:  "file in subdirectory (base only)",
-			input: []byte(" M sub/dir/file.go\x00"),
-			expected: map[string]statusKind{
-				"file.go": stModified,
-			},
+			name:     "subdirectory propagation (browsing sub/)",
+			prefix:   "sub/",
+			input:    []byte(" M sub/dir/file.go\x00"),
+			expected: map[string]statusKind{"dir": stModified},
 		},
 		{
 			name:  "MM (staged and modified)",
@@ -102,11 +102,39 @@ func TestParsePorcelain(t *testing.T) {
 				"deleted.go":   stDeleted,
 			},
 		},
+		// F1c 新增 case
+		{
+			name:  "root view three levels deep",
+			input: []byte(" M a/b/c/deep.go\x00"),
+			expected: map[string]statusKind{"a": stModified},
+		},
+		{
+			name:     "subdirectory view (internal/)",
+			prefix:   "internal/",
+			input:    []byte(" M internal/action/a.go\x00"),
+			expected: map[string]statusKind{"action": stModified},
+		},
+		{
+			name:     "file directly in subdirectory (internal/flat.go)",
+			prefix:   "internal/",
+			input:    []byte(" M internal/flat.go\x00"),
+			expected: map[string]statusKind{"flat.go": stModified},
+		},
+		{
+			name:     "multi-status aggregation in root view (M wins over A)",
+			input:    []byte("A  x/added.go\x00 M x/mod.go\x00"),
+			expected: map[string]statusKind{"x": stModified},
+		},
+		{
+			name:  "backslash filename not mis-split (Unix \\ is valid char)",
+			input: []byte(" M a\\b.go\x00"),
+			expected: map[string]statusKind{"a\\b.go": stModified},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := parsePorcelain(tt.input)
+			result := parsePorcelain(tt.input, tt.prefix)
 			if len(result) != len(tt.expected) {
 				t.Errorf("expected %d entries, got %d", len(tt.expected), len(result))
 				return
