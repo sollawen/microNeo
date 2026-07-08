@@ -16,18 +16,18 @@ func TestTruncateNameKeepExt(t *testing.T) {
 	}{
 		{"fits as-is", "main.go", 8, false, "main.go"},
 		{"fits exact", "ab.go", 5, false, "ab.go"},
-		{"truncate keep ext", "verylongname.go", 10, false, "…ngname.go"},
-		{"no ext keep tail", "verylongname", 8, false, "…ongname"},
+		{"truncate keep ext", "verylongname.go", 10, false, "verylo….go"}, // 右截断：头 6 + … + .go
+		{"no ext keep head", "verylongname", 8, false, "verylon…"},
 		{"single char cap", "whatever.go", 1, false, "…"},
 		{"zero cap", "x.go", 0, false, ""},
-		{"dir keeps tail", "myproject/", 6, true, "…ject/"},
-		{"dir with dot not treated as ext", "v2.3.4/", 6, true, "….3.4/"},
-		{"ext too long degrades to tail", "a.superlongextension", 8, false, "…tension"},
-		{"dotfile (leading dot) no real ext", ".gitignore", 5, false, "…nore"},
-		{"chinese filename", "我的超长项目文件名.go", 8, false, "…件名.go"},
+		{"dir keep head", "myproject/", 6, true, "mypro…"}, // 目录右截断保头，尾 / 不保留
+		{"dir with dot not treated as ext", "v2.3.4/", 6, true, "v2.3.…"},
+		{"ext too long degrades to head", "a.superlongextension", 8, false, "a.super…"}, // 扩展名放不下，退化保头
+		{"dotfile (leading dot) no real ext", ".gitignore", 5, false, ".git…"}, // . 在首位 dotIdx<=0 → 无扩展名
+		{"chinese filename", "我的超长项目文件名.go", 8, false, "我的….go"}, // 头 2 中文(4列) + … + .go
 		{"chinese fits as-is", "项目.go", 7, false, "项目.go"},            // 显示宽 2+2+1+1+1=7
-		{"chinese dir keeps tail", "我的项目目录/", 8, true, "…目目录/"},     // 目录宽 13，预算 8 → …+尾 7列（含两个目）
-		{"chinese no ext keep tail", "我的超长项目文件名", 6, false, "…件名"},   // 全中文宽 18，无扩展名，预算 6 → …件名(5列)
+		{"chinese dir keep head", "我的项目目录/", 8, true, "我的项…"},     // 目录宽 13，预算 8 → 头 3 中文(6列) + …
+		{"chinese no ext keep head", "我的超长项目文件名", 6, false, "我的…"},   // 全中文宽 18，无扩展名，预算 6 → 头 2 中文(4列) + …
 	}
 
 	for _, tt := range tests {
