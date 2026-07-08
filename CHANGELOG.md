@@ -7,20 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.9] - 2026-07-08
+
 **Added**
 
 - New `:file` command opens a pane-local file picker to browse directories and open a file into the current pane — a visual alternative to `:open`.
 - The file picker shows a breadcrumb path (Enter/← goes up a level, → enters a directory), marks directories, toggles dotfile visibility with `.`, and starts with the cursor on the current file.
 - Git status indicators (`M`/`U`/`A`/`D`/`R`) appear next to file names when `diffgutter` is enabled, loaded in the background so the list is usable immediately.
+- The file picker bottom line shows metadata for the selected entry, including directory child counts, file size, modified time, and symlink targets.
 - `fileselectwidth` option (default `0.4`) controls the picker width as a fraction of the pane.
 
 **Changed**
 
 - `Ctrl-o` now opens the file picker directly, instead of prompting for a file name via the command line. It now behaves the same as the `:file` command; users who prefer the old prompt can rebind it to `OpenFile` in `bindings.json`.
+- File picker visuals now better match directory/file context: breadcrumb rows use directory coloring, and long names are right-truncated while preserving extensions.
 - Popups (theme picker, file picker) now close automatically when the terminal is resized, instead of leaving visual artifacts.
 
 **Fixed**
 
+- Git status indicators now also appear correctly when browsing into subdirectories in the file picker.
 - microNeo's opencode receiver (`aibp-opencode`) loads again on opencode 1.17.15+: the plugin had stopped activating silently after opencode's bundled OpenTUI upgrade, so the AIBP name (e.g. `● Bravo`) disappeared and Alt-Enter deliveries to opencode were lost. Updating to `aibp-opencode` 1.0.5 (via `microneo --check-agent` or `opencode plugin aibp-opencode -g`) restores it. (aibp-opencode 1.0.5)
 
 ## [1.1.8] - 2026-07-05
