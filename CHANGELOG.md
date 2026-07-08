@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Ctrl-o` now opens the file picker directly, instead of prompting for a file name via the command line. It now behaves the same as the `:file` command; users who prefer the old prompt can rebind it to `OpenFile` in `bindings.json`.
 - Popups (theme picker, file picker) now close automatically when the terminal is resized, instead of leaving visual artifacts.
 
+**Fixed**
+
+- microNeo's opencode receiver (`aibp-opencode`) loads again on opencode 1.17.15+: the plugin had stopped activating silently after opencode's bundled OpenTUI upgrade, so the AIBP name (e.g. `● Bravo`) disappeared and Alt-Enter deliveries to opencode were lost. Updating to `aibp-opencode` 1.0.5 (via `microneo --check-agent` or `opencode plugin aibp-opencode -g`) restores it. (aibp-opencode 1.0.5)
+
 ## [1.1.8] - 2026-07-05
 
 **Fixed**
