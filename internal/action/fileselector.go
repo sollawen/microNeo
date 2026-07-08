@@ -1,11 +1,13 @@
 package action
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/mattn/go-runewidth"
 
@@ -65,6 +67,13 @@ type fileSelectorState struct {
 	gitStatus map[string]statusKind
 	gitOK     bool // false=无 git 列（降级）
 	mu        sync.RWMutex
+
+	// 元数据缓存（按条目名缓存，F1d §4.1）
+	metaName  string    // 缓存对应的条目名（""=面包屑/空/越界，无缓存）
+	metaSize  int64
+	metaMtime time.Time
+	metaOK    bool      // false=stat 失败（断链/无权限），字段降级显 —
+	metaIsDir bool      // = info.IsDir()（跟随符号链接）
 }
 
 // setGitStatus 由后台 goroutine 写入 git 查询结果（F1 §10.7）。
@@ -321,9 +330,14 @@ func (fs *FileSelector) display(area Rect) {
 		}
 	}
 
-	// 末行：hint
+	// 末行：光标条目元数据（F1d §4.3）
 	hintRow := area.Y + area.H - 1
-	fs.drawString(area.X, hintRow, area.W, fs.hintText(), config.DefStyle)
+	fs.refreshMetaIfStale()
+	text := ""
+	if s.metaName != "" { // 面包屑行/空目录 → 留空
+		text = fs.buildMetaLine()
+	}
+	fs.drawString(area.X, hintRow, area.W, text, config.DefStyle)
 }
 
 // drawBreadcrumb 画面包屑行（F0 §6.2 左截断全路径，恒保留"当前目录/"；根目录显 /）。
@@ -437,24 +451,140 @@ func (fs *FileSelector) drawString(x, y, w int, text string, style tcell.Style) 
 	}
 }
 
-// hintText 返回底部 hint 文案（F0 §7.3，随光标位置 + showHidden 变）。
-func (fs *FileSelector) hintText() string {
-	s := fs.state
-	var enterLabel string
-	switch fs.cursorRowKind() {
-	case rowBreadcrumb:
-		enterLabel = "Enter 上一级"
-	case rowDir:
-		enterLabel = "Enter 进入"
-	default:
-		enterLabel = "Enter 打开"
+// cursorEntryName 返回当前光标条目名（F1d §4.4）。
+// 边界：cursor==0 或 idx 越界 → 返回 ""，绝不 panic。
+func (s *fileSelectorState) cursorEntryName() string {
+	if s.cursor == 0 {
+		return ""
 	}
-	dotLabel := ". 显示隐藏"
-	if s.showHidden {
-		dotLabel = ". 隐藏文件"
+	idx := s.cursor - 1
+	if idx < 0 || idx >= len(s.entries) {
+		return ""
 	}
-	return enterLabel + "  ·  " + dotLabel + "  ·  Esc 取消"
+	return s.entries[idx].name
 }
+
+// refreshMetaIfStale 按需刷新元数据（F1d §4.2）。
+// 在 display 内 guard：名字没变则命中缓存、零 stat；变了才 stat 一次。
+// 调用位置在 s==nil return 之后、所有渲染之前，确保每条 display 路径都覆盖。
+func (fs *FileSelector) refreshMetaIfStale() {
+	s := fs.state
+	name := s.cursorEntryName()
+	if name == s.metaName {
+		return // 命中缓存
+	}
+	s.metaName = name
+	if name == "" { // 面包屑行 / 无条目
+		s.metaOK = false
+		return
+	}
+	info, err := os.Stat(filepath.Join(s.currentDir, name))
+	s.metaOK = err == nil
+	if err == nil {
+		s.metaSize = info.Size()
+		s.metaMtime = info.ModTime()
+		s.metaIsDir = info.IsDir()
+	}
+}
+
+// humanSize 把字节数格式化为人类可读字符串（F1d §3.2，输出恒 ≤5 列）。
+// 对齐 ls -lh 的 1024 进制规则。
+func humanSize(n int64) string {
+	if n < 0 {
+		n = 0
+	}
+
+	const unit1024 = int64(1024)
+	units := []string{"B", "K", "M", "G", "T", "P"}
+
+	if n < unit1024 {
+		return fmt.Sprintf("%dB", n)
+	}
+
+	// 除到 mantissa < unit1024
+	mantissa := float64(n)
+	unitIdx := 0
+	for mantissa >= float64(unit1024) && unitIdx < len(units)-1 {
+		mantissa /= float64(unit1024)
+		unitIdx++
+	}
+
+	unit := units[unitIdx]
+	if mantissa < 100 {
+		s := fmt.Sprintf("%.1f%s", mantissa, unit)
+		if stringWidth(s) <= 5 {
+			return s
+		}
+		// 否则 99.9x 进位到 100.0 → 落到下面的整数分支
+	}
+	// mantissa ≥ 100：整数，去小数（按四舍五入取最近整数）
+	// 1023.6→1024K → 进位 1.0M；999.9→1000K；1023.0→1023K
+	intPart := int64(mantissa + 0.5) // 四舍五入
+	// 进位：进位后值 ≥ 1024（如 1024K → 1.0M）
+	if intPart >= unit1024 && unitIdx < len(units)-1 {
+		return fmt.Sprintf("1.0%s", units[unitIdx+1])
+	}
+	return fmt.Sprintf("%d%s", intPart, unit)
+}
+
+// formatMtime 把修改时间格式化为对齐 ls -lh 的字符串（F1d §3.3）。
+// 同年 → "MM-DD HH:MM"（11 列）；跨年 → "YYYY-MM-DD"（10 列）。
+func formatMtime(t time.Time) string {
+	now := time.Now()
+	year, _, _ := t.Date()
+	nowYear, _, _ := now.Date()
+	if year == nowYear {
+		return t.Format("01-02 15:04") // 11 列
+	}
+	return t.Format("2006-01-02") // 10 列（跨年省略时分）
+}
+
+// buildMetaLine 组装光标条目的元数据行（F1d §3.1 / §3.4）。
+// size 是固定 5 列（右对齐），目录行 size 段留空但保留宽度，mtime 紧随其后。
+// metaOK=false 时缺失字段显 — 并补齐到字段定宽（— 的显示宽度是 2 列）。
+func (fs *FileSelector) buildMetaLine() string {
+	s := fs.state
+
+	// size 段（固定 5 列）
+	sizeStr := ""
+	if s.metaOK {
+		if !s.metaIsDir {
+			sizeStr = humanSize(s.metaSize)
+		}
+	}
+	if sizeStr == "" {
+		if s.metaOK {
+			// 目录行（metaOK && metaIsDir）：size 段留空 5 列
+			sizeStr = "     " // 5 spaces
+		} else {
+			// stat 失败：显 — 占位（— 是 U+2014，2 列；3 空格 + — = 5 列）
+			sizeStr = "   —"
+		}
+	}
+	// pad sizeStr to exactly 5 display cols
+	for stringWidth(sizeStr) < 5 {
+		sizeStr = " " + sizeStr
+	}
+
+	// mtime 段（10/11 列，formatMtime 已对齐）
+	mtimeStr := "          " // default 10 spaces
+	if s.metaOK {
+		mtimeStr = formatMtime(s.metaMtime)
+		// pad to 11 cols if same year (formatMtime returns 11 cols)
+		for stringWidth(mtimeStr) < 11 {
+			mtimeStr += " "
+		}
+	} else {
+		// stat 失败：— 占 2 列，右 pad 到 11 列（与正常 mtime 左对齐一致）
+		mtimeStr = "—"
+		for stringWidth(mtimeStr) < 11 {
+			mtimeStr += " " // 右 pad（左对齐）
+		}
+	}
+
+	return sizeStr + "  " + mtimeStr
+}
+
 
 // ---- Controller：handleEvent（F1 §8.2 键位表）----
 //
