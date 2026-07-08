@@ -39,7 +39,7 @@ var bufdefaults = map[string]string{
 	"Alt-Backspace":  "DeleteWordLeft",
 	"Tab":            "Autocomplete|IndentSelection|InsertTab",
 	"Backtab":        "CycleAutocompleteBack|OutdentSelection|OutdentLine",
-	"Ctrl-o":         "OpenFile",
+	"Ctrl-o":         "command:file",
 	"Ctrl-s":         "Save",
 	"Ctrl-f":         "Find",
 	"Alt-F":          "FindLiteral",

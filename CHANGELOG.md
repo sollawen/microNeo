@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Changed**
 
+- `Ctrl-o` now opens the file picker directly, instead of prompting for a file name via the command line. It now behaves the same as the `:file` command; users who prefer the old prompt can rebind it to `OpenFile` in `bindings.json`.
 - Popups (theme picker, file picker) now close automatically when the terminal is resized, instead of leaving visual artifacts.
 
 ## [1.1.8] - 2026-07-05
