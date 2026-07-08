@@ -280,8 +280,8 @@ func (fs *FileSelector) display(area Rect) {
 	}
 	revStyle := config.DefStyle.Reverse(true)
 
-	// 行 0：面包屑
-	bcStyle := config.DefStyle
+	// 行 0：面包屑（目录路径，用 type 色，对齐子目录行，F0 §7.5）
+	bcStyle := config.GetColor("type")
 	if s.cursor == 0 {
 		bcStyle = revStyle
 	}
