@@ -734,6 +734,25 @@ func tailByWidth(s string, maxW int) string {
 	return string(runes[start:])
 }
 
+// headByWidth 返回 s 的头部子串，其显示宽度 ≤ maxW（按列宽从头部向后取整字符）。
+func headByWidth(s string, maxW int) string {
+	if maxW <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	w := 0
+	end := 0
+	for i := 0; i < len(runes); i++ {
+		rw := runeWidth(runes[i])
+		if w+rw > maxW {
+			break
+		}
+		w += rw
+		end = i + 1
+	}
+	return string(runes[:end])
+}
+
 // ---- 截断工具 ----
 
 // truncateLeftPath 左截断路径到 maxW runes，恒保留尾段"当前目录/"（F0 §6.2）。
@@ -799,13 +818,10 @@ func truncateLeftPath(path string, maxW int) string {
 	return "…" + sep + kept
 }
 
-// truncateNameKeepExt 把 name 截断到 maxRunes，保留文件扩展名（F0 §4.2 / R3）。
-//   超长 → 左侧加 …，保留"扩展名"（最后一个 . 之后）可见；无扩展名/目录 → 保留尾段。
-//   isDir=true 时不按扩展名处理（目录名里的 . 不是扩展名），直接保留尾段。
-// rune-safe。
 // truncateNameKeepExt 把 name 截断到 maxCols 显示列宽，保留文件扩展名（F0 §4.2 / R3）。
-//   超长 → 左侧加 …，保留"扩展名"（最后一个 . 之后）可见；无扩展名/目录 → 保留尾段。
-//   isDir=true 时不按扩展名处理（目录名里的 . 不是扩展名），直接保留尾段。
+//   超长 → 右侧加 …，保留 basename 头部 + "扩展名"（最后一个 . 之后）可见（对齐 yazi）。
+//   无扩展名/目录 → 保留头部 + …。
+//   isDir=true 时不按扩展名处理（目录名里的 . 不是扩展名），直接保留头部。
 //   按 CJK 显示列宽计算（中文占 2 列），rune-safe。
 func truncateNameKeepExt(name string, maxCols int, isDir bool) string {
 	if maxCols <= 0 {
@@ -819,17 +835,17 @@ func truncateNameKeepExt(name string, maxCols int, isDir bool) string {
 		return "…"
 	}
 	r := []rune(name)
-	tailBudget := maxCols - ellW
-	if tailBudget <= 0 {
+	headBudget := maxCols - ellW
+	if headBudget <= 0 {
 		return "…"
 	}
 
-	keepTail := func() string {
-		return "…" + tailByWidth(name, tailBudget)
+	keepHead := func() string {
+		return headByWidth(name, headBudget) + "…"
 	}
 
 	if isDir {
-		return keepTail()
+		return keepHead()
 	}
 	// 找扩展名（basename 内最后一个 .）
 	dotIdx := -1
@@ -840,16 +856,16 @@ func truncateNameKeepExt(name string, maxCols int, isDir bool) string {
 		}
 	}
 	if dotIdx <= 0 {
-		return keepTail() // 无扩展名
+		return keepHead() // 无扩展名
 	}
 	ext := string(r[dotIdx:]) // 含 .
 	extW := stringWidth(ext)
-	headBudget := tailBudget - extW
-	if headBudget <= 0 {
-		return keepTail() // 扩展名本身就放不下，退化保尾
+	basenameBudget := headBudget - extW
+	if basenameBudget <= 0 {
+		return keepHead() // 扩展名放不下，退化保头
 	}
 	head := string(r[:dotIdx])
-	return "…" + tailByWidth(head, headBudget) + ext
+	return headByWidth(head, basenameBudget) + "…" + ext
 }
 
 // ---- git 状态渲染（F0 §7.5 颜色建议）----
