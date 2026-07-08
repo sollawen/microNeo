@@ -1,4 +1,3 @@
-/** @jsxImportSource @opentui/solid */
 // aibp-opencode —— AIBP (AI Bridge Protocol) 在 opencode 上的接收端插件。
 //
 // 设计要点（见 docs/agent-comm/D19-aibp-opencode.md）：
@@ -8,12 +7,14 @@
 //   - 递送：最简版——只把消息发到 TUI 当前正在看的对话，不创建 session、不选 agent/model。
 //   - 显示名字：toast 通知 + app_bottom slot 持久显示；清理用 api.lifecycle.onDispose。
 //
-// 注意：import type 在 Bun 运行时擦除，本文件零运行时外部依赖（仅 node:*）。
-// JSX 运行时使用 opencode 环境已有的 @opentui/solid（peerDependency）。
+// 注意：import type 在 Bun 运行时擦除。
+// 渲染依赖 @opentui/solid/jsx-runtime（opencode 环境提供），用动态 import 加载：
+//   opentui 0.4.3 起，npm 安装上下文里「静态 import @opentui/solid」会在转译期失败
+//   （ensureSolidTransformPlugin.resolvePath 在 node_modules 上下文不拦截），
+//   改用动态 import 走 createRuntimePlugin（load resolver）才安全。
 // 调试日志：写 /tmp/aibp-opencode.log（append），tail -f 可实时观察。
 
 import type { TuiPlugin, TuiPluginApi, TuiPluginModule, TuiSlotPlugin } from "@opencode-ai/plugin/tui"
-import type { JSX } from "@opentui/solid"
 import * as net from "node:net"
 import * as fs from "node:fs"
 import * as path from "node:path"
@@ -185,11 +186,13 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
 
   // ===== 注册 app_bottom slot 持久显示名字 =====
   try {
+    // 动态加载 jsx-runtime（见文件顶部注释：静态 import 在 npm 上下文会失败）
+    const { jsx } = await import("@opentui/solid/jsx-runtime")
     const slotPlugin: TuiSlotPlugin = {
       order: 1000, // 靠后显示，避免遮挡其他内容
       slots: {
         app_bottom(ctx) {
-          return <text>● {name}</text>
+          return jsx("text", { children: ["● ", name] })
         },
       },
     }
