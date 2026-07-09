@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Added**
+
+- New `--update-aibp` CLI flag: updates aibp extensions to the latest released version for AI agents that don't self-update (opencode, claude). Checks the npm registry for opencode and runs `claude plugin update` for claude; pi is skipped since it has its own in-app upgrade prompt. Prints progress to stdout and exits without opening the editor.
+
 ## [1.1.9] - 2026-07-08
 
 **Added**

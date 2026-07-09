@@ -44,7 +44,7 @@ func TestClaudeAIBPVersion(t *testing.T) {
 
 	t.Run("marketplace installed + enabled", func(t *testing.T) {
 		setup(t, installedTpl, enabledSettings, "aibp-2.0")
-		maj, min, isSrc := (ClaudeEnsurer{}).AIBPVersion()
+		maj, min, isSrc, _ := (ClaudeEnsurer{}).AIBPVersion()
 		if maj != 2 || min != 0 || isSrc {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (2,0,false)", maj, min, isSrc)
 		}
@@ -52,7 +52,7 @@ func TestClaudeAIBPVersion(t *testing.T) {
 
 	t.Run("not installed", func(t *testing.T) {
 		setup(t, "", "", "__omit__")
-		maj, min, isSrc := (ClaudeEnsurer{}).AIBPVersion()
+		maj, min, isSrc, _ := (ClaudeEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSrc {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSrc)
 		}
@@ -60,7 +60,7 @@ func TestClaudeAIBPVersion(t *testing.T) {
 
 	t.Run("entry missing", func(t *testing.T) {
 		setup(t, `{}`, "", "__omit__")
-		maj, min, isSrc := (ClaudeEnsurer{}).AIBPVersion()
+		maj, min, isSrc, _ := (ClaudeEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSrc {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSrc)
 		}
@@ -68,7 +68,7 @@ func TestClaudeAIBPVersion(t *testing.T) {
 
 	t.Run("installed but disabled", func(t *testing.T) {
 		setup(t, installedTpl, disabledSettings, "aibp-2.0")
-		maj, min, isSrc := (ClaudeEnsurer{}).AIBPVersion()
+		maj, min, isSrc, _ := (ClaudeEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSrc {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSrc)
 		}
@@ -82,7 +82,7 @@ func TestClaudeAIBPVersion(t *testing.T) {
 		os.MkdirAll(filepath.Dir(ip), 0755)
 		os.WriteFile(ip, []byte("not-json"), 0644)
 
-		maj, min, isSrc := (ClaudeEnsurer{}).AIBPVersion()
+		maj, min, isSrc, _ := (ClaudeEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSrc {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSrc)
 		}
@@ -90,7 +90,7 @@ func TestClaudeAIBPVersion(t *testing.T) {
 
 	t.Run("cache package missing", func(t *testing.T) {
 		setup(t, installedTpl, enabledSettings, "__omit__")
-		maj, min, isSrc := (ClaudeEnsurer{}).AIBPVersion()
+		maj, min, isSrc, _ := (ClaudeEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSrc {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSrc)
 		}
@@ -114,7 +114,7 @@ func TestClaudeAIBPVersion(t *testing.T) {
 		pkg := `{"name":"aibp-claude","version":"1.0.0"}`
 		os.WriteFile(filepath.Join(installPath, "package.json"), []byte(pkg), 0644)
 
-		maj, min, isSrc := (ClaudeEnsurer{}).AIBPVersion()
+		maj, min, isSrc, _ := (ClaudeEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSrc {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSrc)
 		}

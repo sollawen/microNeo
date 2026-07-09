@@ -72,45 +72,49 @@ func piReadSetting() []string {
 }
 
 // AIBPVersion：识别本 agent 已装的 aibp。
-//   - 包含 "aibp-agents" → 源码路径，返回 (0, 0, true)（不读盘；信任假设）
-//   - 包含 "npm:aibp-pi" → npm 包，读取 <agentDir>/npm/node_modules/aibp-pi/package.json 的协议
-//   - 未找到 / 损坏 → (0, 0, false)
-func (PiEnsurer) AIBPVersion() (int, int, bool) {
+//   - 包含 "aibp-agents" → 源码路径，返回 (0, 0, true, "")（不读盘；信任假设）
+//   - 包含 "npm:aibp-pi" → npm 包，读取 <agentDir>/npm/node_modules/aibp-pi/package.json 的协议 + 版本
+//   - 未找到 / 损坏 → (0, 0, false, "")
+func (PiEnsurer) AIBPVersion() (int, int, bool, string) {
 	for _, entry := range piReadSetting() {
 		if strings.Contains(entry, "aibp-agents") {
-			return 0, 0, true // 源码路径：不读盘
+			return 0, 0, true, "" // 源码路径：不读盘
 		}
 		if strings.Contains(entry, "npm:aibp-pi") {
 			return piNpmAIBPVersion() // npm 包：读版本号
 		}
 	}
-	return 0, 0, false // 没找到 aibp 条目
+	return 0, 0, false, "" // 没找到 aibp 条目
 }
 
 // piNpmAIBPVersion 读取 aibp-pi 的 npm 安装版本的协议。
 // 协议来源：package.json 的 aibp.protocol 交 aibp.ParseProtocol 解析。
-func piNpmAIBPVersion() (int, int, bool) {
+func piNpmAIBPVersion() (int, int, bool, string) {
 	pkgPath := filepath.Join(piAgentDir(), "npm", "node_modules", "aibp-pi", "package.json")
 	b, err := os.ReadFile(pkgPath)
 	if err != nil {
-		return 0, 0, false
+		return 0, 0, false, ""
 	}
 	var pkg struct {
-		AIBP struct {
-			Protocol string `json:"protocol"`
-		} `json:"aibp"`
+		AIBP    struct{ Protocol string `json:"protocol"` } `json:"aibp"`
+		Version string `json:"version"`
 	}
 	if err := json.Unmarshal(b, &pkg); err != nil {
-		return 0, 0, false
+		return 0, 0, false, ""
 	}
 	if pkg.AIBP.Protocol == "" {
-		return 0, 0, false
+		return 0, 0, false, ""
 	}
 	maj, min, ok := aibp.ParseProtocol(pkg.AIBP.Protocol)
 	if !ok {
-		return 0, 0, false
+		return 0, 0, false, ""
 	}
-	return maj, min, false // npm 安装：isSource 恒为 false（与 opencodeNpmAIBPVersion 同构，防 ParseProtocol 的 ok 被当 isSource）
+	return maj, min, false, pkg.Version // npm 安装：isSource 恒为 false；version 来自 package.json
+}
+
+func (PiEnsurer) UpdateToLatest(report Reporter) error {
+	report("pi: self-manages upgrades, skipping")
+	return nil
 }
 
 func (PiEnsurer) InstallAIBP() error {

@@ -66,7 +66,7 @@ func TestPiAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		maj, min, isSource := (PiEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (PiEnsurer{}).AIBPVersion()
 		if !isSource {
 			t.Errorf("AIBPVersion() isSource = false, want true")
 		}
@@ -99,7 +99,7 @@ func TestPiAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		maj, min, isSource := (PiEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (PiEnsurer{}).AIBPVersion()
 		if isSource {
 			t.Errorf("AIBPVersion() isSource = true, want false")
 		}
@@ -132,7 +132,7 @@ func TestPiAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		maj, min, isSource := (PiEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (PiEnsurer{}).AIBPVersion()
 		if maj != 1 || min != 5 || isSource {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (1,5,false)", maj, min, isSource)
 		}
@@ -152,7 +152,7 @@ func TestPiAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		maj, min, isSource := (PiEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (PiEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSource {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSource)
 		}
@@ -180,7 +180,7 @@ func TestPiAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		maj, min, isSource := (PiEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (PiEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSource {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSource)
 		}
@@ -209,7 +209,7 @@ func TestPiAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		maj, min, isSource := (PiEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (PiEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSource {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSource)
 		}
@@ -229,7 +229,7 @@ func TestPiAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		maj, min, isSource := (PiEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (PiEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSource {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSource)
 		}
@@ -243,7 +243,7 @@ func TestPiAIBPVersion(t *testing.T) {
 		defer os.RemoveAll(dir)
 		t.Setenv("PI_CODING_AGENT_DIR", dir)
 
-		maj, min, isSource := (PiEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (PiEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSource {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSource)
 		}
@@ -262,7 +262,7 @@ func TestPiAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		maj, min, isSource := (PiEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (PiEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSource {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSource)
 		}

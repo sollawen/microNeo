@@ -28,7 +28,7 @@ func TestOpencodeAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		maj, min, isSource := (OpencodeEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (OpencodeEnsurer{}).AIBPVersion()
 		if !isSource {
 			t.Errorf("AIBPVersion() isSource = false, want true")
 		}
@@ -63,7 +63,7 @@ func TestOpencodeAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		maj, min, isSource := (OpencodeEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (OpencodeEnsurer{}).AIBPVersion()
 		if isSource {
 			t.Errorf("AIBPVersion() isSource = true, want false")
 		}
@@ -98,7 +98,7 @@ func TestOpencodeAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		maj, min, isSource := (OpencodeEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (OpencodeEnsurer{}).AIBPVersion()
 		if maj != 1 || min != 5 || isSource {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (1,5,false)", maj, min, isSource)
 		}
@@ -121,7 +121,7 @@ func TestOpencodeAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		maj, min, isSource := (OpencodeEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (OpencodeEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSource {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSource)
 		}
@@ -152,7 +152,7 @@ func TestOpencodeAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		maj, min, isSource := (OpencodeEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (OpencodeEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSource {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSource)
 		}
@@ -184,7 +184,7 @@ func TestOpencodeAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		maj, min, isSource := (OpencodeEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (OpencodeEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSource {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSource)
 		}
@@ -206,7 +206,7 @@ func TestOpencodeAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		maj, min, isSource := (OpencodeEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (OpencodeEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSource {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSource)
 		}
@@ -220,7 +220,7 @@ func TestOpencodeAIBPVersion(t *testing.T) {
 		defer os.RemoveAll(dir)
 		t.Setenv("XDG_CONFIG_HOME", dir)
 
-		maj, min, isSource := (OpencodeEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (OpencodeEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSource {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSource)
 		}
@@ -242,7 +242,7 @@ func TestOpencodeAIBPVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		maj, min, isSource := (OpencodeEnsurer{}).AIBPVersion()
+		maj, min, isSource, _ := (OpencodeEnsurer{}).AIBPVersion()
 		if maj != 0 || min != 0 || isSource {
 			t.Errorf("AIBPVersion() = (%d,%d,%v), want (0,0,false)", maj, min, isSource)
 		}

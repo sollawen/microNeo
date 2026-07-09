@@ -105,7 +105,7 @@ func opencodeRemoveTuiEntries() error {
 	kept := make([]string, 0, len(plugins))
 	removed := false
 	for _, e := range plugins {
-		if e == aibpOpencodeSpec || strings.HasPrefix(e, aibpOpencodeSpec+"@") {
+		if e == aibpOpencodeSpec || strings.HasPrefix(e, aibpOpencodeSpec+"@") || strings.Contains(e, "aibp-agents/") {
 			removed = true
 			continue
 		}
@@ -122,46 +122,47 @@ func opencodeRemoveTuiEntries() error {
 }
 
 // AIBPVersion：识别本 agent 已装的 aibp。
-//   - 包含 "aibp-agents" → 源码路径，返回 (0, 0, true)（不读盘；信任假设）
-//   - 包含 "aibp-opencode" → npm 包，读取缓存的 package.json 的协议
-//   - 未找到 / 损坏 → (0, 0, false)
-func (OpencodeEnsurer) AIBPVersion() (int, int, bool) {
+//   - 包含 "aibp-agents" → 源码路径，返回 (0, 0, true, "")（不读盘；信任假设）
+//   - 包含 "aibp-opencode" → npm 包，读取缓存的 package.json 的协议 + 版本
+//   - 未找到 / 损坏 → (0, 0, false, "")
+func (OpencodeEnsurer) AIBPVersion() (int, int, bool, string) {
 	for _, entry := range opencodeReadTui() {
 		if strings.Contains(entry, "aibp-agents") {
-			return 0, 0, true // 源码路径：不读盘
+			return 0, 0, true, "" // 源码路径：不读盘
 		}
 		if strings.Contains(entry, "aibp-opencode") {
 			return opencodeNpmAIBPVersion() // npm 包：读版本号
 		}
 	}
-	return 0, 0, false // 没找到 aibp 条目
+	return 0, 0, false, "" // 没找到 aibp 条目
 }
 
 // opencodeNpmAIBPVersion 读取 aibp-opencode 的 cache 安装版本的协议。
 // 协议来源：package.json 的 aibp.protocol 交 aibp.ParseProtocol 解析。
-func opencodeNpmAIBPVersion() (int, int, bool) {
+func opencodeNpmAIBPVersion() (int, int, bool, string) {
 	pkgPath := filepath.Join(
 		opencodeNpmCacheSubdir(),
 		"node_modules", "aibp-opencode", "package.json",
 	)
 	b, err := os.ReadFile(pkgPath)
 	if err != nil {
-		return 0, 0, false
+		return 0, 0, false, ""
 	}
 	var pkg struct {
-		AIBP struct{ Protocol string `json:"protocol"` } `json:"aibp"`
+		AIBP    struct{ Protocol string `json:"protocol"` } `json:"aibp"`
+		Version string `json:"version"`
 	}
 	if err := json.Unmarshal(b, &pkg); err != nil {
-		return 0, 0, false
+		return 0, 0, false, ""
 	}
 	if pkg.AIBP.Protocol == "" {
-		return 0, 0, false
+		return 0, 0, false, ""
 	}
 	maj, min, ok := aibp.ParseProtocol(pkg.AIBP.Protocol)
 	if !ok {
-		return 0, 0, false
+		return 0, 0, false, ""
 	}
-	return maj, min, false // npm 安装：isSource 恒为 false（注意 ParseProtocol 的 ok 不等于 isSource）
+	return maj, min, false, pkg.Version // npm 安装：isSource 恒为 false；version 来自 package.json
 }
 
 // opencodeNpmCacheSubdir 按 tui.json 条目推导 cache 子目录名：
@@ -236,6 +237,34 @@ func (OpencodeEnsurer) InstallAIBP() error {
 
 func (OpencodeEnsurer) UpdateAIBP() error {
 	return OpencodeEnsurer{}.installOrUpdate()
+}
+
+func (OpencodeEnsurer) UpdateToLatest(report Reporter) error {
+	prefix := "aibp-opencode"
+	_, _, isSource, installed := (OpencodeEnsurer{}).AIBPVersion() // 一次拿到 isSource + version
+
+	// npm 已装 → 查 registry，新了才装；已是最新则跳过
+	if !isSource && installed != "" {
+		latest, err := latestNpmVersion(aibpOpencodeSpec)
+		if err != nil {
+			report(prefix + " couldn't check npm registry (" + err.Error() + "), skipping — retry later")
+			return err
+		}
+		if !semverLess(installed, latest) {
+			report(prefix + " already at latest (" + installed + ")")
+			return nil
+		}
+		report(prefix + " updating " + installed + " → " + latest)
+		return (OpencodeEnsurer{}).installOrUpdate() // 复用
+	}
+
+	// source / 未装 → 复用 installOrUpdate 拉最新 npm
+	if isSource {
+		report(prefix + " source install → converting to npm latest")
+	} else {
+		report(prefix + " not installed, installing latest")
+	}
+	return (OpencodeEnsurer{}).installOrUpdate() // 复用
 }
 
 // UninstallAIBP 清理 aibp-opencode（规范化 tui.json + 删所有版本 cache）。

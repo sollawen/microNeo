@@ -38,6 +38,7 @@ var (
 	flagPlugin        = flag.String("plugin", "", "Plugin command")
 	flagClean         = flag.Bool("clean", false, "Clean configuration directory")
 	flagCheckAgent    = flag.Bool("check-agent", false, "Check and self-heal aibp extensions for installed AI agents (pi/opencode), then exit")
+	flagUpdateAIBP    = flag.Bool("update-aibp", false, "Update aibp extensions for installed AI agents to the latest released version, then exit")
 	optionFlags   map[string]*string
 
 	sighup chan os.Signal
@@ -56,6 +57,10 @@ func InitFlags() {
 		fmt.Println("    \tCheck aibp extensions for all installed AI agents (pi, opencode).")
 		fmt.Println("    \tInstalls missing extensions, updates outdated ones, prints status to stdout, and exits.")
 		fmt.Println("    \tDoes not open the editor.")
+		fmt.Println("-update-aibp")
+		fmt.Println("    \tUpdate aibp extensions to the latest released version for agents that")
+		fmt.Println("    \tdon't self-update (opencode, claude). Checks the npm registry, reinstalls")
+		fmt.Println("    \tif newer. Prints progress to stdout and exits. Does not open the editor.")
 		fmt.Println("-config-dir dir")
 		fmt.Println("    \tSpecify a custom location for the configuration directory")
 		fmt.Println("FILE:LINE[:COL] (only if the `parsecursor` option is enabled)")
@@ -295,6 +300,7 @@ func main() {
 
 	InitFlags()
 	DoCheckAgent() // -check-agent early exit; zero config/screen dependency
+	DoUpdateAIBP()
 
 	if *flagProfile {
 		f, err := os.Create("micro.prof")

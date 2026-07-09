@@ -40,3 +40,16 @@ func DoCheckAgent() {
 	}
 	exit(0)
 }
+
+// DoUpdateAIBP 执行 -update-aibp：把无自更新能力的 agent（opencode/claude）
+// 的 aibp 扩展升到最新发布版，进度打到 stdout。跑完 exit，不进 TUI。
+func DoUpdateAIBP() {
+	if !*flagUpdateAIBP {
+		return
+	}
+	hadErr := ensure_agents.UpdateAll(func(msg string) { fmt.Println(msg) })
+	if hadErr {
+		exit(1)
+	}
+	exit(0)
+}

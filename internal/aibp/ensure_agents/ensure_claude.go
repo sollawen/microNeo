@@ -89,42 +89,41 @@ func claudeEnabled() bool {
 
 // AIBPVersion：识别 claude 已装的 aibp（仅 marketplace 形态，见 §0.3）。
 //   - installed_plugins.json 有 aibp-claude 条目 + settings.json enabled + installPath 下 package.json 可读
-//     → 读 aibp.protocol → (major, minor, false)
-//   - 任一不满足 → (0, 0, false)（触发 InstallAIBP）
-func (ClaudeEnsurer) AIBPVersion() (int, int, bool) {
+//     → 读 aibp.protocol → (major, minor, false, version)
+//   - 任一不满足 → (0, 0, false, "")（触发 InstallAIBP）
+func (ClaudeEnsurer) AIBPVersion() (int, int, bool, string) {
 	installPath, _, ok := claudeInstalledRecord()
 	if !ok {
-		return 0, 0, false
+		return 0, 0, false, ""
 	}
 	if !claudeEnabled() {
-		return 0, 0, false // 装了但被 disable → 视为未就绪，让 InstallAIBP 自愈（install+enable）
+		return 0, 0, false, "" // 装了但被 disable → 视为未就绪，让 InstallAIBP 自愈（install+enable）
 	}
 	return claudeReadProtocol(installPath)
 }
 
 // claudeReadProtocol 读 <installPath>/package.json 的 aibp.protocol。
 // 与 piNpmAIBPVersion / opencodeNpmAIBPVersion 同构。
-func claudeReadProtocol(installPath string) (int, int, bool) {
+func claudeReadProtocol(installPath string) (int, int, bool, string) {
 	b, err := os.ReadFile(filepath.Join(installPath, "package.json"))
 	if err != nil {
-		return 0, 0, false
+		return 0, 0, false, ""
 	}
 	var pkg struct {
-		AIBP struct {
-			Protocol string `json:"protocol"`
-		} `json:"aibp"`
+		AIBP    struct{ Protocol string `json:"protocol"` } `json:"aibp"`
+		Version string `json:"version"`
 	}
 	if err := json.Unmarshal(b, &pkg); err != nil {
-		return 0, 0, false
+		return 0, 0, false, ""
 	}
 	if pkg.AIBP.Protocol == "" {
-		return 0, 0, false
+		return 0, 0, false, ""
 	}
 	maj, min, parseOK := aibp.ParseProtocol(pkg.AIBP.Protocol)
 	if !parseOK {
-		return 0, 0, false
+		return 0, 0, false, ""
 	}
-	return maj, min, false // marketplace 安装：isSource 恒为 false
+	return maj, min, false, pkg.Version // marketplace 安装：isSource 恒为 false；version 来自 package.json
 }
 
 // claudeMarketplaceAdded 读 known_marketplaces.json 判断 marketplace 是否已登记。
@@ -159,6 +158,37 @@ func (ClaudeEnsurer) UpdateAIBP() error {
 	cmd := exec.Command("claude", "plugin", "update", claudePluginKey)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("claude plugin update 失败: %w", err)
+	}
+	return nil
+}
+
+func (ClaudeEnsurer) UpdateToLatest(report Reporter) error {
+	prefix := "aibp-claude"
+	major, _, _, _ := (ClaudeEnsurer{}).AIBPVersion()
+
+	// —— 未安装 → 装 ——
+	if major == 0 {
+		report(prefix + " not installed, installing ...")
+		if err := (ClaudeEnsurer{}).InstallAIBP(); err != nil {
+			report(prefix + " install failed: " + err.Error())
+			return err
+		}
+		report(prefix + " installed")
+		return nil
+	}
+
+	// —— 已装 → 幂等 update（claude 自己查版本，最新就 no-op）——
+	_, before, _ := claudeInstalledRecord() // claudeInstalledRecord 已返回 version
+	report(prefix + " updating (claude plugin update) ...")
+	if err := (ClaudeEnsurer{}).UpdateAIBP(); err != nil {
+		report(prefix + " update failed: " + err.Error())
+		return err
+	}
+	_, after, _ := claudeInstalledRecord()
+	if before == after {
+		report(prefix + " already at latest (" + after + ")")
+	} else {
+		report(prefix + " updated " + before + " → " + after)
 	}
 	return nil
 }
