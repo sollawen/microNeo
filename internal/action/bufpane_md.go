@@ -9,14 +9,12 @@ import (
 	"github.com/micro-editor/micro/v2/internal/util"
 )
 
-// initMDConfig 在创建 BufWindow 后立刻同步 MD 渲染配置。
-// 仅当 buffer 是 MD 文件时才生效，非 MD 文件为 no-op。
-// 该函数封装所有 MD 相关逻辑，让 bufpane.go 的 NewBufPaneFromBuf 保持简洁。
+// initMDConfig 在创建 BufWindow 后预置 MD 渲染配置。
+// 无条件执行：mdConfig 的 flag/tabsize 来自 common settings（各 buffer 一致），
+// editMode 对非 MD 文件为 dead value（displayBufferMD 仅对 MD 调用，observeEditModeToggle
+// 开头也有 IsMD 守卫），设了也无害。
+// 无条件预置避免了「首个 buffer 非 MD → mdConfig 零值 → 后续换进 MD 渲染退化」的生命周期 bug。
 func initMDConfig(buf *buffer.Buffer, w *display.BufWindow) {
-	if !buf.IsMD { // 单一真源（NewBuffer 算了 IsMarkdownFile）
-		return
-	}
-
 	w.SetMDConfig(md.MDConfig{
 		Colorscheme: md.MDColorscheme{
 			DefStyle: config.DefStyle,
