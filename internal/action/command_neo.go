@@ -16,6 +16,8 @@ import (
 func InitNeoCommands() {
 	MakeCommand("theme", (*BufPane).ThemeCmd, nil)
 	MakeCommand("file", (*BufPane).FileCmd, nil)
+	// :quit 在 welcome 会话最后一个 pane 回 welcome；其他情况等价原生 Quit（F3 §4.4）
+	MakeCommand("quit", (*BufPane).QuitNeoCmd, nil)
 }
 
 // ThemeCmd 是 :theme 命令的 action。
@@ -48,6 +50,12 @@ func (h *BufPane) ThemeCmd(args []string) {
 	})
 }
 
+// QuitNeoCmd 是 :quit 命令的 action（F3 §4.4）。
+// QuitNeo 本身是 BufKeyAction（无 args 参数），这里包一层满足 MakeCommand 的签名。
+func (h *BufPane) QuitNeoCmd(args []string) {
+	h.QuitNeo()
+}
+
 // FileCmd 是 :file 命令的 action。
 // 打开文件选择器，选中后开进当前 pane。
 // modified 时弹 y/n 提示（n=取消，不同于 :open 的 n=不保存继续）。
@@ -77,19 +85,20 @@ func (h *BufPane) openSelector() {
 	}
 
 	// 3. 打开（onSelect 闭包：选中→开进发起 pane，与 :open 同路径）
-	NewFileSelector().Open(h, startDir, func(picked *string) {
-		if picked == nil {
+	// 普通态回调只看 Picked，任何 Closed 当取消（F3 §3 / §4.4）
+	NewFileSelector().Open(h, startDir, func(r SelectResult) {
+		if r.Kind != Picked {
 			return // Esc / resize / 拒开
 		}
 		// pane 在打开期间被关的防御（R7）
 		if h.Buf == nil {
 			return
 		}
-		b, err := buffer.NewBufferFromFile(*picked, buffer.BTDefault)
+		b, err := buffer.NewBufferFromFile(r.Path, buffer.BTDefault)
 		if err != nil {
 			InfoBar.Error(err)
 			return
 		}
 		h.OpenBuffer(b)
-	})
+	}, false)
 }

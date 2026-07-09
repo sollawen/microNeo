@@ -404,6 +404,8 @@ func main() {
 	}
 
 	action.InitBindings()
+	action.DetectWelcomeMode(flag.Args()) // neo：判断是否进入 welcome 模式（F3 §4.2）
+	action.InitNeoBindings()      // neo：按 WelcomeMode 重绑 Ctrl-q/F4/F10（F3 §4.4）
 	action.InitCommands()
 	action.InitNeoCommands()
 
@@ -477,6 +479,12 @@ func main() {
 		action.Tabs.HandleEvent(event)
 	case <-time.After(10 * time.Millisecond):
 		// time out after 10ms
+	}
+
+	// neo：在首次 resize 同步 view 几何之后再开 welcome 选择器（F3 §4.2）
+	// NewBufPaneFromBuf 初始 view 为 0×0，须等上面 Tabs.HandleEvent(resize) 填入真实尺寸，否则预检误判太窄
+	if action.WelcomeMode {
+		action.EnterWelcome()
 	}
 
 	for {

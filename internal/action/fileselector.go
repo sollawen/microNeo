@@ -95,12 +95,46 @@ func (s *fileSelectorState) gitOf(name string) (statusKind, bool) {
 	return st, has
 }
 
+// ---- SelectResult：FileSelector 回调契约（F3 §3）----
+
+// ResultKind 是关闭原因的大类（F3 §3）。
+type ResultKind uint8
+
+const (
+	// Picked 表示用户选中了文件（Path 有效）。
+	Picked ResultKind = iota
+	// Closed 表示没选就关了（Reason 有效）。
+	Closed
+)
+
+// CloseReason 是关闭的具体原因（仅 Kind==Closed 时有效，F3 §3）。
+type CloseReason uint8
+
+const (
+	ReasonEsc    CloseReason = iota // 用户按 Esc
+	ReasonQuit                       // 用户按 Ctrl-q（或 welcome 态的 Quit）
+	ReasonResize                     // 窗口 resize（FloatFrame 强制关）
+)
+
+// SelectResult 承载 FileSelector 的关闭结果（F3 §3）。
+// 原来 onSelect 签名是 func(*string)（nil=取消），现在换成带原因的 SelectResult，
+// 让调用方能区分「选中文件」和「各种关掉」，welcome 调用方据此决定行为（退出/重开/no-op）。
+type SelectResult struct {
+	Kind   ResultKind   // Picked | Closed
+	Path   string       // Kind==Picked 时：选中的文件绝对路径
+	Reason CloseReason  // Kind==Closed 时：关闭原因
+}
+
 // FileSelector 是文件选择器浮窗本体。
 type FileSelector struct {
 	state    *fileSelectorState
 	pane     *BufPane
-	onSelect func(*string)
+	onSelect func(SelectResult)
 	gitCache gitStatusCache
+	// isWelcome 控制 Esc/Ctrl-q 在选择器内的行为（F3 §4.1c）：
+	//   welcome 态：Esc no-op，Ctrl-q → 关闭选择器并上报 ReasonQuit
+	//   普通态：Esc → 关闭并上报 ReasonEsc，Ctrl-q 吞掉（维持现状）
+	isWelcome bool
 }
 
 // NewFileSelector 返回一个未打开的 FileSelector（gitCache 注入真实实现，F1 §10.6）。
@@ -108,17 +142,19 @@ func NewFileSelector() *FileSelector {
 	return &FileSelector{gitCache: NewGitStatus()}
 }
 
-// Open 打开文件选择器（F1 §3.2 / §6.2 / §10.7 异步时序）。
+// Open 打开文件选择器（F1 §3.2 / §6.2 / §10.7 异步时序；F3 §4.1b 新增 isWelcome 参数）。
 //
-//   pane     发起 :file 的 pane（pane-local 布局 + 选中后开进此 pane）
-//   startDir 起始目录（F1 §8.1 / R6）
-//   onSelect 回调：选中文件 → onSelect(&absPath)；Esc / resize / 拒开 → onSelect(nil)
+//   pane      发起 :file 的 pane（pane-local 布局 + 选中后开进此 pane）
+//   startDir  起始目录（F1 §8.1 / R6）
+//   onSelect  回调（F3 §3：SelectResult）；普通调用方只关心 Picked，welcome 调用方按 Reason 分流
+//   isWelcome true=welcom 态（Esc no-op、Ctrl-q 退出），false=普通态（Esc 关、Ctrl-q 吞）
 //
 // 首次渲染绝不阻塞：State init（os.ReadDir，μs 级）→ 列表立即可见、无 git 标志；
 // git 后台查询（带 2s ctx），回来后 screen.Redraw() 触发补画（F1 §10.7 第 1-5 步）。
-func (fs *FileSelector) Open(pane *BufPane, startDir string, onSelect func(*string)) {
+func (fs *FileSelector) Open(pane *BufPane, startDir string, onSelect func(SelectResult), isWelcome bool) {
 	fs.onSelect = onSelect
 	fs.pane = pane
+	fs.isWelcome = isWelcome
 
 	// 当前 buffer 文件名（光标起始定位用，F0 §5.3）
 	currentFile := ""
@@ -133,7 +169,7 @@ func (fs *FileSelector) Open(pane *BufPane, startDir string, onSelect func(*stri
 	anchor, contentSize, ok := fs.computeLayout(pane)
 	if !ok {
 		if onSelect != nil {
-			onSelect(nil) // 预检拒开 → 透明返回（F1 §7.3）
+			onSelect(SelectResult{Kind: Closed, Reason: ReasonResize}) // 预检拒开 → 透明返回（F1 §7.3）
 		}
 		return
 	}
@@ -144,7 +180,7 @@ func (fs *FileSelector) Open(pane *BufPane, startDir string, onSelect func(*stri
 	spec := fs.buildSpec(anchor, contentSize)
 	if !TheFloatFrame.Open(spec) {
 		if onSelect != nil {
-			onSelect(nil)
+			onSelect(SelectResult{Kind: Closed, Reason: ReasonResize})
 		}
 		return
 	}
@@ -270,10 +306,8 @@ func (fs *FileSelector) buildSpec(anchor Pos, contentSize Size) FloatOpenSpec {
 		Display:     fs.display,
 		HandleEvent: fs.handleEvent,
 		AutoExpand:  false, // F1 D2：钉死 pane 左上角，跳过 expandAnchor
-		OnCancel: func() { // resize 即关时清理业务回调（F1a）
-			if fs.onSelect != nil {
-				fs.onSelect(nil)
-			}
+		OnCancel: func() { // resize 即关时清理业务回调（F1a）；统一上报 ReasonResize（F3 §4.1f）
+			fs.finish(SelectResult{Kind: Closed, Reason: ReasonResize})
 		},
 	}
 }
@@ -613,7 +647,15 @@ func (fs *FileSelector) handleEvent(event tcell.Event) {
 			fs.chdir(s.entries[s.cursor-1].name)
 		}
 	case tcell.KeyEscape:
-		fs.cancel()
+		// welcome 态：Esc 是 no-op（不关选择器，留用户继续选）；普通态：关（F3 §4.1c）
+		if !fs.isWelcome {
+			fs.finish(SelectResult{Kind: Closed, Reason: ReasonEsc})
+		}
+	case tcell.KeyCtrlQ:
+		// welcome 态：Ctrl-q → 退出程序（上报 ReasonQuit）；普通态：吞掉（维持现状，F3 §4.1c）
+		if fs.isWelcome {
+			fs.finish(SelectResult{Kind: Closed, Reason: ReasonQuit})
+		}
 	default:
 		// '.' 切 dotfile（浮窗模态拦截所有事件，绕过 micro 键位绑定，F1b §3.5）
 		if ev.Key() == tcell.KeyRune && ev.Rune() == '.' {
@@ -653,7 +695,7 @@ func (fs *FileSelector) activate() {
 	}
 }
 
-// pick 选中当前文件：Close + onSelect(&absPath)（F1 §8.3）。
+// pick 选中当前文件：上报 Picked + 路径（F3 §4.1d，替换原来的 onSelect(&p)）。
 func (fs *FileSelector) pick() {
 	s := fs.state
 	idx := s.cursor - 1
@@ -665,20 +707,21 @@ func (fs *FileSelector) pick() {
 		return
 	}
 	full := filepath.Join(s.currentDir, e.name)
-	onSelect := fs.onSelect
-	TheFloatFrame.Close()
-	if onSelect != nil {
-		p := full
-		onSelect(&p)
-	}
+	fs.finish(SelectResult{Kind: Picked, Path: full})
 }
 
-// cancel Esc：Close + onSelect(nil)（F1 §8.3）。
+// cancel Esc：上报 ReasonEsc（F3 §4.1c；现由 handleEvent 直接调 finish，此方法保留作兼容）。
 func (fs *FileSelector) cancel() {
-	onSelect := fs.onSelect
+	fs.finish(SelectResult{Kind: Closed, Reason: ReasonEsc})
+}
+
+// finish 统一收尾：关 FloatFrame + 调回调（F3 §4.1e）。
+// 替换原来 pick/cancel 里重复的收尾逻辑，所有关闭路径走这里。
+func (fs *FileSelector) finish(r SelectResult) {
+	cb := fs.onSelect
 	TheFloatFrame.Close()
-	if onSelect != nil {
-		onSelect(nil)
+	if cb != nil {
+		cb(r)
 	}
 }
 
