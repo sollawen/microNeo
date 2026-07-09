@@ -31,6 +31,11 @@ curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/tools/inst
 - 完美支持Linux/Mac。Windows需要终端命令行的运行环境，没有实测
 - 使用方法参见 [QuickStart](quick-start.md) 
 
+国内用户安装时如遇到 `raw.githubusercontent.com` 限流 (HTTP 429) 或者无法访问，就改用下面这句 jsDelivr镜像安装。
+  ```bash
+  curl -fsSL https://cdn.jsdelivr.net/gh/sollawen/microNeo@master/tools/install.sh | sh
+  ```
+
 ---
 
 ## microNeo 亮点

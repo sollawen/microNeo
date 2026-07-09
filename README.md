@@ -49,6 +49,8 @@ curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/tools/inst
 - Multiple themes, including dark and light mode.
 - Small and fast — only 13 MB.
 
+中文使用说明详见 https://sollawen.github.io/microNeo/
+
 ## Configuration
 
 For more configuration options, see https://sollawen.github.io/microNeo/

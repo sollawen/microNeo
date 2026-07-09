@@ -31,7 +31,9 @@ microneo README.md
 
 ---
 
-## Common Hotkeys
+## Common Operations While Editing
+
+### Common Hotkeys
 
 | Action | Shortcut | Action | Shortcut | Action | Shortcut |
 | --- | --- | --- | --- | --- | --- |
@@ -42,6 +44,37 @@ microneo README.md
 
 - Most shortcuts are the same as in VS Code.
 - Press `Ctrl-G` to see more shortcuts and commands.
+
+### Talking to an AI agent
+
+1. Open a Markdown document with microNeo and select the part of the text you want to comment on.
+1. Press `Alt-Enter` to open the input box and write your thoughts.
+1. When ready, press `Alt-Enter` again to send it. The AI will receive your comment.
+
+### Talking to multiple AI agents
+
+If you run multiple AI agents at the same time (e.g., one `opencode` and two `pi`), each one picks a name for itself at startup.
+
+- Default names are `Alpha, Bravo, Charlie...`
+- If you don't like the defaults, edit `~/.config/aibp/aibp-names.json` in your config directory and put any names you like, e.g. `Tony, Bruce, Peter, Carol`.
+
+When you press `Alt-Enter` in the editor and more than one AI is present, microNeo automatically opens a menu to let you pick which AI to talk to.
+
+- Your selection is remembered by microNeo. The next time you press `Alt-Enter`, it'll automatically use the same AI.
+- To switch to a different AI mid-session, while typing in the dialog, press `Alt-i` and pick a different AI from the menu.
+
+### Switching Color Theme
+
+In microNeo, press `Ctrl-E` to open the command line at the bottom, type `:theme`, and hit Enter — a menu will appear letting you pick a different theme.
+
+### Opening a New File
+
+In microNeo, press `Ctrl-O` to pick a new file.
+
+- `Up/Down` arrows — move the cursor
+- `Right arrow` — enter the subdirectory
+- `Left arrow` — go to the parent directory
+- `Enter` — open the file
 
 ---
 

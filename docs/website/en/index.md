@@ -31,6 +31,11 @@ curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/tools/inst
 - Fully supported on Linux/Mac. Windows requires a terminal command-line environment; not tested yet.
 - See [Quick Start](quick-start.md) for how to use microNeo.
 
+For users in China, if you hit `raw.githubusercontent.com` rate limiting (HTTP 429) or cannot access it, use this jsDelivr mirror instead:
+  ```bash
+  curl -fsSL https://cdn.jsdelivr.net/gh/sollawen/microNeo@master/tools/install.sh | sh
+  ```
+
 ---
 
 ## Features

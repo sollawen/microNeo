@@ -79,6 +79,7 @@ plugins:
             Config: 配置
             Changelog: 更新日志
             FAQ: 常见问题
+            CLI: 命令行参数
 
 # extra.alternate 由 i18n 插件自动生成，无需手写
 extra:
@@ -93,5 +94,6 @@ nav:
       - Settings.json: settings.md
       - theme.md
       - Syntax: syntax.md
+  - CLI: cli.md
   - FAQ: faq.md
   - Changelog: changelog.md
