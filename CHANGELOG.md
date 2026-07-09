@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Added**
+
+- Welcome mode: launching microNeo without file arguments opens a file picker as the start screen instead of an empty buffer, and closing the last file returns to the picker rather than quitting the session. If the terminal is too small to display the picker, it falls back to the previous empty-buffer behavior.
+
+**Fixed**
+
+- Markdown files opened into a pane whose first file was not Markdown now render correctly. Previously, opening a `.md` via the welcome picker, `:open`, or `:file` after a non-Markdown start left the pane's render config empty, so code blocks, headings, and table top/bottom borders rendered incorrectly.
+
 ## [1.1.10] - 2026-07-09
 
 **Added**
