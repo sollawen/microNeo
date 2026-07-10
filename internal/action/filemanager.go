@@ -56,23 +56,19 @@ func OpenBirthSelector(pane *BufPane, dir string) {
 		if r.Kind != Picked {
 			return // ReasonEsc → no-op，继续编辑当前（空）buffer
 		}
-		if pane.Buf == nil { // R7 防御：pane 在打开期间被关
+		if pane.Buf == nil { // R7 防御：OpenCmd 访问 h.Buf，nil 会 panic
 			return
 		}
-		b, err := buffer.NewBufferFromFile(r.Path, buffer.BTDefault)
-		if err != nil {
-			InfoBar.Error(err)
-			return
-		}
-		pane.OpenBuffer(b)
+		pane.OpenCmd([]string{r.Path}) // 复用原生 :open，自带 modified 检查（与 :open 行为一致）
 	}, false) // isQuit=false：birth 态 Esc 可关（→继续编辑空 buffer），Ctrl-q 不收
 }
 
 // QuitNeo 是 microNeo 的 Ctrl-q / :quit 路由（重写，替换 welcome_md.go 旧版）。
 //   - file-born pane（isNoName=false）→ 直接 h.Quit()（原生自带存盘提示；最后→退程序）。
-//   - noName-born pane → 开 quit selector（isQuit=true）：
-//       Enter 选文件 → 原地换入；Esc → 取消（回编辑，不关 pane）；
-//       Ctrl-q（ReasonQuit）或窗口过窄（ReasonResize）→ h.Quit()。
+//   - noName-born pane → 开 quit selector（isQuit=true），三出口各走原生检查、不在开 selector 前预检：
+//       Enter 选文件 → OpenCmd（原生 :open，自带 modified 检查）；
+//       Esc → 取消（回编辑，不丢数据、不检查）；
+//       Ctrl-q（ReasonQuit）/ 窗口过窄（ReasonResize）→ h.Quit()（原生自带 modified 检查）。
 func (h *BufPane) QuitNeo() bool {
 	if !h.isNoName {
 		return h.Quit() // file-born：完全等价原生 Quit，零行为变化
@@ -84,15 +80,10 @@ func (h *BufPane) QuitNeo() bool {
 		}
 		NewFileSelector().Open(h, d, func(r SelectResult) {
 			if r.Kind == Picked {
-				if h.Buf == nil { // R7 防御
+				if h.Buf == nil { // R7 防御：OpenCmd 访问 h.Buf，nil 会 panic
 					return
 				}
-				b, err := buffer.NewBufferFromFile(r.Path, buffer.BTDefault)
-				if err != nil {
-					InfoBar.Error(err)
-					return
-				}
-				h.OpenBuffer(b)
+				h.OpenCmd([]string{r.Path}) // 复用原生 :open，自带 modified 检查
 				return
 			}
 			// Closed 分流：Esc = 取消退出（回编辑，不关 pane）；
@@ -104,11 +95,7 @@ func (h *BufPane) QuitNeo() bool {
 			h.Quit() // → ForceQuit：非最后 pane 关本 pane；最后一个 runtime.Goexit 退程序
 		}, true) // isQuit=true：quit 态收 Ctrl-q（关 pane）；Esc 两种态都收（取消回编辑）
 	}
-	if h.Buf.Modified() && !h.Buf.Shared() {
-		h.closePrompt("Close", proceed) // y/n → proceed（开 selector）；esc → 取消留编辑
-		return true
-	}
-	proceed()
+	proceed() // 直接开 selector：modified 检查推迟到具体出口（Enter→OpenCmd / Ctrl-q→Quit）
 	return true
 }
 
