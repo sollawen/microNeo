@@ -86,12 +86,6 @@ var bufdefaults = map[string]string{
 	// "Alt-p": "CursorUp",
 	// "Alt-n": "CursorDown",
 
-	// Integration with file managers
-	"F2":  "Save",
-	"F3":  "Find",
-	"F4":  "Quit",
-	"F7":  "Find",
-	"F10": "Quit",
 	"Esc": "Escape,Deselect,ClearInfo,RemoveAllMultiCursors,UnhighlightSearch",
 
 	// Mouse bindings
@@ -176,7 +170,6 @@ var infodefaults = map[string]string{
 	"Alt-e": "EndOfLine",
 
 	// Integration with file managers
-	"F10": "AbortCommand",
 	"Esc": "AbortCommand",
 
 	// Mouse bindings

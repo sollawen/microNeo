@@ -127,15 +127,3 @@ you can use `Ctrl-n` and `Ctrl-p` to cycle through matches.
 | Alt-a     | Move to start of line     |
 | Alt-e     | Move to end of line       |
 
-### Function keys.
-
-Warning! The function keys may not work in all terminals!
-
-| Key   | Description of function   |
-|------ |-------------------------- |
-| F1    | Open help                 |
-| F2    | Save                      |
-| F3    | Find                      |
-| F4    | Quit                      |
-| F7    | Find                      |
-| F10   | Quit                      |

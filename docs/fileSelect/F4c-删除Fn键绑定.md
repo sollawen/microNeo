@@ -45,7 +45,7 @@
 
 ### 3.2 `internal/action/defaults_other.go`
 
-与 3.1 **完全对称**，行号约 +3（buffer 93-97、prompt 182）。删除内容、注释处理规则同 3.1。
+与 3.1 **完全对称**，行号约 +3（buffer 92-97、prompt 181-182）。删除内容、注释处理规则同 3.1。
 
 > 两文件已 diff 确认 Fn 绑定完全一致，无差异。
 
@@ -62,16 +62,16 @@
 ```
 > 注：`F1 → Open help` 是 **stale 文档**——defaults 里实际从未绑 F1（已核实）。一并删除以保持文档与默认绑定一致。
 
-### 3.4 `runtime/help/keybindings.md`（可选，建议做）
+### 3.4 `runtime/help/keybindings.md` —— 不删（键名参考保留）
 
-约 391-420+ 行有 F1-F30 的「可绑定键名参考」列表。既然 microNeo 不提供 Fn 支持，**建议删除**该列表，避免误导用户去绑 Fn。（保留底层识别能力，见 §4。）
+391-449 行是 F1-F59 的「可绑定键名参考」列表——纯键名清单（无功能说明），陈述的是底层可绑定能力，不是默认绑定。按本任务原则「删了哪些键的默认绑定，就删哪些键的说明文字」：只有 defaultkeys.md（§3.3，含功能说明的默认键位表）需要删行；keybindings.md 是键名索引、不在删除范围。且它与 §4 保留 bindings.go 同理——microNeo 是「不预置 Fn 默认绑定」，不是「禁止绑 F 键」，用户仍可在 settings.json 手动绑，该参考列表保留。
 
 ---
 
 ## 4. 不碰的东西
 
 - **`internal/action/bindings.go` 的 `"F1".."F65" → tcell.KeyFn` 映射表**（约 416-480 行）：这是**底层按键识别层**——终端发来 F 键事件时，靠它把按键名翻译成 `tcell.Key`。删了会让 microNeo 连 F 键都识别不了，易出 bug、且无收益。**保留**。
-  - 含义：用户仍可在自己的 `settings.json` 里手动绑 `"F5": "Save"` 之类（底层能识别），microNeo 只是**不预置、不文档化** Fn 绑定。这是合理的工程边界。
+  - 含义：用户仍可在自己的 `settings.json` 里手动绑 `"F5": "Save"` 之类（底层能识别），microNeo 只是**不预置 Fn 默认绑定**（defaultkeys.md 同步删除）。这是合理的工程边界。
 - **`welcome_md.go`**：F4b 已整删（含 F4/F10 的 welcome 重绑），F4c 不涉及。
 - **F5/F6/F8/F9/F11/F12**：defaults 里**本来就没有**任何默认绑定（已核实），无需处理。
 
@@ -86,7 +86,7 @@
 | F4 / F10（buffer）| Quit | `Ctrl-q`（microNeo 的 QuitNeo，F4b 绑定）|
 | F10（prompt）| AbortCommand | `Ctrl-q` / `Esc`（prompt 早有）|
 
-所有替代键在 `defaults_darwin.go:40-44` 已确认存在，删除 Fn 后**零功能损失**。
+所有替代键在 `defaults_darwin.go` 已确认存在（`Ctrl-s` :40 / `Ctrl-f` :41 / `Ctrl-q` :74），删除 Fn 后**零功能损失**。
 
 ---
 
