@@ -67,23 +67,12 @@ func (h *BufPane) QuitNeoCmd(args []string) {
 	h.QuitNeo()
 }
 
-// FileCmd 是 :file 命令的 action。
+// FileCmd 是 :file 命令的 action（Ctrl-o 入口）。
 // 打开文件选择器，选中后开进当前 pane。
-// modified 时弹 y/n 提示（n=取消，不同于 :open 的 n=不保存继续）。
+// modified 检查推迟到 Enter 换入（OpenCmd 自带），不在开 selector 前预检——与 F4d 的
+// QuitNeo/OpenBirthSelector 对称，行为与原生 :open 一致：Enter 选文件后由 OpenCmd 问
+// 「保存? y/n/esc」，y=保存换入、n=丢弃修改换入、esc=取消换入。
 func (h *BufPane) FileCmd(args []string) {
-	// 1. modified 保护（F0 §8 / F1 §8.1 / R5）：n=取消，不同于 :open 的 n=不保存继续
-	if h.Buf.Modified() && !h.Buf.Shared() {
-		InfoBar.YNPrompt("Buffer modified. Save? (y,n,esc)", func(yes, canceled bool) {
-			if canceled || !yes {
-				return // n / Esc → 取消（不继续）
-			}
-			// y → 先保存，成功才继续
-			if h.SaveAll() {
-				h.openSelector()
-			}
-		})
-		return // YNPrompt 异步：立即返回，等回调
-	}
 	h.openSelector()
 }
 
@@ -101,15 +90,9 @@ func (h *BufPane) openSelector() {
 		if r.Kind != Picked {
 			return // Esc / resize / 拒开
 		}
-		// pane 在打开期间被关的防御（R7）
-		if h.Buf == nil {
+		if h.Buf == nil { // R7 防御：OpenCmd 访问 h.Buf，nil 会 panic
 			return
 		}
-		b, err := buffer.NewBufferFromFile(r.Path, buffer.BTDefault)
-		if err != nil {
-			InfoBar.Error(err)
-			return
-		}
-		h.OpenBuffer(b)
+		h.OpenCmd([]string{r.Path}) // 复用原生 :open，自带 modified 检查
 	}, false)
 }
