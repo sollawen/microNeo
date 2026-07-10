@@ -9,20 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Added**
 
-- Per-pane file navigation: when microNeo starts without a file, splits a pane, or opens a new tab, a file picker automatically opens at the parent pane's directory. This unifies the startup, split, and tab workflows under a single `isNoName` model — no separate welcome mode.
+- Per-pane file navigation: starting without a file, splitting a pane, or opening a new tab now opens a file picker at the parent pane's directory. Pressing `Ctrl-q` on an empty-born pane opens a picker offering files to switch into before closing. Startup, split, and tab workflows are unified under a single per-pane model.
 
 **Changed**
 
-- `Ctrl-q` now opens a quit selector on noName-born panes (even after a file has been opened into them), offering a choice of file to switch to before closing. File-born panes retain the original quit behavior (native save prompt if modified).
+- `Ctrl-o` no longer prompts to save before opening the file picker; the save prompt is deferred until you actually switch to a file, matching `:open`.
+- In the quit selector, `Esc` cancels and returns to editing instead of being swallowed.
 
 **Removed**
 
-- Global `WelcomeMode` flag and the separate welcome-session logic are retired. Birth selectors and quit selectors now share the same picker UI, driven by per-pane `isNoName` state.
+- All `Fn` function keys (F2/F3/F4/F7/F10) lose their default bindings — use `Ctrl-s` (save), `Ctrl-f` (find), `Ctrl-q` (quit). F-key identification is retained, so Fn keys can still be bound manually in settings.
 
 **Fixed**
 
-- `Ctrl-t` (new tab) now opens the birth selector on the new pane, matching `:tab` and the split shortcuts. The shortcut was previously bypassed because micro resolves the action handler at bind time and caches it; an explicit `BindKey` rebind now makes the override take hold.
-- Markdown files opened into a pane whose first file was not Markdown now render correctly. Previously, opening a `.md` via `:open` or `:file` after a non-Markdown start left the pane's render config empty, so code blocks, headings, and table top/bottom borders rendered incorrectly.
+- `Ctrl-t` (new tab) now opens the file picker on the new pane, matching `:tab` and the split shortcuts.
+- Quitting a modified noName pane no longer asks twice whether to save — the prompt appears once, at the actual point of discarding changes.
+- Markdown files opened into a pane whose first file was not Markdown now render correctly (code blocks, headings, and table borders previously broke).
 
 ## [1.1.10] - 2026-07-09
 
