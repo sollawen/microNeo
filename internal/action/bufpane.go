@@ -254,6 +254,10 @@ type BufPane struct {
 	// since we may not know the window geometry yet. In such case we finish
 	// its initialization a bit later, after the initial resize.
 	initialized bool
+
+	// microNeo: 本 pane 诞生时是否 noName（空 buffer）。诞生时赋值一次、终身不变。
+	// 决定 Ctrl-q 路由与 birth selector 行为（见 F4a §2）。
+	isNoName bool
 }
 
 func newBufPane(buf *buffer.Buffer, win display.BWindow, tab *Tab) *BufPane {

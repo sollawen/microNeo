@@ -9,11 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Added**
 
-- Welcome mode: launching microNeo without file arguments opens a file picker as the start screen instead of an empty buffer, and closing the last file returns to the picker rather than quitting the session. If the terminal is too small to display the picker, it falls back to the previous empty-buffer behavior.
+- Per-pane file navigation: when microNeo starts without a file, splits a pane, or opens a new tab, a file picker automatically opens at the parent pane's directory. This unifies the startup, split, and tab workflows under a single `isNoName` model — no separate welcome mode.
+
+**Changed**
+
+- `Ctrl-q` now opens a quit selector on noName-born panes (even after a file has been opened into them), offering a choice of file to switch to before closing. File-born panes retain the original quit behavior (native save prompt if modified).
+
+**Removed**
+
+- Global `WelcomeMode` flag and the separate welcome-session logic are retired. Birth selectors and quit selectors now share the same picker UI, driven by per-pane `isNoName` state.
 
 **Fixed**
 
-- Markdown files opened into a pane whose first file was not Markdown now render correctly. Previously, opening a `.md` via the welcome picker, `:open`, or `:file` after a non-Markdown start left the pane's render config empty, so code blocks, headings, and table top/bottom borders rendered incorrectly.
+- `Ctrl-t` (new tab) now opens the birth selector on the new pane, matching `:tab` and the split shortcuts. The shortcut was previously bypassed because micro resolves the action handler at bind time and caches it; an explicit `BindKey` rebind now makes the override take hold.
+- Markdown files opened into a pane whose first file was not Markdown now render correctly. Previously, opening a `.md` via `:open` or `:file` after a non-Markdown start left the pane's render config empty, so code blocks, headings, and table top/bottom borders rendered incorrectly.
 
 ## [1.1.10] - 2026-07-09
 

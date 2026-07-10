@@ -131,10 +131,10 @@ type FileSelector struct {
 	pane     *BufPane
 	onSelect func(SelectResult)
 	gitCache gitStatusCache
-	// isWelcome 控制 Esc/Ctrl-q 在选择器内的行为（F3 §4.1c）：
-	//   welcome 态：Esc no-op，Ctrl-q → 关闭选择器并上报 ReasonQuit
-	//   普通态：Esc → 关闭并上报 ReasonEsc，Ctrl-q 吞掉（维持现状）
-	isWelcome bool
+	// isQuit 控制 Esc/Ctrl-q 在选择器内的行为（F4 §4）：
+	//   isQuit=true：quit 态「不收 Esc、收 Ctrl-q」（关闭并退出 pane）
+	//   isQuit=false：browse/birth 态「收 Esc、不收 Ctrl-q」（Esc 关、继续编辑）
+	isQuit bool
 }
 
 // NewFileSelector 返回一个未打开的 FileSelector（gitCache 注入真实实现，F1 §10.6）。
@@ -142,19 +142,19 @@ func NewFileSelector() *FileSelector {
 	return &FileSelector{gitCache: NewGitStatus()}
 }
 
-// Open 打开文件选择器（F1 §3.2 / §6.2 / §10.7 异步时序；F3 §4.1b 新增 isWelcome 参数）。
+// Open 打开文件选择器（F1 §3.2 / §6.2 / §10.7 异步时序）。
 //
 //   pane      发起 :file 的 pane（pane-local 布局 + 选中后开进此 pane）
 //   startDir  起始目录（F1 §8.1 / R6）
-//   onSelect  回调（F3 §3：SelectResult）；普通调用方只关心 Picked，welcome 调用方按 Reason 分流
-//   isWelcome true=welcom 态（Esc no-op、Ctrl-q 退出），false=普通态（Esc 关、Ctrl-q 吞）
+//   onSelect  回调（SelectResult）；browse/birth 调用方只关心 Picked，quit 调用方按 Reason 分流
+//   isQuit    true=quit 态（不收 Esc、收 Ctrl-q），false=browse/birth 态（收 Esc、不收 Ctrl-q）
 //
 // 首次渲染绝不阻塞：State init（os.ReadDir，μs 级）→ 列表立即可见、无 git 标志；
 // git 后台查询（带 2s ctx），回来后 screen.Redraw() 触发补画（F1 §10.7 第 1-5 步）。
-func (fs *FileSelector) Open(pane *BufPane, startDir string, onSelect func(SelectResult), isWelcome bool) {
+func (fs *FileSelector) Open(pane *BufPane, startDir string, onSelect func(SelectResult), isQuit bool) {
 	fs.onSelect = onSelect
 	fs.pane = pane
-	fs.isWelcome = isWelcome
+	fs.isQuit = isQuit
 
 	// 当前 buffer 文件名（光标起始定位用，F0 §5.3）
 	currentFile := ""
@@ -647,13 +647,13 @@ func (fs *FileSelector) handleEvent(event tcell.Event) {
 			fs.chdir(s.entries[s.cursor-1].name)
 		}
 	case tcell.KeyEscape:
-		// welcome 态：Esc 是 no-op（不关选择器，留用户继续选）；普通态：关（F3 §4.1c）
-		if !fs.isWelcome {
+		// isQuit=true：quit 态不收 Esc；isQuit=false：browse/birth 态收 Esc（F4 §4）
+		if !fs.isQuit {
 			fs.finish(SelectResult{Kind: Closed, Reason: ReasonEsc})
 		}
 	case tcell.KeyCtrlQ:
-		// welcome 态：Ctrl-q → 退出程序（上报 ReasonQuit）；普通态：吞掉（维持现状，F3 §4.1c）
-		if fs.isWelcome {
+		// isQuit=true：quit 态收 Ctrl-q → 关闭并退出 pane；isQuit=false：browse/birth 态吞掉（F4 §4）
+		if fs.isQuit {
 			fs.finish(SelectResult{Kind: Closed, Reason: ReasonQuit})
 		}
 	default:

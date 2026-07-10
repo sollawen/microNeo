@@ -154,7 +154,7 @@ func OpenBirthSelector(pane *BufPane, dir string) {
 // QuitNeo 是 microNeo 的 Ctrl-q / :quit 路由（重写，替换 welcome_md.go 旧版）。
 //   - file-born pane（isNoName=false）→ 直接 h.Quit()（原生自带存盘提示；最后→退程序）。
 //   - noName-born pane → 开 quit selector（isQuit=true）：
-//       Enter 选文件 → 原地换入；selector 内 Ctrl-q（ReasonQuit）→ h.Quit()。
+//       Enter 选文件 → 原地换入；selector 关闭（Ctrl-q=ReasonQuit，或窗口过窄=ReasonResize）→ h.Quit()。
 func (h *BufPane) QuitNeo() bool {
 	if !h.isNoName {
 		return h.Quit() // file-born：完全等价原生 Quit，零行为变化
@@ -177,11 +177,9 @@ func (h *BufPane) QuitNeo() bool {
 				h.OpenBuffer(b)
 				return
 			}
-			// Closed
-			if r.Reason == ReasonQuit {
-				h.Quit() // → ForceQuit：非最后 pane 关本 pane；最后一个 runtime.Goexit 退程序
-			}
-			// ReasonResize：透明（FloatFrame 已关，不重开 quit selector）
+			// Closed：selector 关闭即关 pane。ReasonQuit（Ctrl-q 收）与 ReasonResize
+			// （窗口过窄 computeLayout 失败）都走 h.Quit——否则窄窗口下 noName pane 退不出去（死锁）。
+			h.Quit() // → ForceQuit：非最后 pane 关本 pane；最后一个 runtime.Goexit 退程序
 		}, true) // isQuit=true：不收 Esc，只收 Ctrl-q
 	}
 	if h.Buf.Modified() && !h.Buf.Shared() {
@@ -203,13 +201,17 @@ func InitNeoBindings() {
 
 // ---- spawn 包装：捕获父目录 → 调原生 spawn → 对新 pane 开 birth selector ----
 // 覆盖 split/tab 的 3 个 key action 与 3 个 command（见 command_neo.go::InitNeoCommands）。
-// 关键时序事实：三种 spawn 末尾都同步 SetActive+Resize，返回时新 pane = MainTab().CurPane()、
-// 已有真实几何，故 OpenBirthSelector 可立即开（不在 Resize 里搞，Resize 保持纯净）。
+// 关键时序事实：spawn 末尾都 SetActive，返回时新 pane = MainTab().CurPane()。
+// split（VSplit/HSplit）内部已调 tab.Resize()，新 pane BWindow 就绪；但 tab（AddTab/NewTabCmd）
+// 原生不 Resize（依赖主循环延迟初始化），故包装内须显式补 MainTab().Resize()，否则 computeLayout
+// 拿到未就绪几何 → 失败 → selector 不弹（已实测：vsplit/hsplit 弹、Ctrl-t 不弹）。
+// OpenBirthSelector 仍可立即开（不在 Resize 里搞，Resize 保持纯净）。
 // 带文件参数的 :vsplit foo / :tab foo 开 file-born pane（isNoNameBuf=false），OpenBirthSelector 直接 bail。
 
 func (h *BufPane) neoAddTabAction() bool {
 	dir := birthDir(h)
 	r := h.AddTab()
+	MainTab().Resize() // AddTab 不 Resize（依赖主循环），同步开 selector 须显式补
 	OpenBirthSelector(MainTab().CurPane(), dir)
 	return r
 }
@@ -229,6 +231,7 @@ func (h *BufPane) neoHSplitAction() bool {
 func (h *BufPane) neoNewTabCmd(args []string) {
 	dir := birthDir(h)
 	h.NewTabCmd(args)
+	MainTab().Resize() // NewTabCmd 同 AddTab，不 Resize，须补
 	OpenBirthSelector(MainTab().CurPane(), dir)
 }
 func (h *BufPane) neoVSplitCmd(args []string) {
@@ -245,7 +248,9 @@ func (h *BufPane) neoHSplitCmd(args []string) {
 
 #### 2.3 spawn 包装注册：`internal/action/command_neo.go`::`InitNeoCommands`
 
-在 `InitNeoCommands` 末尾追加 6 个 map 覆盖。**必须在此处**：`InitCommands()`（command.go:33）整表重赋值会 clobber 早于它的 insert；启动序 `InitCommands`(409) → `InitNeoCommands`(410)，放这里才安全（F4a §6.1(3)）。
+在 `InitNeoCommands` 末尾追加 spawn 包装覆盖。**必须在此处**：`InitCommands()`（command.go:33）整表重赋值会 clobber 早于它的 insert；启动序 `InitCommands`(409) → `InitNeoCommands`(410)，放这里才安全（F4a §6.1(3)）。
+
+**关键坑（实测）**：key action 改 `BufKeyActions[...]` 不够——`BindKey`（bufpane.go）在绑定按键时把 action 名解析成函数指针并缓存进闭包，运行时按键调闭包、**不再查 BufKeyActions map**。所以 `Ctrl-t→AddTab` 改完 map 必须紧跟一句 `BindKey("Ctrl-t","AddTab",Binder["buffer"])` 强制重绑，否则 Ctrl-t 仍走原版 AddTab（日志无 `[neoAddTabAction] ENTER`）。commands 路径（`:tab/:vsplit/:hsplit`）每次执行都查最新，不受此限。
 
 ```go
 func InitNeoCommands() {
@@ -254,8 +259,11 @@ func InitNeoCommands() {
 	MakeCommand("quit", (*BufPane).QuitNeoCmd, nil) // QuitNeoCmd 已存在，包 QuitNeo，不改
 
 	// microNeo: spawn 包装覆盖（捕获父目录 + 开 birth selector）。
-	// BufKeyActions 是包级 var（永不被 clobber）；commands 须在此处覆盖（InitCommands 整表重赋值之后）。
+	// key action：BufKeyActions 在 BindKey 解析时被查一次并缓存函数指针，运行时按键用缓存、不再查 map。
+	//   故 Ctrl-t→AddTab 改 map 后必须重新 BindKey 才生效；VSplit/HSplit 默认无快捷键（走 :vsplit/:hsplit），BufKeyActions 覆盖仅备用。
+	// commands：InitCommands 整表重赋值之后覆盖即可（命令执行每次查最新）。
 	BufKeyActions["AddTab"] = (*BufPane).neoAddTabAction
+	BindKey("Ctrl-t", "AddTab", Binder["buffer"]) // 重绑：让 Ctrl-t 重新解析到 neoAddTabAction
 	BufKeyActions["VSplit"] = (*BufPane).neoVSplitAction
 	BufKeyActions["HSplit"] = (*BufPane).neoHSplitAction
 	commands["tab"]   = Command{(*BufPane).neoNewTabCmd, buffer.FileComplete}

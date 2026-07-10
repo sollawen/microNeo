@@ -16,8 +16,19 @@ import (
 func InitNeoCommands() {
 	MakeCommand("theme", (*BufPane).ThemeCmd, nil)
 	MakeCommand("file", (*BufPane).FileCmd, nil)
-	// :quit 在 welcome 会话最后一个 pane 回 welcome；其他情况等价原生 Quit（F3 §4.4）
-	MakeCommand("quit", (*BufPane).QuitNeoCmd, nil)
+	MakeCommand("quit", (*BufPane).QuitNeoCmd, nil) // QuitNeoCmd 已存在，包 QuitNeo，不改
+
+	// microNeo: spawn 包装覆盖（捕获父目录 + 开 birth selector）。
+	// key action：BufKeyActions 在 BindKey 解析时被查一次并缓存函数指针，运行时按键用缓存、不再查 map。
+	//   故 Ctrl-t→AddTab 改 map 后必须重新 BindKey 才生效；VSplit/HSplit 默认无快捷键（走 :vsplit/:hsplit 命令），BufKeyActions 覆盖仅备用。
+	// commands：InitCommands 整表重赋值之后覆盖即可（命令执行每次查最新）。
+	BufKeyActions["AddTab"] = (*BufPane).neoAddTabAction
+	BindKey("Ctrl-t", "AddTab", Binder["buffer"]) // 重绑：让 Ctrl-t 重新解析到 neoAddTabAction（只改 map 不重绑则仍走原版）
+	BufKeyActions["VSplit"] = (*BufPane).neoVSplitAction
+	BufKeyActions["HSplit"] = (*BufPane).neoHSplitAction
+	commands["tab"]   = Command{(*BufPane).neoNewTabCmd, buffer.FileComplete}
+	commands["vsplit"] = Command{(*BufPane).neoVSplitCmd, buffer.FileComplete}
+	commands["hsplit"] = Command{(*BufPane).neoHSplitCmd, buffer.FileComplete}
 }
 
 // ThemeCmd 是 :theme 命令的 action。
