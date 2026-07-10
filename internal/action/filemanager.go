@@ -71,7 +71,8 @@ func OpenBirthSelector(pane *BufPane, dir string) {
 // QuitNeo 是 microNeo 的 Ctrl-q / :quit 路由（重写，替换 welcome_md.go 旧版）。
 //   - file-born pane（isNoName=false）→ 直接 h.Quit()（原生自带存盘提示；最后→退程序）。
 //   - noName-born pane → 开 quit selector（isQuit=true）：
-//       Enter 选文件 → 原地换入；selector 关闭（Ctrl-q=ReasonQuit，或窗口过窄=ReasonResize）→ h.Quit()。
+//       Enter 选文件 → 原地换入；Esc → 取消（回编辑，不关 pane）；
+//       Ctrl-q（ReasonQuit）或窗口过窄（ReasonResize）→ h.Quit()。
 func (h *BufPane) QuitNeo() bool {
 	if !h.isNoName {
 		return h.Quit() // file-born：完全等价原生 Quit，零行为变化
@@ -94,10 +95,14 @@ func (h *BufPane) QuitNeo() bool {
 				h.OpenBuffer(b)
 				return
 			}
-			// Closed：selector 关闭即关 pane。ReasonQuit（Ctrl-q 收）与 ReasonResize
-			// （窗口过窄 computeLayout 失败）都走 h.Quit——否则窄窗口下 noName pane 退不出去（死锁）。
+			// Closed 分流：Esc = 取消退出（回编辑，不关 pane）；
+			// ReasonQuit（Ctrl-q）/ ReasonResize（窗口过窄 computeLayout 失败）→ h.Quit()，
+			// 否则窄窗口下 noName pane 退不出去（死锁）。
+			if r.Reason == ReasonEsc {
+				return // 用户后悔：取消，回到调起前的编辑界面
+			}
 			h.Quit() // → ForceQuit：非最后 pane 关本 pane；最后一个 runtime.Goexit 退程序
-		}, true) // isQuit=true：不收 Esc，只收 Ctrl-q
+		}, true) // isQuit=true：quit 态收 Ctrl-q（关 pane）；Esc 两种态都收（取消回编辑）
 	}
 	if h.Buf.Modified() && !h.Buf.Shared() {
 		h.closePrompt("Close", proceed) // y/n → proceed（开 selector）；esc → 取消留编辑
