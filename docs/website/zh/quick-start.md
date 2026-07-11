@@ -9,6 +9,13 @@ curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/tools/inst
 
 > 在Linux/Mac上面运行完美。Windows需要完整的shell支持，没有实测
 
+**国内用户**, 如果出现 `raw.githubusercontent.com` is rate-limited (HTTP 429) or unreachable 的问题，可以使用下面的这个镜像来一句话下载。这个问题通常是由于VPN使用的IP地址被GitHub限流了。
+
+```bash
+curl -fsSL https://cdn.jsdelivr.net/gh/sollawen/microNeo@master/tools/install.sh | sh
+```
+
+
 **第二步：检测有哪些 AI agent**
 
 ```bash
@@ -20,9 +27,15 @@ microneo --check-agent
 - 目前支持 OpenCode、Pi 和 Claude。但是因为 Claude 不是开源的，所以能用但不够完美。
 
 
-**第三步：用microNeo打开你想和AI讨论的那个文件**
+**第三步：开始使用 microNeo **
 
 ```bash
+# 在当前目录下运行microNeo，
+# microNeo 有完整的FileManager，可以方便的在目录树里导航
+
+microneo
+
+# 用microNeo打开指定文件
 microneo README.md
 ```
 

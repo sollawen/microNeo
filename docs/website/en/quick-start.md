@@ -8,6 +8,12 @@ curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/tools/inst
 
 > Works perfectly on Linux/Mac. Windows requires full shell support and hasn't been tested.
 
+If you hit `raw.githubusercontent.com` being rate-limited (HTTP 429) or unreachable, you can use this jsDelivr mirror instead:
+
+```bash
+curl -fsSL https://cdn.jsdelivr.net/gh/sollawen/microNeo@master/tools/install.sh | sh
+```
+
 **Step 2: Detect which AI agents you have**
 
 ```bash
@@ -18,9 +24,15 @@ microneo --check-agent
 - Of course, if you install another AI agent later, just run this command again.
 - Currently supports OpenCode, Pi, and Claude. However, since Claude is not open source, it works but isn't perfect.
 
-**Step 3: Open the file you want to discuss with the AI**
+**Step 3: Start using microNeo**
 
 ```bash
+# Run microNeo in the current directory.
+# microNeo has a fully-featured FileManager for easy navigation through the directory tree.
+
+microneo
+
+# Open a specific file with microNeo
 microneo README.md
 ```
 
