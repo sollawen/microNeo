@@ -113,7 +113,8 @@ type CloseReason uint8
 const (
 	ReasonEsc    CloseReason = iota // 用户按 Esc
 	ReasonQuit                       // 用户按 Ctrl-q（或 welcome 态的 Quit）
-	ReasonResize                     // 窗口 resize（FloatFrame 强制关）
+	ReasonSize                       // 打开时窗口过小，selector 从未显示（F5）
+	ReasonResize                     // 运行中窗口 resize，已显示后被打断（F5）
 )
 
 // SelectResult 承载 FileSelector 的关闭结果（F3 §3）。
@@ -131,10 +132,6 @@ type FileSelector struct {
 	pane     *BufPane
 	onSelect func(SelectResult)
 	gitCache gitStatusCache
-	// isQuit 控制选择器内 Ctrl-q 的行为（Esc 两种态都收 = 取消，F4 §4）：
-	//   isQuit=true：quit 态「收 Ctrl-q」（关闭并退出 pane）
-	//   isQuit=false：browse/birth 态「不收 Ctrl-q」（Ctrl-q 吞掉）
-	isQuit bool
 }
 
 // NewFileSelector 返回一个未打开的 FileSelector（gitCache 注入真实实现，F1 §10.6）。
@@ -147,14 +144,12 @@ func NewFileSelector() *FileSelector {
 //   pane      发起 :file 的 pane（pane-local 布局 + 选中后开进此 pane）
 //   startDir  起始目录（F1 §8.1 / R6）
 //   onSelect  回调（SelectResult）；browse/birth 调用方只关心 Picked，quit 调用方按 Reason 分流
-//   isQuit    true=quit 态（收 Ctrl-q → 关 pane），false=browse/birth 态（Ctrl-q 吞掉）；Esc 两种态都收（取消）
 //
 // 首次渲染绝不阻塞：State init（os.ReadDir，μs 级）→ 列表立即可见、无 git 标志；
 // git 后台查询（带 2s ctx），回来后 screen.Redraw() 触发补画（F1 §10.7 第 1-5 步）。
-func (fs *FileSelector) Open(pane *BufPane, startDir string, onSelect func(SelectResult), isQuit bool) {
+func (fs *FileSelector) Open(pane *BufPane, startDir string, onSelect func(SelectResult)) {
 	fs.onSelect = onSelect
 	fs.pane = pane
-	fs.isQuit = isQuit
 
 	// 当前 buffer 文件名（光标起始定位用，F0 §5.3）
 	currentFile := ""
@@ -169,7 +164,7 @@ func (fs *FileSelector) Open(pane *BufPane, startDir string, onSelect func(Selec
 	anchor, contentSize, ok := fs.computeLayout(pane)
 	if !ok {
 		if onSelect != nil {
-			onSelect(SelectResult{Kind: Closed, Reason: ReasonResize}) // 预检拒开 → 透明返回（F1 §7.3）
+			onSelect(SelectResult{Kind: Closed, Reason: ReasonSize}) // 预检拒开 → 透明返回（F1 §7.3 / F5 §5.1b）
 		}
 		return
 	}
@@ -180,7 +175,7 @@ func (fs *FileSelector) Open(pane *BufPane, startDir string, onSelect func(Selec
 	spec := fs.buildSpec(anchor, contentSize)
 	if !TheFloatFrame.Open(spec) {
 		if onSelect != nil {
-			onSelect(SelectResult{Kind: Closed, Reason: ReasonResize})
+			onSelect(SelectResult{Kind: Closed, Reason: ReasonSize}) // F5 §5.1b：打开时放不下
 		}
 		return
 	}
@@ -650,10 +645,8 @@ func (fs *FileSelector) handleEvent(event tcell.Event) {
 		// 两种态都收 Esc → 取消：关 selector，回到调起前的编辑状态（F4 §4）
 		fs.finish(SelectResult{Kind: Closed, Reason: ReasonEsc})
 	case tcell.KeyCtrlQ:
-		// isQuit=true：quit 态收 Ctrl-q → 关闭并退出 pane；isQuit=false：browse/birth 态吞掉（F4 §4）
-		if fs.isQuit {
-			fs.finish(SelectResult{Kind: Closed, Reason: ReasonQuit})
-		}
+		// 三入口统一收 Ctrl-q → ReasonQuit，回调里统一 h.Quit()/pane.Quit()（F5 §5.2）
+		fs.finish(SelectResult{Kind: Closed, Reason: ReasonQuit})
 	default:
 		// '.' 切 dotfile（浮窗模态拦截所有事件，绕过 micro 键位绑定，F1b §3.5）
 		if ev.Key() == tcell.KeyRune && ev.Rune() == '.' {

@@ -85,14 +85,19 @@ func (h *BufPane) openSelector() {
 	}
 
 	// 3. 打开（onSelect 闭包：选中→开进发起 pane，与 :open 同路径）
-	// 普通态回调只看 Picked，任何 Closed 当取消（F3 §3 / §4.4）
+	// browse 回调：按 F5 §5.4 分流
 	NewFileSelector().Open(h, startDir, func(r SelectResult) {
-		if r.Kind != Picked {
-			return // Esc / resize / 拒开
-		}
-		if h.Buf == nil { // R7 防御：OpenCmd 访问 h.Buf，nil 会 panic
+		if r.Kind == Picked {
+			if h.Buf == nil { // R7 防御：OpenCmd 访问 h.Buf，nil 会 panic
+				return
+			}
+			h.OpenCmd([]string{r.Path}) // 复用原生 :open，自带 modified 检查
 			return
 		}
-		h.OpenCmd([]string{r.Path}) // 复用原生 :open，自带 modified 检查
-	}, false)
+		if r.Reason == ReasonQuit {
+			h.Quit() // selector 内 Ctrl-q → 退出 pane（F5 §5.4）
+			return
+		}
+		// ReasonEsc / ReasonSize / ReasonResize → no-op，回编辑
+	})
 }

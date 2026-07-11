@@ -38,7 +38,7 @@ func birthDir(h *BufPane) string {
 // OpenBirthSelector 对刚诞生的 pane 开 birth selector（若它是 noName）。
 // 调用方：6 个 spawn 包装（包内）+ micro.go 启动段（跨包，故导出大写）。
 //   - dir = 父 pane 目录（spawn 包装传入）或 ""（启动 → 回退 cwd）。
-//   - noName pane → 置 isNoName=true（一次性、终身不变）+ 开 birth selector（isQuit=false）。
+//   - noName pane → 置 isNoName=true（一次性、终身不变）+ 开 birth selector。
 //   - file-born pane（如 :vsplit foo）→ 直接 return，isNoName 保持零值 false，不开。
 //
 // 为什么能在 spawn 之后立刻开：三种 spawn（VSplitIndex/HSplitIndex/AddTab 及对应 *Cmd）
@@ -53,22 +53,27 @@ func OpenBirthSelector(pane *BufPane, dir string) {
 		dir, _ = os.Getwd()
 	}
 	NewFileSelector().Open(pane, dir, func(r SelectResult) {
-		if r.Kind != Picked {
-			return // ReasonEsc → no-op，继续编辑当前（空）buffer
-		}
-		if pane.Buf == nil { // R7 防御：OpenCmd 访问 h.Buf，nil 会 panic
+		if r.Kind == Picked {
+			if pane.Buf == nil { // R7 防御：OpenCmd 访问 h.Buf，nil 会 panic
+				return
+			}
+			pane.OpenCmd([]string{r.Path}) // 复用原生 :open，自带 modified 检查
 			return
 		}
-		pane.OpenCmd([]string{r.Path}) // 复用原生 :open，自带 modified 检查（与 :open 行为一致）
-	}, false) // isQuit=false：birth 态 Esc 可关（→继续编辑空 buffer），Ctrl-q 不收
+		if r.Reason == ReasonQuit {
+			pane.Quit() // selector 内 Ctrl-q → 退出该空 pane（F5 §5.3）
+			return
+		}
+		// ReasonEsc / ReasonSize / ReasonResize → no-op，继续编辑空 buffer
+	})
 }
 
 // QuitNeo 是 microNeo 的 Ctrl-q / :quit 路由（重写，替换 welcome_md.go 旧版）。
 //   - file-born pane（isNoName=false）→ 直接 h.Quit()（原生自带存盘提示；最后→退程序）。
-//   - noName-born pane → 开 quit selector（isQuit=true），三出口各走原生检查、不在开 selector 前预检：
+//   - noName-born pane → 开 quit selector，三出口各走原生检查、不在开 selector 前预检：
 //       Enter 选文件 → OpenCmd（原生 :open，自带 modified 检查）；
 //       Esc → 取消（回编辑，不丢数据、不检查）；
-//       Ctrl-q（ReasonQuit）/ 窗口过窄（ReasonResize）→ h.Quit()（原生自带 modified 检查）。
+//       Ctrl-q（ReasonQuit）/ 打开时过小（ReasonSize）→ h.Quit()（原生自带 modified 检查）。
 func (h *BufPane) QuitNeo() bool {
 	if !h.isNoName {
 		return h.Quit() // file-born：完全等价原生 Quit，零行为变化
@@ -86,14 +91,12 @@ func (h *BufPane) QuitNeo() bool {
 				h.OpenCmd([]string{r.Path}) // 复用原生 :open，自带 modified 检查
 				return
 			}
-			// Closed 分流：Esc = 取消退出（回编辑，不关 pane）；
-			// ReasonQuit（Ctrl-q）/ ReasonResize（窗口过窄 computeLayout 失败）→ h.Quit()，
-			// 否则窄窗口下 noName pane 退不出去（死锁）。
-			if r.Reason == ReasonEsc {
-				return // 用户后悔：取消，回到调起前的编辑界面
+			if r.Reason == ReasonQuit || r.Reason == ReasonSize {
+				h.Quit() // Ctrl-q 或打开时过小 → 退出（后者破死锁，F5 §5.3）
+				return
 			}
-			h.Quit() // → ForceQuit：非最后 pane 关本 pane；最后一个 runtime.Goexit 退程序
-		}, true) // isQuit=true：quit 态收 Ctrl-q（关 pane）；Esc 两种态都收（取消回编辑）
+			// ReasonEsc / ReasonResize → no-op，回编辑（取消退出）
+		})
 	}
 	proceed() // 直接开 selector：modified 检查推迟到具体出口（Enter→OpenCmd / Ctrl-q→Quit）
 	return true

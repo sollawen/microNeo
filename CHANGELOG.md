@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+**Fixed**
+
+- `Ctrl-q` on an empty pane in a too-narrow window now quits directly instead of hanging — the file selector can't fit, so it falls back to native quit.
+- Shrinking the window while the file selector is open no longer force-quits the editor; it just closes the selector and returns you to editing.
+
 ## [1.1.11] - 2026-07-10
 
 **Added**
