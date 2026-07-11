@@ -9,10 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Added**
 
+- Each row in the file picker now shows a right-aligned file size (human-readable, e.g. `12.3K`); directories are left blank.
 - FileSelector marks git-ignored files and directories with an `I` indicator, so build outputs and tooling caches like `node_modules/` or `dist/` are easy to spot at a glance.
 
 **Changed**
 
+- The picker's bottom metadata line now includes file permissions alongside size and modified time.
 - Optimized FileSelector code organization — all hotkey and command handlers moved to `command_neo.go`, making `filemanager.go` a pure executor that only opens selectors.
 
 **Fixed**
