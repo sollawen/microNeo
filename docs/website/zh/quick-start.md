@@ -27,7 +27,7 @@ microneo --check-agent
 - 目前支持 OpenCode、Pi 和 Claude。但是因为 Claude 不是开源的，所以能用但不够完美。
 
 
-**第三步：开始使用 microNeo **
+**第三步：开始使用 microNeo**
 
 ```bash
 # 在当前目录下运行microNeo，
