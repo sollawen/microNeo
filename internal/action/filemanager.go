@@ -35,6 +35,16 @@ func birthDir(h *BufPane) string {
 	return ""
 }
 
+// startDirOf 返回 pane 的起始目录：有 AbsPath 取父目录，否则 cwd。
+// 取代旧 openSelector 的内联计算与 QuitNeo.proceed 里的 birthDir+cwd 回退。
+func startDirOf(h *BufPane) string {
+	if h.Buf != nil && h.Buf.AbsPath != "" {
+		return filepath.Dir(h.Buf.AbsPath)
+	}
+	d, _ := os.Getwd()
+	return d
+}
+
 // OpenBirthSelector 对刚诞生的 pane 开 birth selector（若它是 noName）。
 // 调用方：6 个 spawn 包装（包内）+ micro.go 启动段（跨包，故导出大写）。
 //   - dir = 父 pane 目录（spawn 包装传入）或 ""（启动 → 回退 cwd）。
@@ -68,90 +78,39 @@ func OpenBirthSelector(pane *BufPane, dir string) {
 	})
 }
 
-// QuitNeo 是 microNeo 的 Ctrl-q / :quit 路由（重写，替换 welcome_md.go 旧版）。
-//   - file-born pane（isNoName=false）→ 直接 h.Quit()（原生自带存盘提示；最后→退程序）。
-//   - noName-born pane → 开 quit selector，三出口各走原生检查、不在开 selector 前预检：
-//       Enter 选文件 → OpenCmd（原生 :open，自带 modified 检查）；
-//       Esc → 取消（回编辑，不丢数据、不检查）；
-//       Ctrl-q（ReasonQuit）/ 打开时过小（ReasonSize）→ h.Quit()（原生自带 modified 检查）。
-func (h *BufPane) QuitNeo() bool {
-	if !h.isNoName {
-		return h.Quit() // file-born：完全等价原生 Quit，零行为变化
-	}
-	proceed := func() {
-		d := birthDir(h)
-		if d == "" {
-			d, _ = os.Getwd()
+// openBrowseSelector：Ctrl-o / :file 执行者。目录取自当前 pane。
+func (h *BufPane) openBrowseSelector() {
+	NewFileSelector().Open(h, startDirOf(h), func(r SelectResult) {
+		if r.Kind == Picked {
+			if h.Buf == nil { // R7 防御：OpenCmd 访问 h.Buf，nil 会 panic
+				return
+			}
+			h.OpenCmd([]string{r.Path})
+			return
 		}
-		NewFileSelector().Open(h, d, func(r SelectResult) {
-			if r.Kind == Picked {
-				if h.Buf == nil { // R7 防御：OpenCmd 访问 h.Buf，nil 会 panic
-					return
-				}
-				h.OpenCmd([]string{r.Path}) // 复用原生 :open，自带 modified 检查
+		if r.Reason == ReasonQuit {
+			h.Quit()
+			return
+		}
+		// ReasonEsc / ReasonSize / ReasonResize → no-op
+	})
+}
+
+// openQuitSelector：Ctrl-q（noName pane）执行者。从 QuitNeo.proceed 抽出。
+// 与上两者唯一差异：ReasonSize 也 h.Quit()（窄窗口破死锁，F5 场景 1）。
+func (h *BufPane) openQuitSelector() {
+	NewFileSelector().Open(h, startDirOf(h), func(r SelectResult) {
+		if r.Kind == Picked {
+			if h.Buf == nil { // R7 防御：OpenCmd 访问 h.Buf，nil 会 panic
 				return
 			}
-			if r.Reason == ReasonQuit || r.Reason == ReasonSize {
-				h.Quit() // Ctrl-q 或打开时过小 → 退出（后者破死锁，F5 §5.3）
-				return
-			}
-			// ReasonEsc / ReasonResize → no-op，回编辑（取消退出）
-		})
-	}
-	proceed() // 直接开 selector：modified 检查推迟到具体出口（Enter→OpenCmd / Ctrl-q→Quit）
-	return true
-}
-
-// InitNeoBindings 注册 microNeo 的键位覆盖。
-// 必须在 action.InitBindings() 之后调用（micro.go:408）。
-// Ctrl-q 始终绑 QuitNeo：运行时按 pane.isNoName 分流，file-born 等价原生 Quit。
-func InitNeoBindings() {
-	BufKeyActions["QuitNeo"] = (*BufPane).QuitNeo
-	BindKey("Ctrl-q", "QuitNeo", Binder["buffer"])
-	// F4 / F10 留原生（整体移除 F 键默认绑定属独立清理任务，非本任务）。
-}
-
-// ---- spawn 包装：捕获父目录 → 调原生 spawn → 对新 pane 开 birth selector ----
-// 覆盖 split/tab 的 3 个 key action 与 3 个 command（见 command_neo.go::InitNeoCommands）。
-// 关键时序事实：三种 spawn 末尾都同步 SetActive+Resize，返回时新 pane = MainTab().CurPane()、
-// 已有真实几何，故 OpenBirthSelector 可立即开（不在 Resize 里搞，Resize 保持纯净）。
-// 带文件参数的 :vsplit foo / :tab foo 开 file-born pane（isNoNameBuf=false），OpenBirthSelector 直接 bail。
-
-func (h *BufPane) neoAddTabAction() bool {
-	dir := birthDir(h)
-	r := h.AddTab()
-	np := MainTab().CurPane()
-	MainTab().Resize() // AddTab 不像 VSplitIndex 那样内部 Resize，这里补上让新 pane BWindow 几何就绪
-	OpenBirthSelector(np, dir)
-	return r
-}
-func (h *BufPane) neoVSplitAction() bool {
-	dir := birthDir(h)
-	r := h.VSplitAction()
-	OpenBirthSelector(MainTab().CurPane(), dir)
-	return r
-}
-func (h *BufPane) neoHSplitAction() bool {
-	dir := birthDir(h)
-	r := h.HSplitAction()
-	OpenBirthSelector(MainTab().CurPane(), dir)
-	return r
-}
-
-func (h *BufPane) neoNewTabCmd(args []string) {
-	dir := birthDir(h)
-	h.NewTabCmd(args)
-	np := MainTab().CurPane()
-	MainTab().Resize() // NewTabCmd 同 AddTab 不内部 Resize，补上
-	OpenBirthSelector(np, dir)
-}
-func (h *BufPane) neoVSplitCmd(args []string) {
-	dir := birthDir(h)
-	h.VSplitCmd(args)
-	OpenBirthSelector(MainTab().CurPane(), dir)
-}
-func (h *BufPane) neoHSplitCmd(args []string) {
-	dir := birthDir(h)
-	h.HSplitCmd(args)
-	OpenBirthSelector(MainTab().CurPane(), dir)
+			h.OpenCmd([]string{r.Path})
+			return
+		}
+		if r.Reason == ReasonQuit || r.Reason == ReasonSize {
+			h.Quit()
+			return
+		}
+		// ReasonEsc / ReasonResize → no-op（取消退出）
+	})
 }

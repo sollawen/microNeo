@@ -1,8 +1,6 @@
 package action
 
 import (
-	"os"
-	"path/filepath"
 	"sort"
 
 	"github.com/micro-editor/micro/v2/internal/buffer"
@@ -29,6 +27,15 @@ func InitNeoCommands() {
 	commands["tab"]   = Command{(*BufPane).neoNewTabCmd, buffer.FileComplete}
 	commands["vsplit"] = Command{(*BufPane).neoVSplitCmd, buffer.FileComplete}
 	commands["hsplit"] = Command{(*BufPane).neoHSplitCmd, buffer.FileComplete}
+}
+
+// InitNeoBindings 注册 microNeo 的键位覆盖。
+// 必须在 action.InitBindings() 之后调用（micro.go:408）。
+// Ctrl-q 始终绑 QuitNeo：运行时按 pane.isNoName 分流，file-born 等价原生 Quit。
+func InitNeoBindings() {
+	BufKeyActions["QuitNeo"] = (*BufPane).QuitNeo
+	BindKey("Ctrl-q", "QuitNeo", Binder["buffer"])
+	// F4 / F10 留原生（整体移除 F 键默认绑定属独立清理任务，非本任务）。
 }
 
 // ThemeCmd 是 :theme 命令的 action。
@@ -67,37 +74,70 @@ func (h *BufPane) QuitNeoCmd(args []string) {
 	h.QuitNeo()
 }
 
+// QuitNeo 是 microNeo 的 Ctrl-q / :quit 路由（重写，替换 welcome_md.go 旧版）。
+//   - file-born pane（isNoName=false）→ 直接 h.Quit()（原生自带存盘提示；最后→退程序）。
+//   - noName-born pane → 开 quit selector，三出口各走原生检查、不在开 selector 前预检：
+//       Enter 选文件 → OpenCmd（原生 :open，自带 modified 检查）；
+//       Esc → 取消（回编辑，不丢数据、不检查）；
+//       Ctrl-q（ReasonQuit）/ 打开时过小（ReasonSize）→ h.Quit()（原生自带 modified 检查）。
+func (h *BufPane) QuitNeo() bool {
+	if !h.isNoName {
+		return h.Quit() // file-born：完全等价原生 Quit，零行为变化
+	}
+	h.openQuitSelector() // noName → 执行者
+	return true
+}
+
 // FileCmd 是 :file 命令的 action（Ctrl-o 入口）。
 // 打开文件选择器，选中后开进当前 pane。
 // modified 检查推迟到 Enter 换入（OpenCmd 自带），不在开 selector 前预检——与 F4d 的
 // QuitNeo/OpenBirthSelector 对称，行为与原生 :open 一致：Enter 选文件后由 OpenCmd 问
 // 「保存? y/n/esc」，y=保存换入、n=丢弃修改换入、esc=取消换入。
 func (h *BufPane) FileCmd(args []string) {
-	h.openSelector()
+	h.openBrowseSelector()
 }
 
-// openSelector 打开文件选择器。
-func (h *BufPane) openSelector() {
-	// 2. 起始目录（F1 §8.1 / R6）
-	startDir := filepath.Dir(h.Buf.AbsPath)
-	if startDir == "." || h.Buf.AbsPath == "" {
-		startDir, _ = os.Getwd()
-	}
+// ---- spawn 包装：捕获父目录 → 调原生 spawn → 对新 pane 开 birth selector ----
+// 覆盖 split/tab 的 3 个 key action 与 3 个 command（见 command_neo.go::InitNeoCommands）。
+// 关键时序事实：三种 spawn 末尾都同步 SetActive+Resize，返回时新 pane = MainTab().CurPane()、
+// 已有真实几何，故 OpenBirthSelector 可立即开（不在 Resize 里搞，Resize 保持纯净）。
+// 带文件参数的 :vsplit foo / :tab foo 开 file-born pane（isNoNameBuf=false），OpenBirthSelector 直接 bail。
 
-	// 3. 打开（onSelect 闭包：选中→开进发起 pane，与 :open 同路径）
-	// browse 回调：按 F5 §5.4 分流
-	NewFileSelector().Open(h, startDir, func(r SelectResult) {
-		if r.Kind == Picked {
-			if h.Buf == nil { // R7 防御：OpenCmd 访问 h.Buf，nil 会 panic
-				return
-			}
-			h.OpenCmd([]string{r.Path}) // 复用原生 :open，自带 modified 检查
-			return
-		}
-		if r.Reason == ReasonQuit {
-			h.Quit() // selector 内 Ctrl-q → 退出 pane（F5 §5.4）
-			return
-		}
-		// ReasonEsc / ReasonSize / ReasonResize → no-op，回编辑
-	})
+func (h *BufPane) neoAddTabAction() bool {
+	dir := birthDir(h)
+	r := h.AddTab()
+	np := MainTab().CurPane()
+	MainTab().Resize() // AddTab 不像 VSplitIndex 那样内部 Resize，这里补上让新 pane BWindow 几何就绪
+	OpenBirthSelector(np, dir)
+	return r
+}
+func (h *BufPane) neoVSplitAction() bool {
+	dir := birthDir(h)
+	r := h.VSplitAction()
+	OpenBirthSelector(MainTab().CurPane(), dir)
+	return r
+}
+func (h *BufPane) neoHSplitAction() bool {
+	dir := birthDir(h)
+	r := h.HSplitAction()
+	OpenBirthSelector(MainTab().CurPane(), dir)
+	return r
+}
+
+func (h *BufPane) neoNewTabCmd(args []string) {
+	dir := birthDir(h)
+	h.NewTabCmd(args)
+	np := MainTab().CurPane()
+	MainTab().Resize() // NewTabCmd 同 AddTab 不内部 Resize，补上
+	OpenBirthSelector(np, dir)
+}
+func (h *BufPane) neoVSplitCmd(args []string) {
+	dir := birthDir(h)
+	h.VSplitCmd(args)
+	OpenBirthSelector(MainTab().CurPane(), dir)
+}
+func (h *BufPane) neoHSplitCmd(args []string) {
+	dir := birthDir(h)
+	h.HSplitCmd(args)
+	OpenBirthSelector(MainTab().CurPane(), dir)
 }
