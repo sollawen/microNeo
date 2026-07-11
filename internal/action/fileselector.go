@@ -44,50 +44,77 @@ const (
 	rowDir
 )
 
-// entry 是已排序、已过滤后的一个目录条目。
-// info 存全量 FileInfo（lstat，不跟随 symlink），UI 层按需取字段，恒非 nil（失败则跳过该条目）。
+// rightMode 决定每行右侧固定列的内容。
+type rightMode uint8
+
+const (
+	rightNone rightMode = iota // 不显示右侧列（name 延伸到 scroll 前）
+	rightSize                  // 5 列 humanSize
+	rightTime                  // 11 列 formatMtime
+)
+
+// sortMode 决定文件组内的排序键（目录组恒先、恒按名排）。
+type sortMode uint8
+
+const (
+	sortName sortMode = iota // 字母（大小写不敏感）
+	sortSize                 // size
+	sortTime                 // mtime
+)
+
+// entry 是一个目录条目。gitChar 在 readDir 时为 0（干净/非仓库），fetchGit 回来后填充。
+// info 存全量 FileInfo（lstat，不跟随 symlink），恒非 nil（d.Info() 失败的条目直接跳过）。
 type entry struct {
-	name  string
-	isDir bool
-	info  os.FileInfo
+	name    string
+	isDir   bool
+	info    os.FileInfo
+	gitChar rune // git 状态字符 'M'/'U'/'A'/'R'/'I'；0=干净/非仓库
 }
 
 // fileSelectorState 是 FileSelector 的可变状态（Model 层，F1 §5 / D3）。
 //
-// git 状态由后台 goroutine 写、主循环 Display 读，靠 mu（RWMutex）保护（F1 §10.7）。
-// Display 读 git 一律走 gitOf()（RLock），绝不裸读 map。
+// 并发模型：allEntries（含各 gitChar）、showEntries（指针）、isRepo/gitBranch 都是
+// fetchGit（后台写）与 display（UI 读）的共享结构，mu（RWMutex）全保护。
+// 写（持 Lock）：chdir 重赋 allEntries + rebuildShow；toggleHidden/sort 切换调 rebuildShow
+// （重排 showEntries 指针）；fetchGit 写 allEntries[i].gitChar + isRepo/gitBranch。
+// 读（持 RLock）：display 读 isRepo + 拷出可见 entry 值副本（含 gitChar），RUnlock 后才画。
 type fileSelectorState struct {
-	currentDir string
-	entries    []entry // 已排序（目录优先 + 大小写不敏感字母序）、已按 showHidden 过滤
-	cursor     int     // 0=面包屑行, 1..len(entries)=条目
-	topIdx     int     // 文件列表视口顶（指向 entries 索引）
+	// —— 目录与条目（读一次，过滤靠视图）——
+	currentDir  string   // 当前目录绝对路径
+	allEntries  []entry  // 当前目录全部条目（含 hidden），chdir 时读一次；排序（目录优先）；fetchGit 在此填 gitChar
+	showEntries []*entry // 显示视图 = allEntries 按 showHidden 过滤后的指针子集；cursor/topIdx 索引它
+
+	// —— git（后台 goroutine 写、UI 读，mu 保护）——
+	isRepo    bool   // 当前目录是否在 git 仓库内。独立于 gitBranch：detached/unborn 时 true 但 gitBranch=""
+	gitBranch string // 分支名；"" = detached / unborn / 非仓库。记录用，显示待后续（状态栏/标题）
+	// 每文件的 git 状态字符在 entry.gitChar 上，不另存 map。
+
+	// —— 显示模式（字段留好；切换功能以后做）——
+	rightMode  rightMode // 每行右侧列：size / time / none。本期恒 rightSize
+	sortMode   sortMode  // 排序键：name / size / time。本期恒 sortName
+	sortDesc   bool      // false=升序 / true=降序。本期恒 false
 	showHidden bool
-	pickerW    int // 内容区宽（截断用）
-	listH      int // 文件列表可见行数（内容区高 - 面包屑 - hint）
 
-	// git 状态（异步、并发保护，F1 §10.7）
-	gitStatus map[string]statusKind
-	gitOK     bool // false=无 git 列（降级）
-	mu        sync.RWMutex
+	// —— 视图 ——
+	cursor  int // 0=面包屑行, 1..len(showEntries)=条目
+	topIdx  int // 文件列表视口顶（指向 showEntries 索引）
+	pickerW int // 内容区宽（截断用）
+	listH   int // 文件列表可见行数（内容区高 - 面包屑 - hint）
+
+	mu sync.RWMutex
 }
 
-// setGitStatus 由后台 goroutine 写入 git 查询结果（F1 §10.7）。
-func (s *fileSelectorState) setGitStatus(m map[string]statusKind, ok bool) {
-	s.mu.Lock()
-	s.gitStatus = m
-	s.gitOK = ok
-	s.mu.Unlock()
-}
-
-// gitOf 读取某条目的 git 状态（Display 用，RLock 保护）。
-func (s *fileSelectorState) gitOf(name string) (statusKind, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if !s.gitOK {
-		return stNone, false
+// rebuildShow 从排好序的 allEntries 按 showHidden 过滤，重建 showEntries（指针指向
+// allEntries 元素）。chdir / toggleHidden / sort 切换都调它。allEntries 不被重赋期间
+// 指针稳定（chdir 整体换新切片后会重调）。
+func (s *fileSelectorState) rebuildShow() {
+	s.showEntries = s.showEntries[:0]
+	for i := range s.allEntries {
+		if !s.showHidden && isHiddenName(s.allEntries[i].name) {
+			continue
+		}
+		s.showEntries = append(s.showEntries, &s.allEntries[i])
 	}
-	st, has := s.gitStatus[name]
-	return st, has
 }
 
 // ---- SelectResult：FileSelector 回调契约（F3 §3）----
@@ -107,18 +134,18 @@ type CloseReason uint8
 
 const (
 	ReasonEsc    CloseReason = iota // 用户按 Esc
-	ReasonQuit                       // 用户按 Ctrl-q（或 welcome 态的 Quit）
-	ReasonSize                       // 打开时窗口过小，selector 从未显示（F5）
-	ReasonResize                     // 运行中窗口 resize，已显示后被打断（F5）
+	ReasonQuit                      // 用户按 Ctrl-q（或 welcome 态的 Quit）
+	ReasonSize                      // 打开时窗口过小，selector 从未显示（F5）
+	ReasonResize                    // 运行中窗口 resize，已显示后被打断（F5）
 )
 
 // SelectResult 承载 FileSelector 的关闭结果（F3 §3）。
 // 原来 onSelect 签名是 func(*string)（nil=取消），现在换成带原因的 SelectResult，
 // 让调用方能区分「选中文件」和「各种关掉」，welcome 调用方据此决定行为（退出/重开/no-op）。
 type SelectResult struct {
-	Kind   ResultKind   // Picked | Closed
-	Path   string       // Kind==Picked 时：选中的文件绝对路径
-	Reason CloseReason  // Kind==Closed 时：关闭原因
+	Kind   ResultKind  // Picked | Closed
+	Path   string      // Kind==Picked 时：选中的文件绝对路径
+	Reason CloseReason // Kind==Closed 时：关闭原因
 }
 
 // FileSelector 是文件选择器浮窗本体。
@@ -126,19 +153,18 @@ type FileSelector struct {
 	state    *fileSelectorState
 	pane     *BufPane
 	onSelect func(SelectResult)
-	gitCache gitStatusCache
 }
 
-// NewFileSelector 返回一个未打开的 FileSelector（gitCache 注入真实实现，F1 §10.6）。
+// NewFileSelector 返回一个未打开的 FileSelector。
 func NewFileSelector() *FileSelector {
-	return &FileSelector{gitCache: NewGitStatus()}
+	return &FileSelector{}
 }
 
 // Open 打开文件选择器（F1 §3.2 / §6.2 / §10.7 异步时序）。
 //
-//   pane      发起 :file 的 pane（pane-local 布局 + 选中后开进此 pane）
-//   startDir  起始目录（F1 §8.1 / R6）
-//   onSelect  回调（SelectResult）；browse/birth 调用方只关心 Picked，quit 调用方按 Reason 分流
+//	pane      发起 :file 的 pane（pane-local 布局 + 选中后开进此 pane）
+//	startDir  起始目录（F1 §8.1 / R6）
+//	onSelect  回调（SelectResult）；browse/birth 调用方只关心 Picked，quit 调用方按 Reason 分流
 //
 // 首次渲染绝不阻塞：State init（os.ReadDir，μs 级）→ 列表立即可见、无 git 标志；
 // git 后台查询（带 2s ctx），回来后 screen.Redraw() 触发补画（F1 §10.7 第 1-5 步）。
@@ -179,26 +205,45 @@ func (fs *FileSelector) Open(pane *BufPane, startDir string, onSelect func(Selec
 	go fs.fetchGit(fs.state.currentDir)
 }
 
-// fetchGit 后台查询某目录的 git 状态并触发重绘（F1 §10.7）。
+// fetchGit 后台查询某目录的 git 状态并合并进 allEntries 后触发重绘。
+// 把 getGitStatus 返回的 chars（name→rune）按文件名合并进各 entry.gitChar；
 // 仅当仍停留在该目录时才应用结果，避免快速导航下的竞态污染。
 func (fs *FileSelector) fetchGit(dir string) {
-	m, ok := fs.gitCache.statusFor(dir) // 阻塞查询，带 2s ctx
-	if fs.state == nil || fs.state.currentDir != dir {
-		return // 已导航离开，丢弃
+	isRepo, branch, chars := getGitStatus(dir)
+	if fs.state == nil {
+		return
 	}
-	fs.state.setGitStatus(m, ok)
-	screen.Redraw() // 通知主循环重绘 → 列表补 git 标志
+	s := fs.state
+	s.mu.Lock()
+	if s.currentDir != dir { // 检查放锁内，防 TOCTOU：chdirTo 可能刚换 dir + allEntries
+		s.mu.Unlock()
+		return // 已导航离开，丢弃（旧 chars 不污染新 entries）
+	}
+	s.isRepo = isRepo
+	s.gitBranch = branch
+	for i := range s.allEntries {
+		if ch, ok := chars[s.allEntries[i].name]; ok {
+			s.allEntries[i].gitChar = ch
+		}
+	}
+	s.mu.Unlock()
+	screen.Redraw()
 }
 
 // newState 构造初始 State（F0 §5.3 光标起始 / §5.4 dotfile 自动显隐）。
 func newState(dir, currentFile string) *fileSelectorState {
 	dir = filepath.Clean(dir)
-	s := &fileSelectorState{currentDir: dir}
+	s := &fileSelectorState{
+		currentDir: dir,
+		rightMode:  rightSize, // 本期恒 size
+		sortMode:   sortName,  // 本期恒字母序
+	}
 	// 当前文件是 dotfile 且默认隐藏 → 自动置 showHidden=true（F0 §5.4）
 	if isHiddenName(currentFile) {
 		s.showHidden = true
 	}
-	s.entries = listDirEntries(dir, s.showHidden)
+	s.allEntries = readDirEntries(dir, s.sortMode, s.sortDesc)
+	s.rebuildShow()
 	s.locate(currentFile)
 	return s
 }
@@ -210,7 +255,7 @@ func (s *fileSelectorState) locate(currentFile string) {
 	if currentFile == "" {
 		return
 	}
-	for i, e := range s.entries {
+	for i, e := range s.showEntries {
 		if e.name == currentFile {
 			s.cursor = i + 1
 			return
@@ -218,42 +263,65 @@ func (s *fileSelectorState) locate(currentFile string) {
 	}
 }
 
-// ---- listDirEntries / 过滤 / 排序（F0 §5.4 / §5.5）----
+// ---- readDirEntries / sortEntries / rebuildShow（F0 §5.4 / §5.5）----
 
-// listDirEntries 读目录并返回排好序的条目（目录优先、各自大小写不敏感字母序）。
-// showHidden=false 时过滤 dotfile（F0 §5.4）。
-// 每个条目一次性用 lstat 预取全量 FileInfo 进 entry.info（失败则跳过该条目），
-// 后续显示层零 stat：size 在行内、mtime 在末行，均从 entry.info 读。
-func listDirEntries(dir string, showHidden bool) []entry {
-	dirEntries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil
-	}
-	var dirs, files []entry
+// readDirEntries 读目录【全部】条目（含 hidden，不过滤）、建 entry（gitChar=0）、
+// d.Info() 失败则跳过、排序返回。只在 chdir 时调一次（不再每次 toggle 重读）。
+func readDirEntries(dir string, sm sortMode, desc bool) []entry {
+	dirEntries, _ := os.ReadDir(dir)
+	all := make([]entry, 0, len(dirEntries))
 	for _, d := range dirEntries {
-		name := d.Name()
-		if !showHidden && isHiddenName(name) {
+		info, err := d.Info() // lstat，不跟随 symlink，对齐 ls -l；失败跳过
+		if err != nil {
 			continue
 		}
-		fi, err := d.Info() // lstat，不跟随 symlink，对齐 ls -l
-		if err != nil {
-			continue // 条目已不存在（竞态删除），不显示
-		}
-		e := entry{name: name, isDir: fi.IsDir(), info: fi}
-		if e.isDir {
-			dirs = append(dirs, e)
-		} else {
-			files = append(files, e)
-		}
+		all = append(all, entry{name: d.Name(), isDir: d.IsDir(), info: info /* gitChar=0 */})
 	}
-	caseSort := func(es []entry) {
-		sort.SliceStable(es, func(i, j int) bool {
-			return strings.ToLower(es[i].name) < strings.ToLower(es[j].name)
-		})
-	}
-	caseSort(dirs)
-	caseSort(files)
-	return append(dirs, files...)
+	sortEntries(all, sm, desc)
+	return all
+}
+
+// sortEntries 原地排序：目录恒在文件前；目录组恒按名升序；文件组主键随 sm + desc，
+// 并列恒回退字母升序（不受 desc 影响，保稳定）。readDirEntries 与 sort 切换都调它。
+func sortEntries(all []entry, sm sortMode, desc bool) {
+	lessName := func(a, b entry) bool { return strings.ToLower(a.name) < strings.ToLower(b.name) }
+	sort.SliceStable(all, func(i, j int) bool {
+		ai, aj := all[i], all[j]
+		if ai.isDir != aj.isDir {
+			return ai.isDir // 目录恒在文件前
+		}
+		if ai.isDir {
+			return lessName(ai, aj) // 目录组恒按名升序
+		}
+		switch sm { // 文件组
+		case sortSize:
+			si, sj := ai.info.Size(), aj.info.Size()
+			if si == sj {
+				return lessName(ai, aj)
+			}
+			if desc {
+				return si > sj
+			}
+			return si < sj
+		case sortTime:
+			ti, tj := ai.info.ModTime(), aj.info.ModTime()
+			if ti.Equal(tj) {
+				return lessName(ai, aj)
+			}
+			if desc {
+				return ti.After(tj)
+			}
+			return ti.Before(tj)
+		default: // sortName
+			if strings.EqualFold(ai.name, aj.name) {
+				return ai.name < aj.name // 大小写并列：原样升序
+			}
+			if desc {
+				return lessName(aj, ai)
+			}
+			return lessName(ai, aj)
+		}
+	})
 }
 
 // isHiddenName 判断 Unix dotfile（F0 §5.4）。
@@ -311,6 +379,9 @@ func (fs *FileSelector) buildSpec(anchor Pos, contentSize Size) FloatOpenSpec {
 // ---- View：display(area)（F1 §9 / §7.5）三段布局 ----
 //
 // 内容区高（area.H）由 minHeight=10 保证恒 ≥8：行 0 面包屑 / 行 1..H-2 文件列表 / 末行 hint。
+//
+// 锁边界：fetchGit（后台写 gitChar/isRepo）的唯一并发读端，一把 RLock 内读 isRepo +
+// cursor/topIdx + 拷出可见 entry 值（含 gitChar），释放锁后才画（RWMutex 不可重入）。
 
 func (fs *FileSelector) display(area Rect) {
 	s := fs.state
@@ -319,46 +390,60 @@ func (fs *FileSelector) display(area Rect) {
 	}
 	revStyle := config.DefStyle.Reverse(true)
 
-	// 行 0：面包屑（目录路径，用 type 色，对齐子目录行，F0 §7.5）
-	bcStyle := config.GetColor("type")
-	if s.cursor == 0 {
-		bcStyle = revStyle
-	}
-	fs.drawBreadcrumb(area.X, area.Y, area.W, bcStyle)
-
-	// 行 1..H-2：文件列表视口
 	listTop := area.Y + 1
 	listH := area.H - 2 // 减面包屑 + hint
 	if listH < 0 {
 		listH = 0
 	}
-	visibleH := min(len(s.entries), listH)
+
+	// —— 锁内：读 isRepo + cursor/topIdx + 拷出可见 entry 值（gitChar 含在内）——
+	s.mu.RLock()
+	gitOn := s.isRepo
+	cursorOnBc := s.cursor == 0
+	total := len(s.showEntries)
+	visibleH := min(total, listH)
+	vis := make([]entry, visibleH)
 	for vi := 0; vi < visibleH; vi++ {
 		i := s.topIdx + vi
-		if i >= len(s.entries) {
+		if i >= total {
 			break
 		}
-		fs.drawEntry(area.X, listTop+vi, area.W, s.entries[i], i+1 == s.cursor, revStyle)
+		vis[vi] = *s.showEntries[i] // 解引用 → 值副本，gitChar 被原子捕获
+	}
+	cursor, topIdx := s.cursor, s.topIdx
+	s.mu.RUnlock()
+
+	// 行 0：面包屑（目录路径，用 type 色，对齐子目录行，F0 §7.5）
+	bcStyle := config.GetColor("type")
+	if cursorOnBc {
+		bcStyle = revStyle
+	}
+	fs.drawBreadcrumb(area.X, area.Y, area.W, bcStyle)
+
+	// —— 锁外：逐行画（drawEntry 拿 gitOn 入参，自己不拿锁）——
+	for vi := 0; vi < visibleH; vi++ {
+		fs.drawEntry(area.X, listTop+vi, area.W, vis[vi], gitOn, topIdx+vi+1 == cursor, revStyle)
 	}
 
-	// 滚动指示符（仅当内容溢出时）；画在 gap 列（name 与 git/size 之间那道空格），不盖 size 字符
-	if len(s.entries) > visibleH && visibleH > 0 {
-		// gap 列 = name 区末尾（= sizeStart - 1），永远为空格，selected 行取 revStyle
-		sizeStart := area.W - 5
-		gapCol := area.X + sizeStart - 1
+	// 滚动指示符（用锁内拷出的 gitOn/cursor/topIdx/total，不碰锁）；画在 drawEntry 写好空格的 scroll 列上。
+	scrollCol := area.X + area.W - 1
+	if gitOn {
+		scrollCol = area.X + area.W - 2
+	}
+	if total > visibleH && visibleH > 0 {
 		topStyle := config.DefStyle
-		if s.topIdx+1 == s.cursor {
+		if topIdx+1 == cursor {
 			topStyle = revStyle
 		}
 		botStyle := config.DefStyle
-		if s.topIdx+visibleH == s.cursor {
+		if topIdx+visibleH == cursor {
 			botStyle = revStyle
 		}
-		if s.topIdx > 0 {
-			screen.Screen.SetContent(gapCol, listTop, '▲', nil, topStyle)
+		if topIdx > 0 {
+			screen.Screen.SetContent(scrollCol, listTop, '▲', nil, topStyle)
 		}
-		if s.topIdx+visibleH < len(s.entries) {
-			screen.Screen.SetContent(gapCol, listTop+visibleH-1, '▼', nil, botStyle)
+		if topIdx+visibleH < total {
+			screen.Screen.SetContent(scrollCol, listTop+visibleH-1, '▼', nil, botStyle)
 		}
 	}
 
@@ -397,29 +482,48 @@ func (fs *FileSelector) drawBreadcrumb(x, y, w int, style tcell.Style) {
 	}
 }
 
-// drawEntry 画一个文件/目录条目行。
-// 行结构：[marker] [name] [gap] [git] [size]
-// size 钉在最右 5 列；git 居 git 列（size 左侧 1 列）；gap 列永远留空格（name 被截断也不贴 git）。
-func (fs *FileSelector) drawEntry(x, y, w int, e entry, selected bool, revStyle tcell.Style) {
+// drawEntry 画一个文件/目录条目行。gitOn 决定是否预留 git 列（绑全局 isRepo，不由逐行状态决定）。
+//
+// 列结构（从左到右）：[marker] [name…] [sep?] [right?] [scroll(1)] [git(1)?]
+//   - marker：1 列（目录 ▸ / 文件空格）。
+//   - name：超长中间截断（head…ext，保留头部 + 扩展名，对齐 yazi）。
+//   - sep：name 与 right 之间恒留 1 空格（rightNone 时无 sep）。
+//   - right：rightW 列（0/5/11），区内右对齐；目录留空。
+//   - scroll：1 列恒空格，溢出时由 display 覆盖 ▲/▼。
+//   - git：1 列仅 gitOn 时预留；脏文件画状态字符，干净文件画空格。
+//
+// e 是 display 在 RLock 内拷出的值副本（含 gitChar），本函数不拿锁（RWMutex 不可重入）。
+func (fs *FileSelector) drawEntry(x, y, w int, e entry, gitOn bool, selected bool, revStyle tcell.Style) {
 	s := fs.state
 
-	const sizeW = 5
-	sizeEnd := x + w
-	sizeStart := sizeEnd - sizeW
-	gitCol := sizeStart - 1
+	const sizeW, timeW = 5, 11
+	R := x + w
 
-	// git 状态（仅 gitOK 且有该条目状态时显示）
-	gst, ghas := s.gitOf(e.name)
-	showGit := ghas
-
-	// gap 列：name 与 git/size 之间永远留 1 列空格
-	fillEnd := sizeStart
-	if showGit {
-		fillEnd = gitCol
+	var gitCol, scrollCol int
+	if gitOn {
+		gitCol, scrollCol = R-1, R-2
+	} else {
+		scrollCol = R - 1
 	}
-	nameLimit := fillEnd - (x + 1) - 1
+	rightW := 0
+	switch s.rightMode {
+	case rightSize:
+		rightW = sizeW
+	case rightTime:
+		rightW = timeW
+	}
+	rightStart := scrollCol
+	nameLimit := scrollCol - (x + 1)
+	if rightW > 0 {
+		rightStart = scrollCol - rightW
+		nameLimit = rightStart - (x + 1) - 1 // -1 = sep
+	}
 	if nameLimit < 0 {
 		nameLimit = 0
+	}
+	nameCap := rightStart
+	if rightW == 0 {
+		nameCap = scrollCol
 	}
 
 	// 颜色：目录 type 色，文件 default，git 状态色；选中行统一 Reverse
@@ -428,14 +532,12 @@ func (fs *FileSelector) drawEntry(x, y, w int, e entry, selected bool, revStyle 
 		nameStyle = config.GetColor("type")
 	}
 	fillStyle := config.DefStyle
-	gitStyle := gitStatusStyle(gst)
+	gitStyle := gitCharStyle(e.gitChar)
 	if selected {
-		nameStyle = revStyle
-		fillStyle = revStyle
-		gitStyle = revStyle
+		nameStyle, fillStyle, gitStyle = revStyle, revStyle, revStyle
 	}
 
-	// 标记：目录 ▸，文件空格（1 列）
+	// marker
 	col := x
 	marker := ' '
 	if e.isDir {
@@ -444,7 +546,7 @@ func (fs *FileSelector) drawEntry(x, y, w int, e entry, selected bool, revStyle 
 	screen.Screen.SetContent(col, y, marker, nil, nameStyle)
 	col += runeWidth(marker)
 
-	// 名（目录带 / 后缀；超长左截断保留扩展名）
+	// name（截断）+ 填充到 nameCap（含 sep 列空格）
 	dispName := e.name
 	if e.isDir {
 		dispName += string(filepath.Separator)
@@ -452,37 +554,50 @@ func (fs *FileSelector) drawEntry(x, y, w int, e entry, selected bool, revStyle 
 	dispName = truncateNameKeepExt(dispName, nameLimit, e.isDir)
 	for _, r := range dispName {
 		rw := runeWidth(r)
-		if col+rw > fillEnd {
+		if col+rw > nameCap {
 			break
 		}
 		screen.Screen.SetContent(col, y, r, nil, nameStyle)
 		col += rw
 	}
-	// 填充到 fillEnd（包含 gap 列的空格）
-	for col < fillEnd {
+	for col < nameCap {
 		screen.Screen.SetContent(col, y, ' ', nil, fillStyle)
 		col++
 	}
 
-	// git 列（size 左侧 1 列）
-	if showGit {
-		screen.Screen.SetContent(gitCol, y, gitStatusChar(gst), nil, gitStyle)
+	// right 区 [rightStart, scrollCol)：目录留空；文件右对齐 size/time
+	if rightW > 0 {
+		for c := rightStart; c < scrollCol; c++ {
+			screen.Screen.SetContent(c, y, ' ', nil, fillStyle)
+		}
+		if !e.isDir {
+			var rs string
+			if s.rightMode == rightTime {
+				rs = formatMtime(e.info.ModTime())
+			} else {
+				rs = humanSize(e.info.Size())
+			}
+			sw := stringWidth(rs)
+			c := scrollCol - sw
+			if c < rightStart {
+				c = rightStart
+			}
+			for _, r := range rs {
+				screen.Screen.SetContent(c, y, r, nil, fillStyle)
+				c += runeWidth(r)
+			}
+		}
 	}
 
-	// size 区（最右 5 列）：文件右对齐 humanSize，目录留空 5 空格
-	for col := sizeStart; col < sizeEnd; col++ {
-		screen.Screen.SetContent(col, y, ' ', nil, fillStyle)
-	}
-	if !e.isDir {
-		sizeStr := humanSize(e.info.Size())
-		// 右对齐：算出 sizeStr 最左字符应落在哪列
-		sw := stringWidth(sizeStr)
-		startCol := sizeEnd - sw
-		if startCol < sizeStart {
-			startCol = sizeStart
-		}
-		for i, r := range sizeStr {
-			screen.Screen.SetContent(startCol+i, y, r, nil, fillStyle)
+	// scroll 列：恒空格（display 在溢出时覆盖首/末行）
+	screen.Screen.SetContent(scrollCol, y, ' ', nil, fillStyle)
+
+	// git 列：有标志画标志，否则空格（e.gitChar=0=干净/非仓库）
+	if gitOn {
+		if e.gitChar != 0 {
+			screen.Screen.SetContent(gitCol, y, e.gitChar, nil, gitStyle)
+		} else {
+			screen.Screen.SetContent(gitCol, y, ' ', nil, fillStyle)
 		}
 	}
 }
@@ -504,8 +619,6 @@ func (fs *FileSelector) drawString(x, y, w int, text string, style tcell.Style) 
 		col++
 	}
 }
-
-
 
 // humanSize 把字节数格式化为人类可读字符串（F1d §3.2，输出恒 ≤5 列）。
 // 对齐 ls -lh 的 1024 进制规则。
@@ -564,10 +677,10 @@ func formatMtime(t time.Time) string {
 func (fs *FileSelector) buildMetaLine(w int) string {
 	s := fs.state
 	idx := s.cursor - 1
-	if idx < 0 || idx >= len(s.entries) {
+	if idx < 0 || idx >= len(s.showEntries) {
 		return ""
 	}
-	fi := s.entries[idx].info
+	fi := s.showEntries[idx].info
 	perms := fi.Mode().String()
 	size := humanSize(fi.Size())
 	mtime := formatMtime(fi.ModTime())
@@ -605,10 +718,10 @@ func fitMeta(w int, perms, size, mtime string) string {
 	}
 }
 
-
 // ---- Controller：handleEvent（F1 §8.2 键位表）----
 //
 // resize 不会到达这里（FloatFrame 已拦截 → Close + OnCancel）。
+// 显示模式切换键（s/S/c）本期不接，留待以后。
 
 func (fs *FileSelector) handleEvent(event tcell.Event) {
 	s := fs.state
@@ -630,7 +743,7 @@ func (fs *FileSelector) handleEvent(event tcell.Event) {
 		fs.chdirParent()
 	case tcell.KeyRight:
 		if fs.cursorIsDir() {
-			fs.chdir(s.entries[s.cursor-1].name)
+			fs.chdir(s.showEntries[s.cursor-1].name)
 		}
 	case tcell.KeyEscape:
 		// 两种态都收 Esc → 取消：关 selector，回到调起前的编辑状态（F4 §4）
@@ -650,7 +763,7 @@ func (fs *FileSelector) handleEvent(event tcell.Event) {
 // moveCursor 上下移动光标（不循环，clamp [0, len]，F0 §5.1）。
 func (fs *FileSelector) moveCursor(delta int) {
 	s := fs.state
-	max := len(s.entries) // cursor ∈ [0, len]
+	max := len(s.showEntries) // cursor ∈ [0, len]
 	s.cursor += delta
 	if s.cursor < 0 {
 		s.cursor = 0
@@ -664,13 +777,13 @@ func (fs *FileSelector) moveCursor(delta int) {
 
 // activate 处理 Enter（上下文敏感，F0 §5.2）。
 func (fs *FileSelector) activate() {
-	s := fs.state
 	switch fs.cursorRowKind() {
 	case rowBreadcrumb:
 		fs.chdirParent()
 	case rowDir:
-		if s.cursor >= 1 && s.cursor-1 < len(s.entries) {
-			fs.chdir(s.entries[s.cursor-1].name)
+		s := fs.state
+		if s.cursor >= 1 && s.cursor-1 < len(s.showEntries) {
+			fs.chdir(s.showEntries[s.cursor-1].name)
 		}
 	case rowFile:
 		fs.pick()
@@ -681,10 +794,10 @@ func (fs *FileSelector) activate() {
 func (fs *FileSelector) pick() {
 	s := fs.state
 	idx := s.cursor - 1
-	if idx < 0 || idx >= len(s.entries) {
+	if idx < 0 || idx >= len(s.showEntries) {
 		return
 	}
-	e := s.entries[idx]
+	e := s.showEntries[idx]
 	if e.isDir { // 防御：仅文件可打开
 		return
 	}
@@ -724,58 +837,59 @@ func (fs *FileSelector) chdir(sub string) {
 }
 
 // chdirTo 切到目标目录并重定位光标 + 后台重查 git。
-//   target     目标目录绝对路径
-//   focusName  非空 → 落到该名称的条目上（回上级用）；空 → 首条目
+//
+//	target     目标目录绝对路径
+//	focusName  非空 → 落到该名称的条目上（回上级用）；空 → 首条目
+//
+// 编排：readDirEntries（同步读盘，μs）+ rebuildShow + cursor → Redraw（首帧无 git）
+// → go fetchGit（异步填 allEntries[*].gitChar）。
 func (fs *FileSelector) chdirTo(target, focusName string) {
 	s := fs.state
 	target = filepath.Clean(target)
-	info, err := os.Stat(target)
-	if err != nil || !info.IsDir() {
+	if info, err := os.Stat(target); err != nil || !info.IsDir() {
 		return // 防御：非目录不进
 	}
+	s.mu.Lock()
 	s.currentDir = target
-	s.entries = listDirEntries(target, s.showHidden)
+	s.allEntries = readDirEntries(target, s.sortMode, s.sortDesc) // 读全部（含 hidden）+ 排序；gitChar 全 0
+	s.rebuildShow()                                               // 过滤 → showEntries
 	s.topIdx = 0
-
-	// 光标重定位
 	s.cursor = 1
-	if focusName != "" {
-		for i, e := range s.entries {
+	if focusName != "" { // 回上级：落到原目录名上
+		for i, e := range s.showEntries {
 			if e.name == focusName {
 				s.cursor = i + 1
 				break
 			}
 		}
 	}
-	if len(s.entries) == 0 {
+	if len(s.showEntries) == 0 {
 		s.cursor = 0 // 仅面包屑
 	}
 	fs.ensureVisible()
+	s.mu.Unlock()
 
-	// 重置 git（新目录首帧无 git 列，F1 §10.6 老结果作废）
-	s.setGitStatus(nil, false)
-	screen.Redraw()
-
-	go fs.fetchGit(target)
+	screen.Redraw()        // 首帧：git 列空
+	go fs.fetchGit(target) // 异步填 allEntries[*].gitChar → 内部 Redraw
 }
 
 // toggleHidden 切换 dotfile 显隐（F0 §5.4）。
+// 只 rebuildShow（重过滤）；allEntries + 各 gitChar 原封不动 → 不重读目录、不重取 git
+// （露出的 hidden 条目早在 chdir 的 fetchGit 里填过 gitChar）。
 // 显隐翻转后尽量保持光标位置：同名优先，否则按索引 clamp 到最近可见条目。
 func (fs *FileSelector) toggleHidden() {
 	s := fs.state
+	s.mu.Lock()
 	oldName := ""
-	oldIdx := -1
-	if s.cursor >= 1 && s.cursor-1 < len(s.entries) {
-		oldName = s.entries[s.cursor-1].name
-		oldIdx = s.cursor - 1
+	oldIdx := s.cursor - 1
+	if s.cursor >= 1 && s.cursor-1 < len(s.showEntries) {
+		oldName = s.showEntries[s.cursor-1].name
 	}
 	s.showHidden = !s.showHidden
-	s.entries = listDirEntries(s.currentDir, s.showHidden)
-	s.topIdx = 0
-
+	s.rebuildShow()
 	found := false
 	if oldName != "" {
-		for i, e := range s.entries {
+		for i, e := range s.showEntries {
 			if e.name == oldName {
 				s.cursor = i + 1
 				found = true
@@ -785,19 +899,21 @@ func (fs *FileSelector) toggleHidden() {
 	}
 	if !found {
 		idx := oldIdx
-		if idx >= len(s.entries) {
-			idx = len(s.entries) - 1
+		if idx >= len(s.showEntries) {
+			idx = len(s.showEntries) - 1
 		}
 		if idx < 0 {
 			idx = 0
 		}
-		if len(s.entries) == 0 {
+		if len(s.showEntries) == 0 {
 			s.cursor = 0
 		} else {
 			s.cursor = idx + 1
 		}
 	}
 	fs.ensureVisible()
+	s.mu.Unlock()
+
 	screen.Redraw()
 }
 
@@ -808,10 +924,10 @@ func (fs *FileSelector) cursorRowKind() rowKind {
 		return rowBreadcrumb
 	}
 	idx := s.cursor - 1
-	if idx < 0 || idx >= len(s.entries) {
+	if idx < 0 || idx >= len(s.showEntries) {
 		return rowFile // 防御
 	}
-	if s.entries[idx].isDir {
+	if s.showEntries[idx].isDir {
 		return rowDir
 	}
 	return rowFile
@@ -820,10 +936,10 @@ func (fs *FileSelector) cursorRowKind() rowKind {
 // cursorIsDir 光标是否在目录条目上。
 func (fs *FileSelector) cursorIsDir() bool {
 	s := fs.state
-	if s.cursor < 1 || s.cursor-1 >= len(s.entries) {
+	if s.cursor < 1 || s.cursor-1 >= len(s.showEntries) {
 		return false
 	}
-	return s.entries[s.cursor-1].isDir
+	return s.showEntries[s.cursor-1].isDir
 }
 
 // ensureVisible 把视口拉到包含当前选中条目的最小位置（参照 selectpane.go:193）。
@@ -974,10 +1090,11 @@ func truncateLeftPath(path string, maxW int) string {
 }
 
 // truncateNameKeepExt 把 name 截断到 maxCols 显示列宽，保留文件扩展名（F0 §4.2 / R3）。
-//   超长 → 右侧加 …，保留 basename 头部 + "扩展名"（最后一个 . 之后）可见（对齐 yazi）。
-//   无扩展名/目录 → 保留头部 + …。
-//   isDir=true 时不按扩展名处理（目录名里的 . 不是扩展名），直接保留头部。
-//   按 CJK 显示列宽计算（中文占 2 列），rune-safe。
+//
+//	超长 → 右侧加 …，保留 basename 头部 + "扩展名"（最后一个 . 之后）可见（对齐 yazi）。
+//	无扩展名/目录 → 保留头部 + …。
+//	isDir=true 时不按扩展名处理（目录名里的 . 不是扩展名），直接保留头部。
+//	按 CJK 显示列宽计算（中文占 2 列），rune-safe。
 func truncateNameKeepExt(name string, maxCols int, isDir bool) string {
 	if maxCols <= 0 {
 		return ""
@@ -1023,41 +1140,19 @@ func truncateNameKeepExt(name string, maxCols int, isDir bool) string {
 	return headByWidth(head, basenameBudget) + "…" + ext
 }
 
-// ---- git 状态渲染（F0 §7.5 颜色建议）----
+// ---- git 状态渲染（显示层，按 colorscheme 名解色）----
 
-func gitStatusChar(st statusKind) rune {
-	switch st {
-	case stModified:
-		return 'M'
-	case stUntracked:
-		return 'U'
-	case stAdded:
-		return 'A'
-	case stDeleted:
-		return 'D'
-	case stRenamed:
-		return 'R'
-	case stIgnored: // F7
-		return 'I'
+// gitCharStyle 把 git 状态字符映射成 colorscheme 颜色。
+// M/R→diff-modified；A/U→diff-added；D→diff-deleted；I 及干净→默认。
+// M/R 合并、A/U 合并是因为颜色语义相同（"改了" / "新的"），9/9 colorscheme 都覆盖这三个名。
+func gitCharStyle(c rune) tcell.Style {
+	switch c {
+	case 'M', 'R':
+		return config.GetColor("diff-modified")
+	case 'A', 'U':
+		return config.GetColor("diff-added")
+	case 'D':
+		return config.GetColor("diff-deleted")
 	}
-	return ' '
-}
-
-func gitStatusStyle(st statusKind) tcell.Style {
-	switch st {
-	case stModified:
-		return config.DefStyle.Foreground(tcell.ColorYellow)
-	case stUntracked:
-		return config.DefStyle.Foreground(tcell.ColorBlue)
-	case stAdded:
-		return config.DefStyle.Foreground(tcell.ColorGreen)
-	case stDeleted:
-		return config.DefStyle.Foreground(tcell.ColorRed)
-	case stRenamed:
-		return config.DefStyle.Foreground(tcell.ColorPurple)
-	case stIgnored: // F7: 用 default 颜色（普通文本，不带 color/dim）
-		return config.DefStyle
-	default:
-		return config.DefStyle
-	}
+	return config.DefStyle // 'I'（ignored）及干净/非仓库默认
 }

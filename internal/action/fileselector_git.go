@@ -4,127 +4,90 @@ import (
 	"context"
 	"os/exec"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/micro-editor/micro/v2/internal/config"
 )
 
-// statusKind 表示 git 文件状态（F1 §10.2 状态码表）。
+// statusKind 是 porcelain 解析内部的文件状态分类，仅供 parsePorcelain 做优先级聚合
+// （st < existing 取更严重者）。不进 state / entry / 返回值：外部边界是 entry.gitChar（rune）。
 type statusKind uint8
 
 const (
-	stNone statusKind = iota
-	stModified  // M: 已修改
-	stUntracked // U: 未跟踪 (??)
-	stAdded     // A: 已暂存
-	stDeleted   // D: 已删除
-	stRenamed   // R: 已重命名
-	stIgnored   // I: 被 .gitignore 忽略（!!）— F7
+	stNone      statusKind = iota
+	stModified             // M: 已修改
+	stUntracked            // U: 未跟踪 (??)
+	stAdded                // A: 已暂存
+	stDeleted              // D: 已删除
+	stRenamed              // R: 已重命名
+	stIgnored              // I: 被 .gitignore 忽略（!!）
 )
 
-// gitStatusCache 是 git 状态缓存的接口，用于解耦与 mock 测试（F1 §10.6）。
-type gitStatusCache interface {
-	// statusFor 返回指定目录的 git 状态映射。
-	// 返回 (nil, false) 表示不可用（非仓库/超时/git 不存在），调用方降级为不显示。
-	statusFor(dir string) (map[string]statusKind, bool)
-}
-
-// gitStatus 是 gitStatusCache 的阻塞实现（F1 §6.4 契约）。
-type gitStatus struct {
-	mu    sync.Mutex
-	cache map[string]map[string]statusKind // key=dir → 文件名→状态
-}
-
-// NewGitStatus 返回一个 gitStatus 实例。
-func NewGitStatus() *gitStatus {
-	return &gitStatus{
-		cache: make(map[string]map[string]statusKind),
+// getGitStatus fork git 取某目录的状态。返回 (isRepo, branch, chars)：
+//   - isRepo=true 时 branch 为分支名（可能空：detached/unborn），chars 为 name→状态字符；
+//   - isRepo=false 时 branch=""、chars=nil（非仓库/超时/diffgutter 关/git 不存在）。
+//
+// 无缓存：每次 selector 打开/chdir 都重新 fork git——工作树可能被别的进程改，
+// 缓存会陈旧；后台几十 ms 不卡首次渲染（fetchGit 在 goroutine 里调本函数）。
+func getGitStatus(dir string) (isRepo bool, branch string, chars map[string]rune) {
+	if !config.GetGlobalOption("diffgutter").(bool) { // 总开关降级链
+		return false, "", nil
 	}
-}
-
-// statusFor 实现 gitStatusCache 接口。
-func (g *gitStatus) statusFor(dir string) (map[string]statusKind, bool) {
-	// 1. diffgutter 总开关（F1 §10.4 降级链）
-	if !config.GetGlobalOption("diffgutter").(bool) {
-		return nil, false
-	}
-
-	// 2. 缓存命中（F1 §10.6）
-	g.mu.Lock()
-	m, ok := g.cache[dir]
-	g.mu.Unlock()
-	if ok {
-		// 命中即返回（空 map 也是有效结果：目录里无变更）
-		return m, true
-	}
-
-	// 3. fork git（F1 §10.2）：pathspec 钉死当前目录，2s ctx（F1 §10.4）
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "git",
-		"-C", dir,
-		"status", "--porcelain=v1", "-z",
-		"--ignored=traditional", // F7：合并到 status，不开第二条进程
-		"--", ".")
-	out, err := cmd.Output()
+	// -b：输出首条记录恒为 "## " 分支头（parsePorcelain 据此捕获分支名）。
+	out, err := exec.CommandContext(ctx, "git", "-C", dir,
+		"status", "--porcelain=v1", "-z", "-b", "--ignored=traditional", "--", ".").Output()
 	if err != nil {
-		// 非仓库 / 超时 / git 不存在 → 静默降级
-		return nil, false
+		return false, "", nil
 	}
-
-	// 多跑一次 rev-parse --show-prefix 拿「当前目录相对仓库根」的前缀
-	// 用来对齐 porcelain 恒输出「仓库根相对」路径（见 F1c §2）
+	// 复用 status 的 2s ctx 跑 rev-parse，防 goroutine 泄漏。
+	// prefix 是「当前目录相对仓库根」的路径，用来把仓库根相对路径换算到当前目录相对。
 	prefix := ""
-	prefixCmd := exec.Command("git", "-C", dir, "rev-parse", "--show-prefix")
-	if out2, err2 := prefixCmd.Output(); err2 == nil {
-		prefix = strings.TrimSpace(string(out2))
+	if p, e := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--show-prefix").Output(); e == nil {
+		prefix = strings.TrimSpace(string(p))
 	}
-
-	m = parsePorcelain(out, prefix)
-
-	g.mu.Lock()
-	g.cache[dir] = m
-	g.mu.Unlock()
-	return m, true
+	chars, branch = parsePorcelain(out, prefix)
+	return true, branch, chars
 }
 
-// parsePorcelain 解析 git status --porcelain=v1 -z 的输出。
-// prefix 是「当前目录相对仓库根」的路径（带尾斜杠），由 rev-parse --show-prefix 提供。
-// 输入是字节串，每条记录格式：XY path\0（F1 §10.2）。
-// XY 两个字符表示索引状态和工作区状态，常见值：
-//   - "??" → stUntracked（未跟踪）
-//   - " M" / "M " / "MM" 等含 M → stModified
-//   - "A " / "AM" 等含 A → stAdded
-//   - "D " / " D" → stDeleted
-//   - "R " → stRenamed
-//   - "!!" → stIgnored（被 .gitignore 忽略，F7）
+// parsePorcelain 解析 git status --porcelain=v1 -z -b 的输出。
 //
-// 本函数只关心工作区状态（第二个字符），因为 FileSelector 只显示当前目录条目。
-// 剥掉 prefix 后取顶层分量（F1c §3.1）：子目录内文件变更时，对应的子目录条目亮状态。
-func parsePorcelain(out []byte, prefix string) map[string]statusKind {
-	result := make(map[string]statusKind)
-	if len(out) == 0 {
-		return result
-	}
-
+// 输出首条记录恒为 "## " 分支头（-b 产生）：本函数捕获分支名（detached/unborn→空）。
+// 其余记录格式 "XY path"（\0 分隔）：剥 prefix、取顶层分量（子目录内变更→对应顶层目录名
+// 命中），映射 indexSt/workSt 到 statusKind，按优先级聚合成每 name 一个赢家状态，
+// 最后转成 name→rune（颜色归显示层 gitCharStyle）。
+func parsePorcelain(out []byte, prefix string) (chars map[string]rune, branch string) {
+	chars = make(map[string]rune)
+	agg := make(map[string]statusKind) // 解析内部：name → 赢家状态（优先级聚合，不外泄）
 	records := strings.Split(string(out), "\x00")
 	for _, rec := range records {
-		if len(rec) < 4 { // 至少 XY、空格、路径首字符（" M x"）
+		// —— 分支头（## ...）——
+		if strings.HasPrefix(rec, "## ") {
+			b := strings.TrimPrefix(rec, "## ")
+			if strings.HasPrefix(b, "HEAD (no branch)") {
+				continue // detached：无分支名，留空
+			}
+			b = strings.TrimPrefix(b, "No commits yet on ") // unborn：去掉前缀
+			if i := strings.Index(b, "..."); i >= 0 {       // "main...origin/main" → "main"
+				b = b[:i]
+			}
+			if i := strings.IndexByte(b, ' '); i >= 0 { // "main [ahead 1]" → "main"
+				b = b[:i]
+			}
+			branch = b
+			continue
+		}
+		if len(rec) < 4 { // 至少 "XY " + 路径首字符
 			continue
 		}
 		// rec[0] = 索引状态，rec[1] = 工作区状态
-		indexSt := rec[0]
-		workSt := rec[1]
-
-		// 取路径（rec[3:] 开始，跳过 "XY " 三个字符）
+		indexSt, workSt := rec[0], rec[1]
 		path := rec[3:]
 		if path == "" {
 			continue
 		}
-
-		// 剥掉「当前目录相对仓库根」的前缀，得到「相对当前目录」的路径；再取顶层分量
+		// 剥掉「当前目录相对仓库根」前缀，得到「相对当前目录」的路径；再取顶层分量。
 		rel := strings.TrimPrefix(path, prefix)
 		var name string
 		if i := strings.IndexByte(rel, '/'); i >= 0 {
@@ -135,10 +98,8 @@ func parsePorcelain(out []byte, prefix string) map[string]statusKind {
 		if name == "." || name == "" {
 			continue
 		}
-
-		// 映射工作区状态
 		var st statusKind
-		// F7: ignored 优先于其它判断（`!!` 前缀稳定，short-circuit 避免落到 default）
+		// ignored 优先于其它判断（!! 前缀稳定，short-circuit 避免落到 default）。
 		if indexSt == '!' && workSt == '!' {
 			st = stIgnored
 		} else {
@@ -154,7 +115,7 @@ func parsePorcelain(out []byte, prefix string) map[string]statusKind {
 			case 'R':
 				st = stRenamed
 			default:
-				// 也检查索引状态（如 "M " 表示暂存区已修改，工作区干净）
+				// 工作区干净但索引有变化（如 "M "）也检查索引状态。
 				switch indexSt {
 				case 'M':
 					st = stModified
@@ -167,14 +128,31 @@ func parsePorcelain(out []byte, prefix string) map[string]statusKind {
 				}
 			}
 		}
-
 		if st != stNone {
-			// 优先级：已修改/已删除/已重命名 > 已添加 > 未跟踪
-			// 这保证同一文件多种状态时取最重要的那个
-			if existing, has := result[name]; !has || st < existing {
-				result[name] = st
+			// 优先级聚合：同一 name 多记录取更严重者（st 数值越小越严重）。
+			if existing, has := agg[name]; !has || st < existing {
+				agg[name] = st
 			}
 		}
 	}
-	return result
+	// agg → chars（statusKind→rune；颜色归显示层 gitCharStyle）。
+	for name, st := range agg {
+		ch := ' '
+		switch st {
+		case stModified:
+			ch = 'M'
+		case stUntracked:
+			ch = 'U'
+		case stAdded:
+			ch = 'A'
+		case stDeleted:
+			ch = 'D'
+		case stRenamed:
+			ch = 'R'
+		case stIgnored:
+			ch = 'I'
+		}
+		chars[name] = ch
+	}
+	return chars, branch
 }

@@ -1,153 +1,178 @@
 package action
 
 import (
+	"reflect"
 	"testing"
 )
 
 func TestParsePorcelain(t *testing.T) {
 	tests := []struct {
-		name     string
-		prefix   string
-		input    []byte
-		expected map[string]statusKind
+		name   string
+		prefix string
+		input  []byte
+		want   map[string]rune
+		branch string
 	}{
 		{
-			name:  "empty",
-			input: []byte{},
-			expected: map[string]statusKind{},
+			name:   "empty",
+			input:  []byte{},
+			want:   map[string]rune{},
+			branch: "",
 		},
 		{
-			name:  "single modified file",
-			input: []byte(" M main.go\x00"),
-			expected: map[string]statusKind{
-				"main.go": stModified,
-			},
+			name:   "single modified file",
+			input:  []byte(" M main.go\x00"),
+			want:   map[string]rune{"main.go": 'M'},
+			branch: "",
 		},
 		{
-			name:  "untracked file",
-			input: []byte("?? newfile.txt\x00"),
-			expected: map[string]statusKind{
-				"newfile.txt": stUntracked,
-			},
+			name:   "untracked file",
+			input:  []byte("?? newfile.txt\x00"),
+			want:   map[string]rune{"newfile.txt": 'U'},
+			branch: "",
 		},
 		{
-			name:  "staged added file",
-			input: []byte("A  test.go\x00"),
-			expected: map[string]statusKind{
-				"test.go": stAdded,
-			},
+			name:   "staged added file",
+			input:  []byte("A  test.go\x00"),
+			want:   map[string]rune{"test.go": 'A'},
+			branch: "",
 		},
 		{
-			name:  "deleted file",
-			input: []byte(" D old.go\x00"),
-			expected: map[string]statusKind{
-				"old.go": stDeleted,
-			},
+			name:   "deleted file",
+			input:  []byte(" D old.go\x00"),
+			want:   map[string]rune{"old.go": 'D'},
+			branch: "",
 		},
 		{
-			name:  "renamed file",
-			input: []byte("R  oldname.go\x00"),
-			expected: map[string]statusKind{
-				"oldname.go": stRenamed,
-			},
+			name:   "renamed file",
+			input:  []byte("R  oldname.go\x00"),
+			want:   map[string]rune{"oldname.go": 'R'},
+			branch: "",
 		},
 		{
-			name:  "multiple files with spaces",
-			input: []byte(" M my file.go\x00?? file with spaces.txt\x00"),
-			expected: map[string]statusKind{
-				"my file.go":          stModified,
-				"file with spaces.txt": stUntracked,
-			},
+			name:   "multiple files with spaces",
+			input:  []byte(" M my file.go\x00?? file with spaces.txt\x00"),
+			want:   map[string]rune{"my file.go": 'M', "file with spaces.txt": 'U'},
+			branch: "",
 		},
 		{
-			name:  "Chinese filename",
-			input: []byte("?? 中文文件.txt\x00 M 我的项目.go\x00"),
-			expected: map[string]statusKind{
-				"中文文件.txt": stUntracked,
-				"我的项目.go":   stModified,
-			},
+			name:   "Chinese filename",
+			input:  []byte("?? 中文文件.txt\x00 M 我的项目.go\x00"),
+			want:   map[string]rune{"中文文件.txt": 'U', "我的项目.go": 'M'},
+			branch: "",
 		},
 		{
-			name:     "subdirectory propagation (browsing sub/)",
-			prefix:   "sub/",
-			input:    []byte(" M sub/dir/file.go\x00"),
-			expected: map[string]statusKind{"dir": stModified},
+			name:   "subdirectory propagation (browsing sub/)",
+			prefix: "sub/",
+			input:  []byte(" M sub/dir/file.go\x00"),
+			want:   map[string]rune{"dir": 'M'},
+			branch: "",
 		},
 		{
-			name:  "MM (staged and modified)",
-			input: []byte("MM both.go\x00"),
-			expected: map[string]statusKind{
-				"both.go": stModified,
-			},
+			name:   "MM (staged and modified)",
+			input:  []byte("MM both.go\x00"),
+			want:   map[string]rune{"both.go": 'M'},
+			branch: "",
 		},
 		{
-			name:  "AM (added in index, modified in worktree)",
-			input: []byte("AM mixed.go\x00"),
-			expected: map[string]statusKind{
-				"mixed.go": stModified, // M 优先级更高
-			},
+			name:   "AM (added in index, modified in worktree)",
+			input:  []byte("AM mixed.go\x00"),
+			want:   map[string]rune{"mixed.go": 'M'}, // M 优先级更高
+			branch: "",
 		},
 		{
-			name:  "ignored short record",
-			input: []byte("M\x00"),
-			expected: map[string]statusKind{},
+			name:   "ignored short record",
+			input:  []byte("M\x00"),
+			want:   map[string]rune{},
+			branch: "",
 		},
 		{
-			name:  "complex mixed output",
-			input: []byte("M  modified.go\x00?? untracked.md\x00A  added.go\x00 D deleted.go\x00"),
-			expected: map[string]statusKind{
-				"modified.go":  stModified,
-				"untracked.md": stUntracked,
-				"added.go":     stAdded,
-				"deleted.go":   stDeleted,
-			},
+			name:   "complex mixed output",
+			input:  []byte("M  modified.go\x00?? untracked.md\x00A  added.go\x00 D deleted.go\x00"),
+			want:   map[string]rune{"modified.go": 'M', "untracked.md": 'U', "added.go": 'A', "deleted.go": 'D'},
+			branch: "",
 		},
 		// F1c 新增 case
 		{
-			name:  "root view three levels deep",
-			input: []byte(" M a/b/c/deep.go\x00"),
-			expected: map[string]statusKind{"a": stModified},
+			name:   "root view three levels deep",
+			input:  []byte(" M a/b/c/deep.go\x00"),
+			want:   map[string]rune{"a": 'M'},
+			branch: "",
 		},
 		{
-			name:     "subdirectory view (internal/)",
-			prefix:   "internal/",
-			input:    []byte(" M internal/action/a.go\x00"),
-			expected: map[string]statusKind{"action": stModified},
+			name:   "subdirectory view (internal/)",
+			prefix: "internal/",
+			input:  []byte(" M internal/action/a.go\x00"),
+			want:   map[string]rune{"action": 'M'},
+			branch: "",
 		},
 		{
-			name:     "file directly in subdirectory (internal/flat.go)",
-			prefix:   "internal/",
-			input:    []byte(" M internal/flat.go\x00"),
-			expected: map[string]statusKind{"flat.go": stModified},
+			name:   "file directly in subdirectory (internal/flat.go)",
+			prefix: "internal/",
+			input:  []byte(" M internal/flat.go\x00"),
+			want:   map[string]rune{"flat.go": 'M'},
+			branch: "",
 		},
 		{
-			name:     "multi-status aggregation in root view (M wins over A)",
-			input:    []byte("A  x/added.go\x00 M x/mod.go\x00"),
-			expected: map[string]statusKind{"x": stModified},
+			name:   "multi-status aggregation in root view (M wins over A)",
+			input:  []byte("A  x/added.go\x00 M x/mod.go\x00"),
+			want:   map[string]rune{"x": 'M'},
+			branch: "",
 		},
 		{
-			name:  "backslash filename not mis-split (Unix \\ is valid char)",
-			input: []byte(" M a\\b.go\x00"),
-			expected: map[string]statusKind{"a\\b.go": stModified},
+			name:   "backslash filename not mis-split (Unix \\ is valid char)",
+			input:  []byte(" M a\\b.go\x00"),
+			want:   map[string]rune{"a\\b.go": 'M'},
+			branch: "",
+		},
+		// —— 分支头捕获（-b 产生的 "## " 首记录）——
+		{
+			name:   "branch header normal",
+			input:  []byte("## main\x00 M main.go\x00"),
+			want:   map[string]rune{"main.go": 'M'},
+			branch: "main",
+		},
+		{
+			name:   "branch with upstream (main...origin/main)",
+			input:  []byte("## main...origin/main\x00 M a\x00"),
+			want:   map[string]rune{"a": 'M'},
+			branch: "main",
+		},
+		{
+			name:   "branch with ahead/behind suffix",
+			input:  []byte("## main [ahead 1]\x00"),
+			want:   map[string]rune{},
+			branch: "main",
+		},
+		{
+			name:   "detached HEAD → empty branch",
+			input:  []byte("## HEAD (no branch)\x00?? a\x00"),
+			want:   map[string]rune{"a": 'U'},
+			branch: "",
+		},
+		{
+			name:   "unborn branch (No commits yet on main) → main",
+			input:  []byte("## No commits yet on main\x00?? a\x00"),
+			want:   map[string]rune{"a": 'U'},
+			branch: "main",
+		},
+		// —— ignored（!!）状态字符 ——
+		{
+			name:   "ignored file → I",
+			input:  []byte("!! build/artifact.o\x00"),
+			want:   map[string]rune{"build": 'I'}, // 子目录内 → 取顶层目录名
+			branch: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := parsePorcelain(tt.input, tt.prefix)
-			if len(result) != len(tt.expected) {
-				t.Errorf("expected %d entries, got %d", len(tt.expected), len(result))
-				return
+			chars, branch := parsePorcelain(tt.input, tt.prefix)
+			if !reflect.DeepEqual(chars, tt.want) {
+				t.Errorf("chars = %#v, want %#v", chars, tt.want)
 			}
-			for name, expectedSt := range tt.expected {
-				gotSt, ok := result[name]
-				if !ok {
-					t.Errorf("missing entry for %q", name)
-					continue
-				}
-				if gotSt != expectedSt {
-					t.Errorf("for %q: expected %v, got %v", name, expectedSt, gotSt)
-				}
+			if branch != tt.branch {
+				t.Errorf("branch = %q, want %q", branch, tt.branch)
 			}
 		})
 	}
