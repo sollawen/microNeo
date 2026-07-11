@@ -2,6 +2,7 @@
 
 - **如非必要，勿增实体**。能复用已有代码和方法的，就不要新写代码的方法
 - 编译本项目时，必须使用 `make build`，不要直接使用 `go build`。如果想快速编译跳过 generate 步骤，可以使用 `make build-quick`
+- **首次 clone 或换机器后必须先跑一次 `make generate`**（或直接 `make build`）：`generate` 生成 `runtime/syntax/*.hdr`（filetype 检测头，被 `.gitignore` 忽略、不入库），只有 `*.yaml` 没 `.hdr` 时所有语法高亮会全失效（全文 default 色）。`make build-quick` 跳过 generate，已在仓库里跑过一次 generate 后才能安全使用
 - 用户配置目录统一在 `$XDG_CONFIG_HOME/microNeo`（未设置时 fallback 到 `~/.config/microNeo`），启动时可用 `--config <dir>` 临时覆盖
 - `docs/`目录是本项目所有设计方案和计划
 - **代码注释不引用文档**：注释必须自包含，用散文讲清「为什么」，不依赖任何外部文档即可读懂。**禁止在代码注释里写设计文档的文件名或章节号**
