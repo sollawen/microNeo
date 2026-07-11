@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Changed**
 
+- The file picker's row layout was significantly reworked; the git status indicator is now consistently pinned to the right edge of each row instead of floating after the file name.
 - The picker's bottom metadata line now includes file permissions alongside size and modified time.
 - Optimized FileSelector code organization — all hotkey and command handlers moved to `command_neo.go`, making `filemanager.go` a pure executor that only opens selectors.
 
