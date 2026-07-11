@@ -45,9 +45,11 @@ const (
 )
 
 // entry 是已排序、已过滤后的一个目录条目。
+// info 存全量 FileInfo（lstat，不跟随 symlink），UI 层按需取字段，恒非 nil（失败则跳过该条目）。
 type entry struct {
 	name  string
 	isDir bool
+	info  os.FileInfo
 }
 
 // fileSelectorState 是 FileSelector 的可变状态（Model 层，F1 §5 / D3）。
@@ -67,13 +69,6 @@ type fileSelectorState struct {
 	gitStatus map[string]statusKind
 	gitOK     bool // false=无 git 列（降级）
 	mu        sync.RWMutex
-
-	// 元数据缓存（按条目名缓存，F1d §4.1）
-	metaName  string    // 缓存对应的条目名（""=面包屑/空/越界，无缓存）
-	metaSize  int64
-	metaMtime time.Time
-	metaOK    bool      // false=stat 失败（断链/无权限），字段降级显 —
-	metaIsDir bool      // = info.IsDir()（跟随符号链接）
 }
 
 // setGitStatus 由后台 goroutine 写入 git 查询结果（F1 §10.7）。
@@ -227,18 +222,24 @@ func (s *fileSelectorState) locate(currentFile string) {
 
 // listDirEntries 读目录并返回排好序的条目（目录优先、各自大小写不敏感字母序）。
 // showHidden=false 时过滤 dotfile（F0 §5.4）。
+// 每个条目一次性用 lstat 预取全量 FileInfo 进 entry.info（失败则跳过该条目），
+// 后续显示层零 stat：size 在行内、mtime 在末行，均从 entry.info 读。
 func listDirEntries(dir string, showHidden bool) []entry {
-	infos, err := os.ReadDir(dir)
+	dirEntries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil
 	}
 	var dirs, files []entry
-	for _, d := range infos {
+	for _, d := range dirEntries {
 		name := d.Name()
 		if !showHidden && isHiddenName(name) {
 			continue
 		}
-		e := entry{name: name, isDir: d.IsDir()}
+		fi, err := d.Info() // lstat，不跟随 symlink，对齐 ls -l
+		if err != nil {
+			continue // 条目已不存在（竞态删除），不显示
+		}
+		e := entry{name: name, isDir: fi.IsDir(), info: fi}
 		if e.isDir {
 			dirs = append(dirs, e)
 		} else {
@@ -340,9 +341,11 @@ func (fs *FileSelector) display(area Rect) {
 		fs.drawEntry(area.X, listTop+vi, area.W, s.entries[i], i+1 == s.cursor, revStyle)
 	}
 
-	// 滚动指示符（仅当内容溢出时）；style 跟随所在行（对齐 SelectPane 范式）
+	// 滚动指示符（仅当内容溢出时）；画在 gap 列（name 与 git/size 之间那道空格），不盖 size 字符
 	if len(s.entries) > visibleH && visibleH > 0 {
-		rightCol := area.X + area.W - 1
+		// gap 列 = name 区末尾（= sizeStart - 1），永远为空格，selected 行取 revStyle
+		sizeStart := area.W - 5
+		gapCol := area.X + sizeStart - 1
 		topStyle := config.DefStyle
 		if s.topIdx+1 == s.cursor {
 			topStyle = revStyle
@@ -352,20 +355,16 @@ func (fs *FileSelector) display(area Rect) {
 			botStyle = revStyle
 		}
 		if s.topIdx > 0 {
-			screen.Screen.SetContent(rightCol, listTop, '▲', nil, topStyle)
+			screen.Screen.SetContent(gapCol, listTop, '▲', nil, topStyle)
 		}
 		if s.topIdx+visibleH < len(s.entries) {
-			screen.Screen.SetContent(rightCol, listTop+visibleH-1, '▼', nil, botStyle)
+			screen.Screen.SetContent(gapCol, listTop+visibleH-1, '▼', nil, botStyle)
 		}
 	}
 
-	// 末行：光标条目元数据（F1d §4.3）
+	// 末行：perms + size + mtime（全从 e.info 读，零 stat）
 	hintRow := area.Y + area.H - 1
-	fs.refreshMetaIfStale()
-	text := ""
-	if s.metaName != "" { // 面包屑行/空目录 → 留空
-		text = fs.buildMetaLine()
-	}
+	text := fs.buildMetaLine(area.W) // 内部判 cursor==0/越界 → 返回 ""
 	fs.drawString(area.X, hintRow, area.W, text, config.DefStyle)
 }
 
@@ -398,15 +397,32 @@ func (fs *FileSelector) drawBreadcrumb(x, y, w int, style tcell.Style) {
 	}
 }
 
-// drawEntry 画一个文件/目录条目行（F0 §7.5 格式 [标记] 名[/] [git]）。
+// drawEntry 画一个文件/目录条目行。
+// 行结构：[marker] [name] [gap] [git] [size]
+// size 钉在最右 5 列；git 居 git 列（size 左侧 1 列）；gap 列永远留空格（name 被截断也不贴 git）。
 func (fs *FileSelector) drawEntry(x, y, w int, e entry, selected bool, revStyle tcell.Style) {
 	s := fs.state
 
-	// git 状态列（仅 gitOK 且有该条目状态时显示）
+	const sizeW = 5
+	sizeEnd := x + w
+	sizeStart := sizeEnd - sizeW
+	gitCol := sizeStart - 1
+
+	// git 状态（仅 gitOK 且有该条目状态时显示）
 	gst, ghas := s.gitOf(e.name)
 	showGit := ghas
 
-	// 颜色（F0 §7.5：目录 type 色，文件 default，git 状态色）；选中行统一 Reverse
+	// gap 列：name 与 git/size 之间永远留 1 列空格
+	fillEnd := sizeStart
+	if showGit {
+		fillEnd = gitCol
+	}
+	nameLimit := fillEnd - (x + 1) - 1
+	if nameLimit < 0 {
+		nameLimit = 0
+	}
+
+	// 颜色：目录 type 色，文件 default，git 状态色；选中行统一 Reverse
 	nameStyle := config.DefStyle
 	if e.isDir {
 		nameStyle = config.GetColor("type")
@@ -419,8 +435,8 @@ func (fs *FileSelector) drawEntry(x, y, w int, e entry, selected bool, revStyle 
 		gitStyle = revStyle
 	}
 
+	// 标记：目录 ▸，文件空格（1 列）
 	col := x
-	// 标记：目录 ▸，文件空格（预留 1 字符位）
 	marker := ' '
 	if e.isDir {
 		marker = '▸'
@@ -428,37 +444,46 @@ func (fs *FileSelector) drawEntry(x, y, w int, e entry, selected bool, revStyle 
 	screen.Screen.SetContent(col, y, marker, nil, nameStyle)
 	col += runeWidth(marker)
 
-	// 名（目录带 / 后缀；超长左截断保留扩展名，F0 §4.2 / R3）
+	// 名（目录带 / 后缀；超长左截断保留扩展名）
 	dispName := e.name
 	if e.isDir {
 		dispName += string(filepath.Separator)
 	}
-	nameLimit := w - 1 // 去掉标记 1 列
-	if showGit {
-		nameLimit-- // 预留 git 1 列
-	}
-	if nameLimit < 0 {
-		nameLimit = 0
-	}
 	dispName = truncateNameKeepExt(dispName, nameLimit, e.isDir)
-	nameEnd := x + 1 + nameLimit
-	if showGit {
-		nameEnd = x + w - 1
-	}
 	for _, r := range dispName {
 		rw := runeWidth(r)
-		if col+rw > nameEnd {
-			break // 放不下完整双宽字符则停（不写半截）
+		if col+rw > fillEnd {
+			break
 		}
 		screen.Screen.SetContent(col, y, r, nil, nameStyle)
 		col += rw
 	}
-	for col < nameEnd { // 名与 git 列之间填 style（空格固定 1 列宽）
+	// 填充到 fillEnd（包含 gap 列的空格）
+	for col < fillEnd {
 		screen.Screen.SetContent(col, y, ' ', nil, fillStyle)
 		col++
 	}
+
+	// git 列（size 左侧 1 列）
 	if showGit {
-		screen.Screen.SetContent(x+w-1, y, gitStatusChar(gst), nil, gitStyle)
+		screen.Screen.SetContent(gitCol, y, gitStatusChar(gst), nil, gitStyle)
+	}
+
+	// size 区（最右 5 列）：文件右对齐 humanSize，目录留空 5 空格
+	for col := sizeStart; col < sizeEnd; col++ {
+		screen.Screen.SetContent(col, y, ' ', nil, fillStyle)
+	}
+	if !e.isDir {
+		sizeStr := humanSize(e.info.Size())
+		// 右对齐：算出 sizeStr 最左字符应落在哪列
+		sw := stringWidth(sizeStr)
+		startCol := sizeEnd - sw
+		if startCol < sizeStart {
+			startCol = sizeStart
+		}
+		for i, r := range sizeStr {
+			screen.Screen.SetContent(startCol+i, y, r, nil, fillStyle)
+		}
 	}
 }
 
@@ -480,41 +505,7 @@ func (fs *FileSelector) drawString(x, y, w int, text string, style tcell.Style) 
 	}
 }
 
-// cursorEntryName 返回当前光标条目名（F1d §4.4）。
-// 边界：cursor==0 或 idx 越界 → 返回 ""，绝不 panic。
-func (s *fileSelectorState) cursorEntryName() string {
-	if s.cursor == 0 {
-		return ""
-	}
-	idx := s.cursor - 1
-	if idx < 0 || idx >= len(s.entries) {
-		return ""
-	}
-	return s.entries[idx].name
-}
 
-// refreshMetaIfStale 按需刷新元数据（F1d §4.2）。
-// 在 display 内 guard：名字没变则命中缓存、零 stat；变了才 stat 一次。
-// 调用位置在 s==nil return 之后、所有渲染之前，确保每条 display 路径都覆盖。
-func (fs *FileSelector) refreshMetaIfStale() {
-	s := fs.state
-	name := s.cursorEntryName()
-	if name == s.metaName {
-		return // 命中缓存
-	}
-	s.metaName = name
-	if name == "" { // 面包屑行 / 无条目
-		s.metaOK = false
-		return
-	}
-	info, err := os.Stat(filepath.Join(s.currentDir, name))
-	s.metaOK = err == nil
-	if err == nil {
-		s.metaSize = info.Size()
-		s.metaMtime = info.ModTime()
-		s.metaIsDir = info.IsDir()
-	}
-}
 
 // humanSize 把字节数格式化为人类可读字符串（F1d §3.2，输出恒 ≤5 列）。
 // 对齐 ls -lh 的 1024 进制规则。
@@ -568,50 +559,50 @@ func formatMtime(t time.Time) string {
 	return t.Format("2006-01-02") // 10 列（跨年省略时分）
 }
 
-// buildMetaLine 组装光标条目的元数据行（F1d §3.1 / §3.4）。
-// size 是固定 5 列（右对齐），目录行 size 段留空但保留宽度，mtime 紧随其后。
-// metaOK=false 时缺失字段显 — 并补齐到字段定宽（— 的显示宽度是 2 列）。
-func (fs *FileSelector) buildMetaLine() string {
+// buildMetaLine 组装光标条目的元数据行（perms + size + mtime）。
+// 所有数据从 entry.info 读，零 stat。w 参数控制窄屏字段优先级裁剪。
+func (fs *FileSelector) buildMetaLine(w int) string {
 	s := fs.state
+	idx := s.cursor - 1
+	if idx < 0 || idx >= len(s.entries) {
+		return ""
+	}
+	fi := s.entries[idx].info
+	perms := fi.Mode().String()
+	size := humanSize(fi.Size())
+	mtime := formatMtime(fi.ModTime())
+	return fitMeta(w, perms, size, mtime)
+}
 
-	// size 段（固定 5 列）
-	sizeStr := ""
-	if s.metaOK {
-		if !s.metaIsDir {
-			sizeStr = humanSize(s.metaSize)
+// fitMeta 按 w 宽挑能放下的组合；砍字段优先级 权限→size，mtime 保底。
+func fitMeta(w int, perms, size, mtime string) string {
+	type f struct{ k, v string }
+	order := []f{{"p", perms}, {"s", size}, {"m", mtime}}
+	keep := map[string]bool{"p": true, "s": true, "m": true}
+	drop := []string{"p", "s"} // m 永不砍
+	for {
+		var parts []string
+		for _, x := range order {
+			if keep[x.k] {
+				parts = append(parts, x.v)
+			}
+		}
+		line := strings.Join(parts, "  ")
+		if stringWidth(line) <= w {
+			return line
+		}
+		killed := false
+		for _, d := range drop {
+			if keep[d] {
+				keep[d] = false
+				killed = true
+				break
+			}
+		}
+		if !killed {
+			return tailByWidth(line, w) // 只剩 mtime 仍超宽（极窄 pane），左截断保底
 		}
 	}
-	if sizeStr == "" {
-		if s.metaOK {
-			// 目录行（metaOK && metaIsDir）：size 段留空 5 列
-			sizeStr = "     " // 5 spaces
-		} else {
-			// stat 失败：显 — 占位（— 是 U+2014，2 列；3 空格 + — = 5 列）
-			sizeStr = "   —"
-		}
-	}
-	// pad sizeStr to exactly 5 display cols
-	for stringWidth(sizeStr) < 5 {
-		sizeStr = " " + sizeStr
-	}
-
-	// mtime 段（10/11 列，formatMtime 已对齐）
-	mtimeStr := "          " // default 10 spaces
-	if s.metaOK {
-		mtimeStr = formatMtime(s.metaMtime)
-		// pad to 11 cols if same year (formatMtime returns 11 cols)
-		for stringWidth(mtimeStr) < 11 {
-			mtimeStr += " "
-		}
-	} else {
-		// stat 失败：— 占 2 列，右 pad 到 11 列（与正常 mtime 左对齐一致）
-		mtimeStr = "—"
-		for stringWidth(mtimeStr) < 11 {
-			mtimeStr += " " // 右 pad（左对齐）
-		}
-	}
-
-	return sizeStr + "  " + mtimeStr
 }
 
 
