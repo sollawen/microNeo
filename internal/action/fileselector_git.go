@@ -20,7 +20,7 @@ const (
 	stAdded     // A: 已暂存
 	stDeleted   // D: 已删除
 	stRenamed   // R: 已重命名
-	// stIgnored (I) 延后（F1 §10.5 / R4）
+	stIgnored   // I: 被 .gitignore 忽略（!!）— F7
 )
 
 // gitStatusCache 是 git 状态缓存的接口，用于解耦与 mock 测试（F1 §10.6）。
@@ -65,7 +65,9 @@ func (g *gitStatus) statusFor(dir string) (map[string]statusKind, bool) {
 
 	cmd := exec.CommandContext(ctx, "git",
 		"-C", dir,
-		"status", "--porcelain=v1", "-z", "--", ".")
+		"status", "--porcelain=v1", "-z",
+		"--ignored=traditional", // F7：合并到 status，不开第二条进程
+		"--", ".")
 	out, err := cmd.Output()
 	if err != nil {
 		// 非仓库 / 超时 / git 不存在 → 静默降级
@@ -97,6 +99,7 @@ func (g *gitStatus) statusFor(dir string) (map[string]statusKind, bool) {
 //   - "A " / "AM" 等含 A → stAdded
 //   - "D " / " D" → stDeleted
 //   - "R " → stRenamed
+//   - "!!" → stIgnored（被 .gitignore 忽略，F7）
 //
 // 本函数只关心工作区状态（第二个字符），因为 FileSelector 只显示当前目录条目。
 // 剥掉 prefix 后取顶层分量（F1c §3.1）：子目录内文件变更时，对应的子目录条目亮状态。
@@ -135,21 +138,14 @@ func parsePorcelain(out []byte, prefix string) map[string]statusKind {
 
 		// 映射工作区状态
 		var st statusKind
-		switch workSt {
-		case '?':
-			st = stUntracked
-		case 'M', 'T': // M=修改，T=类型变更
-			st = stModified
-		case 'A':
-			st = stAdded
-		case 'D':
-			st = stDeleted
-		case 'R':
-			st = stRenamed
-		default:
-			// 也检查索引状态（如 "M " 表示暂存区已修改，工作区干净）
-			switch indexSt {
-			case 'M':
+		// F7: ignored 优先于其它判断（`!!` 前缀稳定，short-circuit 避免落到 default）
+		if indexSt == '!' && workSt == '!' {
+			st = stIgnored
+		} else {
+			switch workSt {
+			case '?':
+				st = stUntracked
+			case 'M', 'T': // M=修改，T=类型变更
 				st = stModified
 			case 'A':
 				st = stAdded
@@ -157,6 +153,18 @@ func parsePorcelain(out []byte, prefix string) map[string]statusKind {
 				st = stDeleted
 			case 'R':
 				st = stRenamed
+			default:
+				// 也检查索引状态（如 "M " 表示暂存区已修改，工作区干净）
+				switch indexSt {
+				case 'M':
+					st = stModified
+				case 'A':
+					st = stAdded
+				case 'D':
+					st = stDeleted
+				case 'R':
+					st = stRenamed
+				}
 			}
 		}
 

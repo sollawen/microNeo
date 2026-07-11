@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Added**
+
+- FileSelector marks git-ignored files and directories with an `I` indicator, so build outputs and tooling caches like `node_modules/` or `dist/` are easy to spot at a glance.
+
 **Fixed**
 
 - `Ctrl-q` on an empty pane in a too-narrow window now quits directly instead of hanging — the file selector can't fit, so it falls back to native quit.

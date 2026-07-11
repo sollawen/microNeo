@@ -1046,25 +1046,27 @@ func gitStatusChar(st statusKind) rune {
 		return 'D'
 	case stRenamed:
 		return 'R'
+	case stIgnored: // F7
+		return 'I'
 	}
 	return ' '
 }
 
 func gitStatusStyle(st statusKind) tcell.Style {
-	var col tcell.Color
 	switch st {
 	case stModified:
-		col = tcell.ColorYellow
+		return config.DefStyle.Foreground(tcell.ColorYellow)
 	case stUntracked:
-		col = tcell.ColorBlue
+		return config.DefStyle.Foreground(tcell.ColorBlue)
 	case stAdded:
-		col = tcell.ColorGreen
+		return config.DefStyle.Foreground(tcell.ColorGreen)
 	case stDeleted:
-		col = tcell.ColorRed
+		return config.DefStyle.Foreground(tcell.ColorRed)
 	case stRenamed:
-		col = tcell.ColorPurple
+		return config.DefStyle.Foreground(tcell.ColorPurple)
+	case stIgnored: // F7: 用 default 颜色（普通文本，不带 color/dim）
+		return config.DefStyle
 	default:
 		return config.DefStyle
 	}
-	return config.DefStyle.Foreground(col)
 }
