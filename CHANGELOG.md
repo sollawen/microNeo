@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+**Added**
+
+- The file picker now accepts `q` as a quit shortcut, equivalent to `Ctrl-q`.
+
+**Fixed**
+
+- The git `I` (ignored) indicator no longer incorrectly marks parent directories as ignored when only a nested subdirectory is ignored.
+
 ## [1.1.13] - 2026-07-13
 
 **Added**
