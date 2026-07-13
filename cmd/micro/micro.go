@@ -39,6 +39,7 @@ var (
 	flagClean         = flag.Bool("clean", false, "Clean configuration directory")
 	flagCheckAgent    = flag.Bool("check-agent", false, "Check and self-heal aibp extensions for installed AI agents (pi/opencode), then exit")
 	flagUpdateAIBP    = flag.Bool("update-aibp", false, "Update aibp extensions for installed AI agents to the latest released version, then exit")
+	flagCwdFile       = flag.String("cwd-file", "", "Write the working directory to this file on exit (for shell integration)")
 	optionFlags   map[string]*string
 
 	sighup chan os.Signal
@@ -61,6 +62,8 @@ func InitFlags() {
 		fmt.Println("    \tUpdate aibp extensions to the latest released version for agents that")
 		fmt.Println("    \tdon't self-update (opencode, claude). Checks the npm registry, reinstalls")
 		fmt.Println("    \tif newer. Prints progress to stdout and exits. Does not open the editor.")
+		fmt.Println("-cwd-file path")
+		fmt.Println("    \tWrite the working directory to this file on exit (for shell integration)")
 		fmt.Println("-config-dir dir")
 		fmt.Println("    \tSpecify a custom location for the configuration directory")
 		fmt.Println("FILE:LINE[:COL] (only if the `parsecursor` option is enabled)")
@@ -274,7 +277,28 @@ func checkBackup(name string) error {
 	return nil
 }
 
+// lastWorkingDir returns the directory to report back to the shell: the parent
+// directory of the last active pane's buffer. Returns "" when no file is open
+// (e.g., an empty nameless buffer or Help/Log pane). Only called from exit(),
+// which is always reached after InitTabs(), so Tabs is guaranteed to be
+// initialised — nil checks here are defensive only.
+func lastWorkingDir() string {
+	if t := action.MainTab(); t != nil {
+		if pane := t.CurPane(); pane != nil && pane.Buf != nil {
+			if ap := pane.Buf.AbsPath; ap != "" {
+				return filepath.Dir(ap)
+			}
+		}
+	}
+	return ""
+}
+
 func exit(rc int) {
+	cwdForShell := ""
+	if *flagCwdFile != "" {
+		cwdForShell = lastWorkingDir()
+	}
+
 	for _, b := range buffer.OpenBuffers {
 		if !b.Modified() {
 			b.Fini()
@@ -283,6 +307,10 @@ func exit(rc int) {
 
 	if screen.Screen != nil {
 		screen.Screen.Fini()
+	}
+
+	if *flagCwdFile != "" && cwdForShell != "" {
+		_ = os.WriteFile(*flagCwdFile, []byte(cwdForShell), 0600)
 	}
 
 	os.Exit(rc)

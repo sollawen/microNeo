@@ -86,7 +86,7 @@ shell 端（mn 函数）                     microNeo 端
 
 **退出程序的两条路径**（microNeo 默认**没有「一键退出整个程序」的操作**）：`Ctrl-q` / `:quit` 在多 pane 时只关闭当前 pane（`ForceQuit` → `Unsplit`），程序继续运行。真正退出整个程序只有两种走法：
 1. **逐个关闭**：一路 `Ctrl-q` 把 pane 逐个关掉，当只剩单 pane 单 tab 时，最后一次 `Ctrl-q` 才触发 `runtime.Goexit` → `exit()`。此时 `MainTab().CurPane()` 是最后剩下的那个 pane。
-2. **`QuitAll`**（底层 action 存在，但默认未绑快捷键 / 未注册命令，需用户手动绑）：一次性关掉所有 pane/tab → `runtime.Goexit` → `exit()`。此时 `MainTab().CurPane()` 是退出瞬间的焦点 pane。
+2. **`QuitAll`**（已注册为命令，`BufPaneCommands` 里有 `"quitall"`，用户可直接 `:quitall` 调用；但默认未绑快捷键）：一次性关掉所有 pane/tab → `runtime.Goexit` → `defer exit(0)`。此时 `MainTab().CurPane()` 是退出瞬间的焦点 pane。
 
 两条路径下 `lastWorkingDir()` 都成立——`exit()` 时 `MainTab().CurPane()` 总能返回一个有效 pane。
 
@@ -96,11 +96,12 @@ shell 端（mn 函数）                     microNeo 端
 |---|---|---|
 | 打开 `~/proj/src/a.go` 后退出 | `a.go` | `~/proj/src` |
 | 多 pane，逐个 `Ctrl-q` 关到最后 | 最后剩下的 pane | 那个 pane 的 buffer 父目录 |
-| 多 pane，`QuitAll` 退出（默认未绑定，焦点在 `b.go`） | `b.go` | b.go 的父目录 |
+| 多 pane，`QuitAll` 退出（`:quitall`，默认无快捷键，焦点在 `b.go`） | `b.go` | b.go 的父目录 |
 | FileSelector 选中 `c.go` 换入后退出 | 换入的 `c.go` | c.go 的父目录 |
 | FileSelector 浏览后 Esc 取消后退出 | 原 buffer | 原 buffer 的父目录 |
 | 启动后没开文件就退出 | 无名空 buffer | 不写（shell cwd 不变） |
 | 退出时活跃 pane 是 Help/Log | Help/Log | 不写（shell cwd 不变） |
+| 退出时活跃 pane 是 TermPane（嵌入式终端） | `CurPane()` 对 TermPane 做 type assertion 失败返回 nil | 不写（shell cwd 不变） |
 
 ---
 
@@ -124,6 +125,9 @@ flagCwdFile = flag.String("cwd-file", "",
 ```go
 // lastWorkingDir 返回退出时写回给 shell 的目录：
 // 最后活跃 pane 的 buffer 所在目录。取不到（无文件 buffer）返回 ""。
+// 前提：只在 exit() 内调用，而 exit() 只在 action.InitTabs() 之后的事件循环里
+// 才可能触发，故此处 Tabs 必已初始化，nil 检查只是防御性写法，
+// 并非用来挡「Tabs 未初始化」的早退场景。
 func lastWorkingDir() string {
     if t := action.MainTab(); t != nil {
         if pane := t.CurPane(); pane != nil && pane.Buf != nil {
@@ -214,7 +218,12 @@ exit(rc) 调用 →
 - [4] 必须在 [3] 之后：写文件是普通 syscall，与屏幕无关，但放在 `screen.Fini` 后更干净（确保终端已恢复正常状态，避免极端情况下写文件时的 stdout/stderr 干扰终端）。
 - [4] 在 [5] 之前：`os.Exit` 不跑 deferred，必须显式在它之前完成写文件。
 
-**非 `exit(rc)` 路径？** 全仓库检查确认 `exit()` 是 microNeo 所有退出路径（正常 `defer exit(0)`、`:quit`、`Ctrl-q`、各种错误退出 `exit(N)`）的唯一汇聚点，无第二条 `os.Exit` 调用。集成在此一处即可全覆盖。
+**非 `exit(rc)` 路径？** 准确说法是：所有退出路径最终都经 `defer exit(0)` 汇聚到 `exit()`，无第二条 `os.Exit`。但「触发 defer」有两种方式：
+
+- 直接调 `exit(rc)`：正常退出（main 末尾 `defer exit(0)`）、各种错误退出（`exit(N)`）。
+- 先 `runtime.Goexit()` 再让 defer 兜底：`ForceQuit`（`actions.go:1909`，最后一个 pane/tab）、`QuitAll` 的内联 `quit()`（`actions.go:1959`）、`TermPane.Quit`（`termpane.go:108`，最后一个 pane/tab）。这三处都在 `screen.Screen.Fini()` 之后直接 Goexit，随后 `defer exit(0)` 执行 → 进入 `exit()` 写文件。
+
+因此集成在 `exit()` 一处即可全覆盖——无论走哪条路径，写文件逻辑都在 Goexit 之后的 defer `exit(0)` 中执行，此时 `MainTab()`/`CurPane()` 仍可正常取值（Goexit 只结束当前 goroutine，全局 `Tabs` 状态未变）。
 
 ---
 
@@ -245,6 +254,8 @@ exit(rc) 调用 →
 | `Makefile` / `go.mod` | **零改动** | 0 |
 
 microNeo 自有文件全不碰。`internal/action/tab.go` 的 `MainTab()` / `CurPane()` 是现成导出函数，直接调用。`internal/buffer` 的 `Buffer.AbsPath`、`Buffer.Fini()` 都是现成 API。
+
+**关于 `exit()` 里的 buffer Fini 循环**：`QuitAll` 路径下 `buffer.CloseOpenBuffers()`（`buffer.go:524`）已经清空 `OpenBuffers`，`exit()` 里再遍历就是空操作——这是现有行为。新功能的写文件逻辑不依赖 `OpenBuffers`（只依赖 `MainTab().CurPane()`），因此不受影响。
 
 **与 F1（FileSelector）的关系**：功能上独立——没有 FileSelector 也能用（只要用户打开过文件，目录就能取到）。但实际体验上互补：FileSelector 让用户在目录树里翻找文件、本功能让退出后 shell 跟到该文件处。两者无代码依赖。
 
@@ -309,7 +320,7 @@ func resolveLastDir(bufAbsPath string) string {
 | **A（推荐）** | 新增 `mn()` 函数，`edit` alias 不动 | 与 yazi 的 `y()` 心智一致；不破坏不想要 cd 行为的用户；可并存 | 多记一个命令 |
 | B | 把 `edit` 改成 `edit()` 函数，内部带 `--cwd-file` | 一个命令通吃 | 改变现有 `edit` 语义，有人可能不想要自动 cd |
 
-**推荐 A**：默认 opt-in，最安全。文档交付时给出 A 的函数体，用户自行决定是否替换 `edit`。
+**推荐 A**：默认 opt-in，最安全。文档交付时给出 A 的函数体，用户自行决定是否替换 `edit`。函数体里用 `command microneo` 而非裸 `microneo`，正是为了避免递归调用——若用户已设 `alias microneo=...`，或把 `mn` 又 alias 成其它东西，`command` 绕开函数/别名直接走可执行文件。
 
 ### 9.2 `:cd` 不影响本功能
 
