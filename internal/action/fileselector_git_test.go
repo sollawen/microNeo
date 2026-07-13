@@ -7,11 +7,12 @@ import (
 
 func TestParsePorcelain(t *testing.T) {
 	tests := []struct {
-		name   string
-		prefix string
-		input  []byte
-		want   map[string]rune
-		branch string
+		name        string
+		prefix      string
+		input       []byte
+		want        map[string]rune
+		branch      string
+		allIgnored  bool
 	}{
 		{
 			name:   "empty",
@@ -156,23 +157,88 @@ func TestParsePorcelain(t *testing.T) {
 			want:   map[string]rune{"a": 'U'},
 			branch: "main",
 		},
-		// —— ignored（!!）状态字符 ——
+		// —— ignored（!!）状态字符（fix "I 冒泡" bug）——
 		{
-			name:   "ignored file → I",
-			input:  []byte("!! build/artifact.o\x00"),
-			want:   map[string]rune{"build": 'I'}, // 子目录内 → 取顶层目录名
-			branch: "",
+			name:        "ignored file in subdir → no bubble (fix)",
+			input:       []byte("!! build/artifact.o\x00"),
+			want:        map[string]rune{}, // 深处单文件不冒泡到父目录
+			branch:      "",
+			allIgnored:  false,
+		},
+		{
+			name:        "ignored single file in current dir → I on file",
+			input:       []byte("!! secret.md\x00"),
+			want:        map[string]rune{"secret.md": 'I'},
+			branch:      "",
+			allIgnored:  false,
+		},
+		{
+			name:        "ignored direct subdir (node_modules/) → I on name",
+			input:       []byte("!! node_modules/\x00"),
+			want:        map[string]rune{"node_modules": 'I'},
+			branch:      "",
+			allIgnored:  false,
+		},
+		{
+			name:        "ignored deep subdir (aaa/bbb/ccc/) from bbb/ level → I on ccc",
+			prefix:      "aaa/bbb/",
+			input:       []byte("!! aaa/bbb/ccc/\x00"),
+			want:        map[string]rune{"ccc": 'I'},
+			branch:      "",
+			allIgnored:  false,
+		},
+		{
+			name:        "ignored deep subdir from root → no bubble (too deep)",
+			prefix:      "aaa/",
+			input:       []byte("!! aaa/bbb/ccc/\x00"),
+			want:        map[string]rune{},
+			branch:      "",
+			allIgnored:  false,
+		},
+		{
+			name:        "browsing into ignored dir itself → allIgnored",
+			prefix:      "aaa/bbb/ccc/",
+			input:       []byte("!! aaa/bbb/ccc/\x00"),
+			want:        map[string]rune{},
+			branch:      "",
+			allIgnored:  true, // rel==""：当前目录本身被 ignore
+		},
+		{
+			name:        "M + ignored file in subdir → M not polluted by I bubble",
+			input:       []byte(" M x/mod.go\x00!! x/ignored.log\x00"),
+			want:        map[string]rune{"x": 'M'}, // ignored 深处单文件被丢弃
+			branch:      "",
+			allIgnored:  false,
+		},
+		{
+			name:        "ignored file deep in subtree from root → no bubble",
+			prefix:      "aaa/",
+			input:       []byte("!! aaa/bbb/ccc/secret.md\x00"),
+			want:        map[string]rune{},
+			branch:      "",
+			allIgnored:  false,
+		},
+		{
+			name:        "ignored file deep in subtree from immediate parent → I on file",
+			prefix:      "aaa/bbb/ccc/",
+			input:       []byte("!! aaa/bbb/ccc/secret.md\x00"),
+			want:        map[string]rune{"secret.md": 'I'},
+			branch:      "",
+			allIgnored:  false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			chars, branch := parsePorcelain(tt.input, tt.prefix)
+			chars, branch, allIgnored := parsePorcelain(tt.input, tt.prefix)
 			if !reflect.DeepEqual(chars, tt.want) {
 				t.Errorf("chars = %#v, want %#v", chars, tt.want)
 			}
 			if branch != tt.branch {
 				t.Errorf("branch = %q, want %q", branch, tt.branch)
+			}
+			if allIgnored != tt.allIgnored {
+				t.Errorf("allIgnored = %v, want %v", allIgnored, tt.allIgnored)
 			}
 		})
 	}

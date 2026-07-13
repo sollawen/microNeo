@@ -23,15 +23,17 @@ const (
 	stIgnored              // I: 被 .gitignore 忽略（!!）
 )
 
-// getGitStatus fork git 取某目录的状态。返回 (isRepo, branch, chars)：
+// getGitStatus fork git 取某目录的状态。返回 (isRepo, branch, chars, allIgnored)：
 //   - isRepo=true 时 branch 为分支名（可能空：detached/unborn），chars 为 name→状态字符；
-//   - isRepo=false 时 branch=""、chars=nil（非仓库/超时/diffgutter 关/git 不存在）。
+//   - isRepo=false 时 branch=""、chars=nil、allIgnored=false（非仓库/超时/diffgutter 关/git 不存在）。
+//   - allIgnored=true 表示当前目录本身被 gitignore（git 只报折叠的 "!! dir/"，
+//     不报里面的文件），由 fetchGit 给本目录所有条目打 'I'。
 //
 // 无缓存：每次 selector 打开/chdir 都重新 fork git——工作树可能被别的进程改，
 // 缓存会陈旧；后台几十 ms 不卡首次渲染（fetchGit 在 goroutine 里调本函数）。
-func getGitStatus(dir string) (isRepo bool, branch string, chars map[string]rune) {
+func getGitStatus(dir string) (isRepo bool, branch string, chars map[string]rune, allIgnored bool) {
 	if !config.GetGlobalOption("diffgutter").(bool) { // 总开关降级链
-		return false, "", nil
+		return false, "", nil, false
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -39,7 +41,7 @@ func getGitStatus(dir string) (isRepo bool, branch string, chars map[string]rune
 	out, err := exec.CommandContext(ctx, "git", "-C", dir,
 		"status", "--porcelain=v1", "-z", "-b", "--ignored=traditional", "--", ".").Output()
 	if err != nil {
-		return false, "", nil
+		return false, "", nil, false
 	}
 	// 复用 status 的 2s ctx 跑 rev-parse，防 goroutine 泄漏。
 	// prefix 是「当前目录相对仓库根」的路径，用来把仓库根相对路径换算到当前目录相对。
@@ -47,8 +49,8 @@ func getGitStatus(dir string) (isRepo bool, branch string, chars map[string]rune
 	if p, e := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--show-prefix").Output(); e == nil {
 		prefix = strings.TrimSpace(string(p))
 	}
-	chars, branch = parsePorcelain(out, prefix)
-	return true, branch, chars
+	chars, branch, allIgnored = parsePorcelain(out, prefix)
+	return true, branch, chars, allIgnored
 }
 
 // parsePorcelain 解析 git status --porcelain=v1 -z -b 的输出。
@@ -57,7 +59,11 @@ func getGitStatus(dir string) (isRepo bool, branch string, chars map[string]rune
 // 其余记录格式 "XY path"（\0 分隔）：剥 prefix、取顶层分量（子目录内变更→对应顶层目录名
 // 命中），映射 indexSt/workSt 到 statusKind，按优先级聚合成每 name 一个赢家状态，
 // 最后转成 name→rune（颜色归显示层 gitCharStyle）。
-func parsePorcelain(out []byte, prefix string) (chars map[string]rune, branch string) {
+//
+// ignored（!!）特殊处理：'I' 只贴在被 ignore 的实体本身，不向上冒泡到祖先目录
+// （否则父目录会被误读为「自己被 ignore」）。M/U/A/D/R 不受影响——目录不可能是
+// 「被修改」的实体，冒泡无歧义。allIgnored 见 getGitStatus 注释。
+func parsePorcelain(out []byte, prefix string) (chars map[string]rune, branch string, allIgnored bool) {
 	chars = make(map[string]rune)
 	agg := make(map[string]statusKind) // 解析内部：name → 赢家状态（优先级聚合，不外泄）
 	records := strings.Split(string(out), "\x00")
@@ -95,13 +101,20 @@ func parsePorcelain(out []byte, prefix string) (chars map[string]rune, branch st
 		} else {
 			name = rel // 当前目录内的文件
 		}
-		if name == "." || name == "" {
-			continue
-		}
 		var st statusKind
-		// ignored 优先于其它判断（!! 前缀稳定，short-circuit 避免落到 default）。
+		// ignored（!!）：'I' 只贴在被 ignore 的实体本身，不向上冒泡到祖先目录——
+		// 否则父目录会被误读为「自己被 ignore」。用剥 prefix 后的 rel 形态区分：
+		//   rel==""  → 当前目录本身被 ignore（git 折叠成 "!! dir/"，不报里面文件）→ 置 allIgnored；
+		//   去掉尾斜杠后不含 / → 直接文件或直接子目录 → 照常冒泡（st=stIgnored）；
+		//   其余      → ignored 实体在更深处 → 丢弃（st 保持 stNone，不进 agg）。
 		if indexSt == '!' && workSt == '!' {
-			st = stIgnored
+			core := strings.TrimSuffix(rel, "/")
+			switch {
+			case core == "":
+				allIgnored = true
+			case !strings.ContainsRune(core, '/'):
+				st = stIgnored
+			}
 		} else {
 			switch workSt {
 			case '?':
@@ -127,6 +140,11 @@ func parsePorcelain(out []byte, prefix string) (chars map[string]rune, branch st
 					st = stRenamed
 				}
 			}
+		}
+		// name 守卫放这里（而非更早）：rel=="" 的 ignored 记录需先在上面置好 allIgnored，
+		// 再由这里的 name=="" 跳过；非 ignored 的 name=="" 同样在此安全跳过。
+		if name == "." || name == "" {
+			continue
 		}
 		if st != stNone {
 			// 优先级聚合：同一 name 多记录取更严重者（st 数值越小越严重）。
@@ -154,5 +172,5 @@ func parsePorcelain(out []byte, prefix string) (chars map[string]rune, branch st
 		}
 		chars[name] = ch
 	}
-	return chars, branch
+	return chars, branch, allIgnored
 }
