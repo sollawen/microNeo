@@ -31,6 +31,7 @@ curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/tools/inst
 
 - Fully supported on Linux/Mac. Windows requires a terminal command-line environment; not tested yet.
 - See [Quick Start](https://sollawen.github.io/microNeo/en/quick-start/) for how to use microNeo.
+- 具体使用说明见 [Quick Start](https://sollawen.github.io/microNeo/quick-start/) 
 
 **国内用户**, 如果出现 `raw.githubusercontent.com` is rate-limited (HTTP 429) or unreachable 的问题，可以使用下面的这个镜像来一句话下载。这个问题通常是由于VPN使用的IP地址被GitHub限流了。
 
@@ -49,7 +50,6 @@ curl -fsSL https://cdn.jsdelivr.net/gh/sollawen/microNeo@master/tools/install.sh
 - Multiple themes, including dark and light mode.
 - Small and fast — only 13 MB.
 
-中文使用说明详见 https://sollawen.github.io/microNeo/
 
 ## Configuration
 
