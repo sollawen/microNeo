@@ -759,9 +759,16 @@ func (fs *FileSelector) handleEvent(event tcell.Event) {
 		// 三入口统一收 Ctrl-q → ReasonQuit，回调里统一 h.Quit()/pane.Quit()（F5 §5.2）
 		fs.finish(SelectResult{Kind: Closed, Reason: ReasonQuit})
 	default:
-		// '.' 切 dotfile（浮窗模态拦截所有事件，绕过 micro 键位绑定，F1b §3.5）
-		if ev.Key() == tcell.KeyRune && ev.Rune() == '.' {
-			fs.toggleHidden()
+		// 可打印字符走 KeyRune（tcell 无 KeyQ 之类常量，字母/符号只能按 rune 匹配）。
+		// 浮窗模态拦截所有事件，绕过 micro 键位绑定（F1b §3.5）。
+		if ev.Key() == tcell.KeyRune {
+			switch ev.Rune() {
+			case '.':
+				fs.toggleHidden()
+			case 'q':
+				// 等价 Ctrl-q：q 退出（三入口统一 ReasonQuit，回调里 h.Quit()/pane.Quit()）
+				fs.finish(SelectResult{Kind: Closed, Reason: ReasonQuit})
+			}
 		}
 		// 其它键吞掉（modal）
 	}
