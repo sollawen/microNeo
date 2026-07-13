@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Added**
 
-- New `--cwd-file <path>` flag writes the editor's last working directory to the given file on exit, enabling a shell wrapper (e.g. an `m()` function modeled after yazi's `y()`) to `cd` there — so the shell lands in the directory of the file you last edited.
+- Use microNeo in place of `cd`: with the new `--cwd-file <path>` flag, microNeo writes the directory of the file you last had open to a given file, so a shell wrapper can `cd` there on exit — a yazi `y()`-style behavior that turns microNeo into a `cd` replacement on any machine, including ones without yazi.
 
 ## [1.1.12] - 2026-07-11
 
