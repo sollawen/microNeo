@@ -100,3 +100,23 @@ In microNeo, press `Ctrl-O` to pick a new file.
 export EDITOR=microneo
 alias edit='microneo'
 ```
+
+## Replacing the `cd` Command in Your Shell
+
+- The `cd` command on Linux/Mac is painful when you're navigating deep directory hierarchies.
+- So microNeo borrows yazi's approach: you can switch directories inside the FileManager, and when you quit microNeo, your shell automatically `cd`s into the directory of the last file you were on.
+
+**How to use it**
+
+Add the following to your `.zshrc` / `.bashrc`:
+```zsh
+function m() {
+    local tmp="$(mktemp -t "microneo-cwd.XXXXXX")" cwd
+    command microneo "$@" --cwd-file="$tmp"
+    IFS= read -r -d '' cwd < "$tmp"
+    [ "$cwd" != "$PWD" ] && [ -d "$cwd" ] && builtin cd -- "$cwd"
+    rm -f -- "$tmp"
+}
+```
+
+Then just use the `m` command in your shell to open microNeo and pick a file to edit. When you quit, your shell's working directory will automatically switch to wherever that file lives.

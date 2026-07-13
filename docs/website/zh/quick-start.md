@@ -103,3 +103,22 @@ export EDITOR=microneo
 alias edit='microneo'
 ```
 
+## 代替shell里的 cd 命令
+
+- Linux/Mac 系统的 `cd` 命令在多层目录的时候实在是太难用了
+- 所以microNeo学习了yazi的方法，可以在fileManager里面切换目录。退出microNeo的时候自动把当前目录切换到最后的文件的所在目录里
+
+**具体使用方法**
+
+在zshrc/bashrc里面添加下面的代码：
+```zsh
+function m() {
+    local tmp="$(mktemp -t "microneo-cwd.XXXXXX")" cwd
+    command microneo "$@" --cwd-file="$tmp"
+    IFS= read -r -d '' cwd < "$tmp"
+    [ "$cwd" != "$PWD" ] && [ -d "$cwd" ] && builtin cd -- "$cwd"
+    rm -f -- "$tmp"
+}
+```
+
+然后直接在shell命令里使用 m 命令打开microNeo，选择编辑某个文件。退出后系统目录就自动切换为文件的所在目录了
