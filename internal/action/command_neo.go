@@ -18,12 +18,12 @@ func InitNeoCommands() {
 
 	// microNeo: spawn 包装覆盖（捕获父目录 + 开 birth selector）。
 	// key action：BufKeyActions 在 BindKey 解析时被查一次并缓存函数指针，运行时按键用缓存、不再查 map。
-	//   故 Ctrl-t→AddTab 改 map 后必须重新 BindKey 才生效；VSplit/HSplit 默认无快捷键（走 :vsplit/:hsplit 命令），BufKeyActions 覆盖仅备用。
+	//   故 Ctrl-t→HSplit 改 map 后必须重新 BindKey 才生效；VSplit 仍走 :vsplit 命令，其 BufKeyActions 覆盖仅备用。
 	// commands：InitCommands 整表重赋值之后覆盖即可（命令执行每次查最新）。
 	BufKeyActions["AddTab"] = (*BufPane).neoAddTabAction
-	BindKey("Ctrl-t", "AddTab", Binder["buffer"]) // 重绑：让 Ctrl-t 重新解析到 neoAddTabAction（只改 map 不重绑则仍走原版）
 	BufKeyActions["VSplit"] = (*BufPane).neoVSplitAction
 	BufKeyActions["HSplit"] = (*BufPane).neoHSplitAction
+	BindKey("Ctrl-t", "HSplit", Binder["buffer"]) // 必须在 BufKeyActions["HSplit"] 赋值之后：BindKey 解析时查一次 map 并缓存函数指针，顺序错了会绑到原生 HSplitAction（无 birth selector）
 	commands["tab"]   = Command{(*BufPane).neoNewTabCmd, buffer.FileComplete}
 	commands["vsplit"] = Command{(*BufPane).neoVSplitCmd, buffer.FileComplete}
 	commands["hsplit"] = Command{(*BufPane).neoHSplitCmd, buffer.FileComplete}

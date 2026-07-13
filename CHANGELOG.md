@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The file picker now accepts `q` as a quit shortcut, equivalent to `Ctrl-q`.
 
+**Changed**
+
+- `Ctrl-t` now opens a horizontal split (popping up the file picker) instead of creating a new tab.
+
 **Fixed**
 
 - The git `I` (ignored) indicator no longer incorrectly marks parent directories as ignored when only a nested subdirectory is ignored.
