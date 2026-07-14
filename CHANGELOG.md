@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Each tab is limited to at most two panes; attempting a third split shows "already 2 panes in this tab".
 - Pane resize keys are changed from `Alt-,` / `Alt-.` (previous tab) to `Alt-=` / `Alt--` (grow / shrink). These keys and `Ctrl-t` (horizontal split) can now be customized in `bindings.json`.
+- `Alt-=` / `Alt--` now overflow at the size boundary instead of stopping: growing past 75% promotes the pane to a fullscreen tab (`:big`), and shrinking past 25% demotes it (`:small`). On a single-pane tab, `Alt--` triggers `:small` (absorb a pane from another tab, or open a fresh split) while `Alt-=` is a no-op.
 
 ## [1.1.14] - 2026-07-14
 

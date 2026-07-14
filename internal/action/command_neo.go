@@ -10,6 +10,15 @@ import (
 	"github.com/micro-editor/tcell/v2"
 )
 
+// paneLimit 标记 stepPaneRatio 命中的边界状态。
+type paneLimit int
+
+const (
+	limitNone paneLimit = iota // 正常档位
+	limitMax                   // 已到放大极限（75% 或单 pane 全屏）
+	limitMin                   // 已到缩小极限（25% 或单 pane）
+)
+
 // InitNeoCommands 注册 microNeo 自定义命令。
 // 在 cmd/micro/micro.go 的 action.InitCommands() 之后调用一次。
 // 通过原生 MakeCommand 动态注册，不修改 commands map，零侵入。
@@ -296,15 +305,23 @@ func (h *BufPane) neoHSplitCmd(args []string) {
 // stepPaneRatio moves the current pane to the next discrete ratio step.
 // grow=true: increase pane share; grow=false: decrease pane share.
 // Ratios are {0.25, 0.5, 0.75}, compared in pixel space (see stepPixel).
-// Returns the new target pixel size, or -1 if already at boundary.
-func (h *BufPane) stepPaneRatio(grow bool) int {
+// Returns (targetSize, limit):
+//   - single pane, grow:    (-1, limitMax)
+//   - single pane, shrink:  (-1, limitMin)
+//   - already at grow cap (75%): (-1, limitMax)
+//   - already at shrink cap (25%): (-1, limitMin)
+//   - normal step: (pixel value, limitNone)
+func (h *BufPane) stepPaneRatio(grow bool) (int, paneLimit) {
 	ratios := []float64{0.25, 0.5, 0.75}
 
 	n := h.tab.GetNode(h.splitID)
 	p := n.Parent()
 	if p == nil {
-		InfoBar.Message("no other split")
-		return -1
+		// 单 pane 占满整个 tab：grow 视为已到放大极限，shrink 视为已到缩小极限
+		if grow {
+			return -1, limitMax
+		}
+		return -1, limitMin
 	}
 
 	children := p.Children()
@@ -341,8 +358,7 @@ func (h *BufPane) stepPaneRatio(grow bool) int {
 			}
 		}
 		if !found {
-			InfoBar.Message("pane already at max")
-			return -1
+			return -1, limitMax
 		}
 	} else {
 		for i := len(ratios) - 1; i >= 0; i-- {
@@ -353,8 +369,7 @@ func (h *BufPane) stepPaneRatio(grow bool) int {
 			}
 		}
 		if !found {
-			InfoBar.Message("pane already at min")
-			return -1
+			return -1, limitMin
 		}
 	}
 
@@ -364,24 +379,24 @@ func (h *BufPane) stepPaneRatio(grow bool) int {
 	if !isFirst {
 		ratio = 1.0 - target
 	}
-	return int(ratio * float64(total))
+	return int(ratio * float64(total)), limitNone
 }
 
-// GrowPane expands the current pane to the next larger ratio step.
+// GrowPane 放大当前 pane 到下一档位；到放大极限（limitMax）时溢出到 :big。
 func (h *BufPane) GrowPane() bool {
-	size := h.stepPaneRatio(true)
-	if size < 0 {
-		return false
+	size, lim := h.stepPaneRatio(true)
+	if lim == limitMax {
+		return h.BigPane()
 	}
 	h.ResizePane(size)
 	return true
 }
 
-// ShrinkPane shrinks the current pane to the next smaller ratio step.
+// ShrinkPane 缩小当前 pane 到下一档位；到缩小极限（limitMin）时溢出到 :small。
 func (h *BufPane) ShrinkPane() bool {
-	size := h.stepPaneRatio(false)
-	if size < 0 {
-		return false
+	size, lim := h.stepPaneRatio(false)
+	if lim == limitMin {
+		return h.SmallPane()
 	}
 	h.ResizePane(size)
 	return true
