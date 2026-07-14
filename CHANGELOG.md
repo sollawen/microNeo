@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Added**
 
+- `:big` promotes the active pane to its own fullscreen tab, moving it out of a split.
+- `:small` demotes the active pane: from a 2-pane tab it moves the pane to a new tab; from a single-pane tab it pulls in a pane from another tab, or opens a fresh split if no other tabs exist.
 - Resize the current pane with `Alt-=` (grow) and `Alt--` (shrink); each press snaps the split to the next of 25% / 50% / 75%. These keys can now be customized in `bindings.json`.
 
 **Changed**
