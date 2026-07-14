@@ -55,7 +55,7 @@ var bufdefaults = map[string]string{
 	"Ctrl-d":         "Duplicate|DuplicateLine",
 	"Ctrl-v":         "Paste",
 	"Ctrl-a":         "SelectAll",
-	"Ctrl-t":         "AddTab",
+	"Ctrl-t":         "HSplit",
 	"Alt-,":          "PreviousTab|LastTab",
 	"Alt-.":          "NextTab|FirstTab",
 	"Alt-=":          "GrowPane",

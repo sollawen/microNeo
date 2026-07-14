@@ -9,12 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Added**
 
-- Resize the current pane with `Alt-,` (grow) and `Alt-.` (shrink); each press snaps the split to the next of 25% / 50% / 75%.
+- Resize the current pane with `Alt-=` (grow) and `Alt--` (shrink); each press snaps the split to the next of 25% / 50% / 75%. These keys can now be customized in `bindings.json`.
 
 **Changed**
 
 - Each tab is limited to at most two panes; attempting a third split shows "already 2 panes in this tab".
-- `Alt-,` and `Alt-.` are rebound from `PreviousTab` / `NextTab` to pane grow / shrink.
+- Pane resize keys are changed from `Alt-,` / `Alt-.` (previous tab) to `Alt-=` / `Alt--` (grow / shrink). These keys and `Ctrl-t` (horizontal split) can now be customized in `bindings.json`.
 
 ## [1.1.14] - 2026-07-14
 

@@ -23,8 +23,6 @@ func InitNeoCommands() {
 	// commands：InitCommands 整表重赋值之后覆盖即可（命令执行每次查最新）。
 	BufKeyActions["AddTab"] = (*BufPane).neoAddTabAction
 	BufKeyActions["VSplit"] = (*BufPane).neoVSplitAction
-	BufKeyActions["HSplit"] = (*BufPane).neoHSplitAction
-	BindKey("Ctrl-t", "HSplit", Binder["buffer"]) // 必须在 BufKeyActions["HSplit"] 赋值之后：BindKey 解析时查一次 map 并缓存函数指针，顺序错了会绑到原生 HSplitAction（无 birth selector）
 	commands["tab"]   = Command{(*BufPane).neoNewTabCmd, buffer.FileComplete}
 	commands["vsplit"] = Command{(*BufPane).neoVSplitCmd, buffer.FileComplete}
 	commands["hsplit"] = Command{(*BufPane).neoHSplitCmd, buffer.FileComplete}
