@@ -9,7 +9,7 @@
 - micro 原生 pane↔tab 边界 action 0 个（Z1a §2.2 已 grep 全 0 命中）。
 - microNeocurrently 每个 tab 最多 2 pane（`VSplitBuf`/`HSplitBuf` 主卡口，bufpane.go:689/694）。本方案沿用此不变量，**不会突破 2 pane 上限**。
 - `TabList.AddTab(p *Tab)`（tab.go:52）/`RemoveTab(id uint64)`（tab.go:59）/`NewTabFromPane(x,y,w,h,pane Pane)`（tab.go:259）/`Tab.AddPane`/`Tab.RemovePane`（tab.go:353/373）/`Node.Unsplit()`（splits.go:467）/ `BufPane.SetTab`/`SetID`（bufpane.go:316/411）全部现成。
-- microNeo 的 Resize 补刀 pattern（command_neo.go:112-117 / :141-146）：`Tabs.AddTab` 不会内部 Resize，加完新 Tab 后必须补 `MainTab().Resize()`。本方案在 4 处「跨 TabList 写」的地方都按这个 pattern 补。
+- microNeo 的 Resize 补刀 pattern（command_neo.go:112-117 / :141-146）：`Tabs.AddTab` 内部已调 `t.Resize()`（tab.go:52），补一次 `MainTab().Resize()` 是幂等保险，确保跨 TabList 写后新旧 tab 几何都自洽。本方案在 4 处「跨 TabList 写」的地方都按这个 pattern 补。
 - micro 原生 `Tab.Panes` 添加新 pane 时 `AddPane(pane, i)` 把新 pane 插到 `i = 当前 pane idx + 1`（HSplitIndex:678-683），所以**最后一个 pane 是最近打开的**（按加入顺序）。本方案用作 "most recent" 兜底（见 §3.3）。
 
 ---
@@ -64,7 +64,7 @@
 | `NewTabFromBuffer(x,y,w,h,b)` | `internal/action/tab.go:246` | 同上但创 buffer |
 | `Tabs.AddTab(p)` | `internal/action/tab.go:52` | TabList 加 tab |
 | `Tabs.RemoveTab(id)` | `internal/action/tab.go:59` | TabList 按 pane id 删 tab |
-| `Tabs.SetActive(i)` | `internal/action/tab.go:74` | 切 active tab |
+| `TabList.SetActive(a)` | `internal/action/tab.go:152` | 切 active tab（TabList 层，区别于 `Tab.SetActive` tab.go:341）|
 | `Tab.AddPane(pane,i)` | `internal/action/tab.go:353` | Tab.Panes 插入 |
 | `Tab.RemovePane(i)` | `internal/action/tab.go:373` | Tab.Panes 删除 |
 | `Node.HSplit(bottom)` | `internal/views/splits.go:415` | split tree 加叶子（上下） |
@@ -106,8 +106,9 @@
 
 顺序约束：
 - step 1 必须在 step 2 之前：`NewTabFromPane` 调 `pane.SetTab(t)` 和 `pane.SetID(t.ID())`，一旦执行，从原 tab 视角就找不到这个 pane 了（id 已变）。
+- **step 3（摘）必须在 step 4（AddTab）之前**：`NewTabFromPane`（step 2）调 `SetID(t.ID())` 把 h.splitID 改成 newTab root id，但 h 此刻仍在原 tab.Panes。若先 AddTab，其内部 `TabList.Resize`（tab.go:54）遍历到原 tab 时 `原tab.GetNode(h.ID())` 返回 nil（原 tab split tree 里没有 newTab root id）→ `Tab.Resize` 里 `n.X`（tab.go:385）nil deref。必须先 RemovePane 把 h 从原 tab.Panes 摘掉、Unsplit 让原 tab root `flatten` 成剩余叶子的 id，再 AddTab。
 - step 3 顺序：`Tab.RemovePane(idx)` → `Node.Unsplit()`。两者都只动各自数据结构、无依赖，但**先 RemovePane 再 Unsplit** 让 `Tab.Panes` 始终不出现「指向已删除 node」的脏状态，便于调试。
-- step 5 必须在 step 4 之后：micro 原生 `Tabs.AddTab` 不内部 Resize，必须补（microNeo 已知 pattern，见 command_neo.go:112-117）。
+- step 5 必须在 step 4 之后：`Tabs.AddTab` 内部已调 `t.Resize()`（tab.go:52），但补一次 `MainTab().Resize()` 是幂等保险，确保跨 TabList 写后几何自洽（microNeo 已知 pattern，见 command_neo.go:112-117）。
 
 ### 3.2 `:big` —— PromotePane
 
@@ -140,7 +141,7 @@ func (h *BufPane) SmallPane() bool {
     if otherPane, otherTab, found := pickAbsorbTarget(); found {   // 场景 2/3
         return absorbPaneIntoTab(otherPane, otherTab)
     }
-    return h.HSplitAction()           // 场景 4：单 pane + 无其他 tab → HSplit 出空 pane
+    return h.neoHSplitAction()        // 场景 4：单 pane + 无其他 tab → 复用 :hsplit 包装（HSplit + OpenBirthSelector）
 }
 
 func extractPaneToNewTab(tab *Tab, h *BufPane, activate bool) bool {
@@ -148,20 +149,24 @@ func extractPaneToNewTab(tab *Tab, h *BufPane, activate bool) bool {
     idx       := tab.GetPane(h.splitID)
     oldSplitID := h.splitID
 
-    // step 2: reparent —— 新 tab 全屏几何，含 h 一个 pane
+    // step 2: reparent —— 新 tab 全屏几何，NewTabFromPane 调 SetTab/SetID 把 h 归属改到 newTab
     w, height  := screen.Screen.Size()
     iOffset    := config.GetInfoBarOffset()
     newTab     := NewTabFromPane(0, 0, w, height-iOffset, h)
 
-    // step 4: 入 TabList（AddTab 不内部 Resize，下面 step 5 补）
-    Tabs.AddTab(newTab)
-
-    // step 3: 从原 tab 摘
+    // step 3: 先从原 tab 摘 h + Unsplit 旧叶子，再 AddTab
+    //   顺序硬约束：AddTab 内部调 TabList.Resize 遍历所有 tab 调 Tab.Resize，
+    //   若 h 还在原 tab.Panes（且 h.ID 已被 NewTabFromPane 改成 newTab root id），
+    //   原 tab.GetNode(h.ID()) 返回 nil → Resize 里 n.X nil deref。
+    //   Unsplit 后原 tab root flatten 成剩余叶子的 id，剩余 pane.ID() 仍能 GetNode 命中。
     tab.RemovePane(idx)
     tab.GetNode(oldSplitID).Unsplit()
-    tab.SetActive(0)                  // 原 tab 剩 1 pane，激活它；新 tab 不动则自然不 active
+    tab.SetActive(0)                  // 原 tab 剩 1 pane，激活它
 
-    // step 5: Resize 补刀（microNeo 已知 pattern，command_neo.go:112-117）
+    // step 4: 入 TabList（内部已调 Resize；此时原 tab 已无 h，遍历安全）
+    Tabs.AddTab(newTab)
+
+    // step 5: Resize 补刀（幂等保险）
     newTab.Resize()
     tab.Resize()
 
@@ -180,9 +185,9 @@ func extractPaneToNewTab(tab *Tab, h *BufPane, activate bool) bool {
 
 ### 3.4 场景 2/3：`absorbPaneIntoTab` + `pickAbsorbTarget`
 
-把另一个 tab 的一个 pane 整个搬到当前 tab。需要「move pane 而不是 copy」——`HSplitIndex` 内部 `NewBufPaneFromBuf` 会创建新 BufPane，**不是 move 语义**，故走裸路径：直接调 split tree + 手动挂 BufPane。
+「move pane 而不是 copy」意味着不调 `HSplitIndex`（它第一行 `NewBufPaneFromBuf` 会造新 BufPane，是 copy 语义），而是退到底层拆开做：split tree 的 `Node.HSplit` 建新叶子 + §3.1 的 `SetTab`/`SetID` 改现有 pane 归属 + `AddPane` 登记。「手动挂 BufPane」就是 `SetTab` 改归属那一对原子，不是另造新方法。
 
-最棘手。把另一个 tab 的一个 pane 整个搬到当前 tab，需要「move pane 而不是 copy」：
+真正棘手的不是缺改归属的原子（micro 现成），而是 micro 没有「跨 tab 移 pane」的单一原子，要把 6 个原子按特定顺序串起来，还夹着「空 src tab 删除」的边缘处理——`Tabs.RemoveTab` 靠 `Panes[0].ID()` 定位（tab.go:59-77），删不掉 Panes 已空的 tab，所以 RemoveTab 的时机是本节最硬的约束。
 
 ```go
 func (h *BufPane) absorbPaneIntoTab(srcPane *BufPane, srcTab *Tab) bool {
@@ -190,87 +195,60 @@ func (h *BufPane) absorbPaneIntoTab(srcPane *BufPane, srcTab *Tab) bool {
     srcIdx := srcTab.GetPane(srcPane.splitID)
     srcSplitID := srcPane.splitID
 
-    // step 2: reparent —— srcPane.tab 指向当前 tab，srcPane.splitID 改成新 split tree 叶子 id
-    //   用 HSplitIndex 但 buffer 复用 srcPane.Buf（不开新 BufPane，move 现有 pane）
-    //   HSplitIndex 内部 NewBufPaneFromBuf 会创建新 BufPane，**不是我们想要的 move 语义**。
-    //   故走裸路径：直接调 split tree + 手动挂 BufPane：
-    newNodeID := h.tab.GetNode(h.splitID).HSplit(true)   // STVert=true → 上下分屏，新 pane 在下
-    srcPane.SetTab(h.tab)
-    srcPane.SetID(newNodeID)
-    h.tab.AddPane(srcPane, h.tab.GetPane(h.splitID)+1)
+    // step 2: reparent —— 当前 tab split tree 建下叶子，srcPane 挂过去
+    //   HSplit(true) 把 root 叶子变 STVert：原 id 保留为上叶子(h 仍在上面)，返回下叶子 newid
+    newNodeID := h.tab.GetNode(h.splitID).HSplit(true)
+    srcPane.SetTab(h.tab)                                  // 改归属
+    srcPane.SetID(newNodeID)                               // 改 splitID 指向新叶子
+    h.tab.AddPane(srcPane, h.tab.GetPane(h.splitID)+1)     // 插到 h(idx 0) 之后
 
     // step 3: 从 src tab 摘
-    srcTab.RemovePane(srcIdx)
-    srcTab.GetNode(srcSplitID).Unsplit()   // ⚠ splitID 已变（srcPane.SetID 后），但 srcTab.GetNode 用旧 ID 还找得到原节点（node 还在）
-    if len(srcTab.Panes) == 0 {
-        // 场景 2：src tab 空了 → 整 tab 删除
-        //   RemoveTab 通过 pane id 删，所以删之前要记一个 src tab 里的 pane id
-        Tabs.RemoveTab(srcTab.Panes[0].ID())   // ⚠ 此时 srcTab.Panes 已空，下面修复
+    if len(srcTab.Panes) == 1 {
+        // 场景 2：src tab 单 pane，整 tab 删除
+        //   必须在 RemovePane 之前 RemoveTab：RemoveTab 靠 Panes[0].ID() 定位，
+        //   此时 srcTab.Panes[0] 还是 srcPane(ID=newNodeID)，能匹配；
+        //   若先 RemovePane 则 Panes 空，RemoveTab 的 `len==0 continue` 跳过，删不掉
+        Tabs.RemoveTab(srcPane.ID())   // = newNodeID
+        //   tab 整个删掉，split tree + Panes 随之 GC，无需手动 Unsplit/RemovePane/SetActive
     } else {
+        // 场景 3：src tab 2 pane，摘 srcPane 留 tab
+        srcTab.RemovePane(srcIdx)
+        srcTab.GetNode(srcSplitID).Unsplit()   // 拆 srcPane 旧叶子，root flatten 成单叶子
         srcTab.SetActive(0)
+        srcTab.Resize()
     }
 
     // step 5: Resize 补刀
     h.tab.Resize()
-    srcTab.Resize()
-
-    // 若 src tab 被删，Tabs.Resize 也需要触发
     Tabs.Resize()
     return true
 }
 ```
 
-上面有几个 bug，挑出来逐个修：
+关键时序约束（逐个原子核对源码后）：
 
-1. **`RemoveTab(id)` 接受 pane id 而非 tab id**（tab.go:59-77 实现：扫 `t.List` 找 `Panes[0].ID() == id` 的 tab 删），并且要求传入的 pane 仍在某 tab 的 `Panes[0]` 里。所以必须在 `srcTab.RemovePane(srcIdx)` 之前先抓一个 src tab 的 pane id：
-   ```go
-   var srcTabID uint64
-   if len(srcTab.Panes) == 1 {   // 即将删 src tab，先记
-       srcTabID = srcTab.Panes[0].ID()
-   }
-   ```
-
-2. **`srcPane.SetID(newNodeID)` 之后**，原 `srcSplitID` 在 `srcTab` 的 split tree 里仍然指向一个孤儿 leaf（不在 srcTab.Panes 里了）。`srcTab.GetNode(srcSplitID)` 还能找到，因为 split tree 本身没动。`Unsplit()` 拆掉这个孤儿 leaf，OK。
-
-3. **`srcTab.Panes` 在 `RemovePane` 后会 panic if out of bounds**：若 `srcIdx == len(srcTab.Panes)-1`，`copy(t.Panes[i:], t.Panes[i+1:])` 是空复制；然后 `t.Panes[len-1] = nil; t.Panes = t.Panes[:len-1]`，OK 不 panic。
-
-4. **删除空 src tab 的逻辑放在 step 3 末尾**，先用 `srcTabID` 抓 id，再 RemovePane，再判断 `len(srcTab.Panes) == 0`：
-   ```go
-   var dyingTabID uint64
-   if len(srcTab.Panes) == 1 {
-       dyingTabID = srcTab.Panes[0].ID()
-   }
-   srcTab.RemovePane(srcIdx)
-   srcTab.GetNode(srcSplitID).Unsplit()
-   srcTab.SetActive(0)
-   if dyingTabID != 0 {
-       Tabs.RemoveTab(dyingTabID)
-   }
-   ```
+- **`Node.HSplit(true)` 在 root 叶子上**（splits.go:415→vHSplit:343）：root 变 STVert 内部节点，原叶子 id 保留为上叶子 hn1、新 id 返回为下叶子 hn2。所以 `h.splitID` 仍指向叶子 hn1，`GetNode(h.splitID)` 不会返回 nil，`Tab.Resize` 遍历 Panes 时 `GetNode(p.ID())` 对 h 和 srcPane 都命中叶子，不 panic。
+- **`Tabs.RemoveTab(id)` 删不掉空 tab**（tab.go:59-77 `if len(p.Panes) == 0 { continue }`）：必须趁 src tab 还有 pane 时调。场景 2 在 RemovePane 之前 RemoveTab，此时 `srcTab.Panes[0]` 还是 srcPane、`ID()==newNodeID` 能匹配自己。
+- **无需预存 `dyingTabID`**：`BufPane.ID()` 返回 `h.splitID`（bufpane.go:406），`SetID(newNodeID)` 后 srcPane.ID() 即 newNodeID。直接在 RemovePane 之前调 `RemoveTab(srcPane.ID())`，当前值即匹配值。文档早期方案想预存 dyingTabID，但若在 SetID 之后抓会抓到 newNodeID、RemovePane 之后再 RemoveTab 又遇空 tab 被跳过，两头落空。
+- **`Unsplit()` 要求 `n.parent != nil`**（splits.go:469）：场景 3 src tab 2 pane 时 srcSplitID 是非 root 叶子，正常拆；场景 2 单 pane 时 srcSplitID 是 root 叶子（parent==nil），Unsplit 返回 false 是 no-op——但场景 2 走 RemoveTab 整 tab 删，split tree 随 tab 一起 GC，无需 Unsplit。
+- **`SetID` 不动 split tree**：场景 3 里 `srcPane.SetID(newNodeID)` 只改 pane 字段，srcTab split tree 里原 srcSplitID 叶子还在，`GetNode(srcSplitID)` 仍按树遍历找到它（splits.go:130），`Unsplit` 才能拆掉。
 
 **`pickAbsorbTarget` —— 选源 pane**
 
 ```go
 func pickAbsorbTarget() (*BufPane, *Tab, bool) {
-    // 遍历其他 tab，找「最近被激活的 pane」
-    // 兜底（lastActive 未实现或全 0）：用 tab.Panes 的最后一个 pane（最近打开）
-    var bestPane *BufPane
-    var bestTab *Tab
-    var bestTime time.Time
-    for _, t := range Tabs.List {
+    // 取 Tabs.List 末位非当前 tab 的 tab，再取其 Panes 末位 pane（最近打开）。
+    // 简化启发式：HSplitIndex 总 append 到末尾，末位 pane = 最近打开。
+    // 未来升级为 lastActive 排序（给 BufPane 加 lastActive 字段，SetActive(true) 时更新取 max）。
+    for i := len(Tabs.List) - 1; i >= 0; i-- {
+        t := Tabs.List[i]
         if t == MainTab() { continue }   // 跳过当前 tab
-        for _, p := range t.Panes {
-            bp, ok := p.(*BufPane)
-            if !ok { continue }
-            // 简化版：用 tab.Panes 顺序，最后一个 pane 视为最近；lastActive 全实现后再替换
-            if bestPane == nil {
-                bestPane = bp
-                bestTab = t
-                bestTime = time.Now()   // 占位，未来换成 lastActive
-            }
-        }
+        if len(t.Panes) == 0 { continue }
+        bp, ok := t.Panes[len(t.Panes)-1].(*BufPane)
+        if !ok { continue }
+        return bp, t, true
     }
-    return bestPane, bestTab, bestPane != nil
+    return nil, nil, false
 }
 ```
 
@@ -331,9 +309,9 @@ func (h *BufPane) SmallCmd(args []string) { h.SmallPane() }
 
 1. **`:big` 在单 pane tab 误触**：场景 2/3/4 入口即被 `len(tab.Panes) < 2` 拦下，提示 "pane already at max"（与 Z0 Alt-= 文案对齐风格）。若未来想用 `:big!` 强制（破坏不变量），需另开方案。
 
-2. **`:small` 场景 4 完全等价 `HSplit`**：直接 `return h.HSplitAction()`，确保「单 pane 无其他 tab 时」行为与原生 Ctrl-t 一致，**不绕过主卡口**（主卡口允许单 pane → 2 pane）。若主卡口未来升级（例如禁止单 pane tab），`:small` 场景 4 会同步受影响，符合预期。
+2. **`:small` 场景 4 复用 `:hsplit` 包装**：`return h.neoHSplitAction()`（HSplit + OpenBirthSelector），不是裸 `h.HSplitAction()`。裸 HSplitAction 不开 birth selector、不置 `isNoName`，新 pane 退出时也走不到 quit selector——场景 4 必须和 `:hsplit` 命令走同一条包装路径。**不绕过主卡口**（neoHSplitAction 内 `len>=2` 卡口与 HSplitBuf 一致，允许单 pane → 2 pane）。若主卡口未来升级（例如禁止单 pane tab），`:small` 场景 4 会同步受影响，符合预期。
 
-3. **`tab.SetActive(0)` 兜底**：从原 tab 摘完 pane 后 `tab.active` 可能越界（RemovePane 不维护）。`SetActive(0)` 在 `len(tab.Panes) >= 1` 时合法——本方案所有调用点都保证 `len >= 1`（摘完剩 1 / 摘完剩 ≥1）。
+3. **`tab.SetActive(0)` 兜底**：从原 tab 摘完 pane 后 `tab.active` 可能越界（RemovePane 不维护）。`SetActive(0)` 在 `len(tab.Panes) >= 1` 时合法——本方案所有 SetActive 调用点都保证 `len >= 1`：`extractPaneToNewTab` 摘完剩 1、`absorbPaneIntoTab` 场景 3 摘完剩 1；场景 2 走 `RemoveTab` 整 tab 删除提前 return，不在空 Panes 上调 SetActive。
 
 4. **`pickAbsorbTarget` 用 tab.Panes 末位的简化**：场景 3（tab1 有 2 pane：paneB + paneC）时取末位 = paneC（最近打开）。如果用户先开 paneB、再开 paneC 但实际工作一直在 paneB，按本方案会吞 paneC，与「最近修改」语义不符。**这是已知简化**，对应 §3.3 的兜底逻辑。完美方案是给 BufPane 加 `lastActive time.Time`（Z1-扩展任务），`SetActive(true)` 时更新，`pickAbsorbTarget` 按 `lastActive` 排序取 max——实施成本 ~10 行，不在 Z1c 范围。
 
@@ -345,7 +323,7 @@ func (h *BufPane) SmallCmd(args []string) { h.SmallPane() }
 
 8. **buffer 共享语义**：本方案搬的是 **pane**（BufPane 实例），不是 buffer。原 src tab 的 pane 被整个搬到 dst tab，buffer 跟着 pane 走。src tab 里如果还有其他 pane 共享同一 buffer（少见但可能），不会受影响——本方案不动其他 pane。
 
-9. **Pane.SetID 改 splitID 后，srcTab 内的旧 leaf node 是孤儿**：`Unsplit()` 拆的是旧 ID 在 split tree 里指向的 leaf。`GetNode(oldSplitID)` 此时仍能找到（split tree 没动），拆完旧 leaf 就消失，split tree 自洽。
+9. **Pane.SetID 改 splitID 后，srcTab 内的旧 leaf node 是孤儿**：`SetID` 只改 pane 字段、不动 split tree，`GetNode(oldSplitID)` 仍按树遍历找到原叶子（splits.go:130）。场景 3 该叶子是非 root（`parent != nil`），`Unsplit()` 正常拆掉、root flatten 成单叶自洽。场景 2 单 pane src tab 的旧叶子是 root（`parent == nil`），`Unsplit()` 返回 false 是 no-op——但场景 2 走 `RemoveTab` 整 tab 删除，split tree 随 tab 对象一起 GC，旧叶子不残留。
 
 ---
 

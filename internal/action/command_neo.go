@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/micro-editor/micro/v2/internal/buffer"
+	"github.com/micro-editor/micro/v2/internal/config"
 	"github.com/micro-editor/micro/v2/internal/screen"
 	"github.com/micro-editor/micro/v2/internal/views"
 	"github.com/micro-editor/tcell/v2"
@@ -26,6 +27,12 @@ func InitNeoCommands() {
 	commands["tab"]   = Command{(*BufPane).neoNewTabCmd, buffer.FileComplete}
 	commands["vsplit"] = Command{(*BufPane).neoVSplitCmd, buffer.FileComplete}
 	commands["hsplit"] = Command{(*BufPane).neoHSplitCmd, buffer.FileComplete}
+
+	// :big / :small pane 原语
+	BufKeyActions["BigPane"]   = (*BufPane).BigPane
+	BufKeyActions["SmallPane"] = (*BufPane).SmallPane
+	commands["big"]   = Command{(*BufPane).BigCmd, nil}
+	commands["small"] = Command{(*BufPane).SmallCmd, nil}
 }
 
 // InitNeoBindings 注册 microNeo 的键位覆盖。
@@ -95,6 +102,134 @@ func (h *BufPane) QuitNeo() bool {
 // 「保存? y/n/esc」，y=保存换入、n=丢弃修改换入、esc=取消换入。
 func (h *BufPane) FileCmd(args []string) {
 	h.openBrowseSelector()
+}
+
+// ---- :big / :small ----
+
+// BigPane 把活动 pane 提升为独立全屏 tab（promote），新 tab 成为焦点。
+// 单 pane 时 no-op：当前 tab 已是「最大」状态，无需提升。
+func (h *BufPane) BigPane() bool {
+	tab := h.tab
+	if len(tab.Panes) < 2 {
+		InfoBar.Message("pane already at max")
+		return false
+	}
+	return extractPaneToNewTab(tab, h, true)
+}
+
+// SmallPane 路由：按当前 pane 数和其他 tab 存在性分发到对应场景。
+//   场景 1（≥2 pane）：把活动 pane demote 到新单 pane tab，原 tab 保持 active。
+//   场景 2/3（1 pane + 有其他 tab）：从另一个 tab 吞一个 pane 进当前 tab（HSplit）。
+//   场景 4（1 pane + 无其他 tab）：等价原生 HSplit，开一个空 pane 与当前 pane 配对。
+func (h *BufPane) SmallPane() bool {
+	tab := h.tab
+	if len(tab.Panes) >= 2 {
+		return extractPaneToNewTab(tab, h, false)
+	}
+	if otherPane, otherTab, found := pickAbsorbTarget(); found {
+		return h.absorbPaneIntoTab(otherPane, otherTab)
+	}
+	// 场景 4：单 pane + 无其他 tab → 复用 :hsplit 包装（HSplit + OpenBirthSelector），
+	// 不是裸 h.HSplitAction()：后者不开 birth selector、不置 isNoName，
+	// 新 pane 退出时也走不到 quit selector（QuitNeo 靠 isNoName 分流）。
+	return h.neoHSplitAction()
+}
+
+// BigCmd / SmallCmd 是 MakeCommand 签名的薄包装，与 QuitNeoCmd 同模式。
+func (h *BufPane) BigCmd(args []string)   { h.BigPane() }
+func (h *BufPane) SmallCmd(args []string) { h.SmallPane() }
+
+// extractPaneToNewTab 把指定 pane 从原 tab 摘下，装进新建的全屏单 pane tab。
+// activate=true → 新 tab 成为焦点（:big）；activate=false → 原 tab 保持焦点（:small）。
+// 步骤：capture → reparent → 从原 tab 摘 → 入 TabList → Resize 补刀 → 切焦点。
+// capture 必须在 reparent 之前：NewTabFromPane 调 SetTab/SetID 会改写 pane.id。
+func extractPaneToNewTab(tab *Tab, h *BufPane, activate bool) bool {
+	// step 1: capture
+	idx := tab.GetPane(h.splitID)
+	oldSplitID := h.splitID
+
+	// step 2: reparent——新 tab 全屏几何，NewTabFromPane 调 SetTab/SetID 把 h 归属改到 newTab
+	w, height := screen.Screen.Size()
+	iOffset := config.GetInfoBarOffset()
+	newTab := NewTabFromPane(0, 0, w, height-iOffset, h)
+
+	// step 3: 先从原 tab 摘 h + Unsplit 旧叶子，再 AddTab
+	// 顺序硬约束：AddTab 内部调 TabList.Resize 遍历所有 tab 调 Tab.Resize，
+	// 若 h 还在原 tab.Panes（且 h.ID 已被 NewTabFromPane 改成 newTab root id），
+	// 原 tab.GetNode(h.ID()) 返回 nil → Resize 里 n.X nil deref。
+	// Unsplit 后原 tab root flatten 成剩余叶子的 id，剩余 pane.ID() 仍能 GetNode 命中。
+	tab.RemovePane(idx)
+	tab.GetNode(oldSplitID).Unsplit()
+	tab.SetActive(0)
+
+	// step 4: 入 TabList（内部已调 Resize；此时原 tab 已无 h，遍历安全）
+	Tabs.AddTab(newTab)
+
+	// step 5: Resize 补刀（幂等保险）
+	newTab.Resize()
+	tab.Resize()
+
+	if activate {
+		Tabs.SetActive(len(Tabs.List) - 1)
+	}
+	return true
+}
+
+// absorbPaneIntoTab 把 srcTab 里的 srcPane 移入当前 tab，HSplit 出下叶子挂 srcPane。
+// 场景 2：src tab 单 pane，整 tab 删除（RemoveTab 在 RemovePane 之前：RemoveTab
+// 靠 Panes[0].ID() 定位，若先 RemovePane 则 Panes 空，RemoveTab 的 len==0 continue 跳过）。
+// 场景 3：src tab ≥2 pane，摘 pane 留 tab，拆分旧叶子，root flatten 成单叶。
+// 不调 HSplitIndex（copy 语义），而是底层 SetTab/SetID 改归属，是 move 语义。
+func (h *BufPane) absorbPaneIntoTab(srcPane *BufPane, srcTab *Tab) bool {
+	// step 1: capture src
+	srcIdx := srcTab.GetPane(srcPane.splitID)
+	srcSplitID := srcPane.splitID
+
+	// step 2: reparent——当前 tab split tree 建下叶子，srcPane 挂过去
+	// HSplit(true) 把 root 叶子变 STVert：原 id 保留为上叶子(h)，返回下叶子 newNodeID
+	newNodeID := h.tab.GetNode(h.splitID).HSplit(true)
+	srcPane.SetTab(h.tab)
+	srcPane.SetID(newNodeID)
+	h.tab.AddPane(srcPane, h.tab.GetPane(h.splitID)+1)
+
+	if len(srcTab.Panes) == 1 {
+		// 场景 2：src tab 单 pane，整 tab 删除
+		// 必须在 RemovePane 之前 RemoveTab：此时 Panes[0] 还是 srcPane，ID()==newNodeID 能匹配自己
+		Tabs.RemoveTab(srcPane.ID())
+	} else {
+		// 场景 3：src tab ≥2 pane，摘 srcPane 留 tab
+		srcTab.RemovePane(srcIdx)
+		srcTab.GetNode(srcSplitID).Unsplit()
+		srcTab.SetActive(0)
+		srcTab.Resize()
+	}
+
+	// step 5: Resize 补刀
+	h.tab.Resize()
+	Tabs.Resize()
+	return true
+}
+
+// pickAbsorbTarget 从非当前 tab 中选一个 pane 作为 absorb 源。
+// 简化启发式：取 Tabs.List 末位非当前 tab 的 tab，再取其 Panes 末位 pane（最近打开）。
+// HSplitIndex 总 append 到末尾，末位 pane = 最近打开，符合直觉。
+// 未来可升级为 lastActive 排序（BufPane 加 lastActive 字段，SetActive(true) 时更新取 max）。
+func pickAbsorbTarget() (*BufPane, *Tab, bool) {
+	for i := len(Tabs.List) - 1; i >= 0; i-- {
+		t := Tabs.List[i]
+		if t == MainTab() {
+			continue
+		}
+		if len(t.Panes) == 0 {
+			continue
+		}
+		bp, ok := t.Panes[len(t.Panes)-1].(*BufPane)
+		if !ok {
+			continue
+		}
+		return bp, t, true
+	}
+	return nil, nil, false
 }
 
 // ---- spawn 包装：捕获父目录 → 调原生 spawn → 对新 pane 开 birth selector ----
