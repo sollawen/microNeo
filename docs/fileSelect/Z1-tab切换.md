@@ -14,3 +14,8 @@
 - "alt-_", 当前tab0 变成有两个上下的pane
 	- 上面的是paneA，因为paneA缩小了
 	- 下面的是tab1里面的那个pane
+
+## 需要验证的micr的功能
+
+- 当前tab里有两个pane。能不能把其中一个pane移出去变成另一个tab？
+- 当前有两个tab，各自里面有一个pane。能不能把两个tab合并成一个tab，里面有两个split 的pane？
