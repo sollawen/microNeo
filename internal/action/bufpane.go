@@ -687,11 +687,25 @@ func (h *BufPane) HSplitIndex(buf *buffer.Buffer, bottom bool) *BufPane {
 
 // VSplitBuf opens the given buffer in a new vertical split.
 func (h *BufPane) VSplitBuf(buf *buffer.Buffer) *BufPane {
+	// 单 tab 最多 2 pane：命中时返回 h 而非 nil。OpenLogBuf 会对接收 pane 调
+	// CursorEnd()，返回 nil 会空指针崩溃；返回当前 pane 仅在「2-pane 时误调
+	// openlog」这一极边缘场景产生轻微语义偏差，不崩溃，可接受。
+	if h.tab != nil && len(h.tab.Panes) >= 2 {
+		InfoBar.Message("already 2 panes in this tab")
+		return h
+	}
 	return h.VSplitIndex(buf, h.Buf.Settings["splitright"].(bool))
 }
 
 // HSplitBuf opens the given buffer in a new horizontal split.
 func (h *BufPane) HSplitBuf(buf *buffer.Buffer) *BufPane {
+	// 单 tab 最多 2 pane：命中时返回 h 而非 nil。OpenLogBuf 会对接收 pane 调
+	// CursorEnd()，返回 nil 会空指针崩溃；返回当前 pane 仅在「2-pane 时误调
+	// openlog」这一极边缘场景产生轻微语义偏差，不崩溃，可接受。
+	if h.tab != nil && len(h.tab.Panes) >= 2 {
+		InfoBar.Message("already 2 panes in this tab")
+		return h
+	}
 	return h.HSplitIndex(buf, h.Buf.Settings["splitbottom"].(bool))
 }
 

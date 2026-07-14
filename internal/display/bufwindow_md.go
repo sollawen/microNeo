@@ -32,6 +32,10 @@ func dbgLog(format string, args ...any) {
 	f.WriteString(ts + " " + fmt.Sprintf(format, args...) + "\n")
 }
 
+// DbgLog 把 dbgLog 暴露给其他包（如 action）复用同一份诊断日志（/tmp/microNeo_debug.log），
+// 不另起 sink。同样只在 util.Debug=="ON"（make build-dbg）时写入。
+func DbgLog(format string, args ...any) { dbgLog(format, args...) }
+
 // segRangeStr 返回 segment 的 [Start..End] 字符串，nil 返回 "nil"
 func segRangeStr(s *md.Segment) string {
 	if s == nil {

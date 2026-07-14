@@ -5,6 +5,7 @@ import (
 
 	"github.com/micro-editor/micro/v2/internal/buffer"
 	"github.com/micro-editor/micro/v2/internal/screen"
+	"github.com/micro-editor/micro/v2/internal/views"
 	"github.com/micro-editor/tcell/v2"
 )
 
@@ -35,6 +36,11 @@ func InitNeoCommands() {
 func InitNeoBindings() {
 	BufKeyActions["QuitNeo"] = (*BufPane).QuitNeo
 	BindKey("Ctrl-q", "QuitNeo", Binder["buffer"])
+
+	BufKeyActions["GrowPane"]   = (*BufPane).GrowPane
+	BufKeyActions["ShrinkPane"] = (*BufPane).ShrinkPane
+	BindKey("Alt-,", "GrowPane",   Binder["buffer"])
+	BindKey("Alt-.", "ShrinkPane", Binder["buffer"])
 	// F4 / F10 留原生（整体移除 F 键默认绑定属独立清理任务，非本任务）。
 }
 
@@ -112,12 +118,20 @@ func (h *BufPane) neoAddTabAction() bool {
 	return r
 }
 func (h *BufPane) neoVSplitAction() bool {
+	if len(h.tab.Panes) >= 2 {
+		InfoBar.Message("already 2 panes in this tab")
+		return false
+	}
 	dir := birthDir(h)
 	r := h.VSplitAction()
 	OpenBirthSelector(MainTab().CurPane(), dir)
 	return r
 }
 func (h *BufPane) neoHSplitAction() bool {
+	if len(h.tab.Panes) >= 2 {
+		InfoBar.Message("already 2 panes in this tab")
+		return false
+	}
 	dir := birthDir(h)
 	r := h.HSplitAction()
 	OpenBirthSelector(MainTab().CurPane(), dir)
@@ -132,12 +146,114 @@ func (h *BufPane) neoNewTabCmd(args []string) {
 	OpenBirthSelector(np, dir)
 }
 func (h *BufPane) neoVSplitCmd(args []string) {
+	if len(h.tab.Panes) >= 2 {
+		InfoBar.Message("already 2 panes in this tab")
+		return
+	}
 	dir := birthDir(h)
 	h.VSplitCmd(args)
 	OpenBirthSelector(MainTab().CurPane(), dir)
 }
 func (h *BufPane) neoHSplitCmd(args []string) {
+	if len(h.tab.Panes) >= 2 {
+		InfoBar.Message("already 2 panes in this tab")
+		return
+	}
 	dir := birthDir(h)
 	h.HSplitCmd(args)
 	OpenBirthSelector(MainTab().CurPane(), dir)
+}
+
+// stepPaneRatio moves the current pane to the next discrete ratio step.
+// grow=true: increase pane share; grow=false: decrease pane share.
+// Ratios are {0.25, 0.5, 0.75}, compared in pixel space (see stepPixel).
+// Returns the new target pixel size, or -1 if already at boundary.
+func (h *BufPane) stepPaneRatio(grow bool) int {
+	ratios := []float64{0.25, 0.5, 0.75}
+
+	n := h.tab.GetNode(h.splitID)
+	p := n.Parent()
+	if p == nil {
+		InfoBar.Message("no other split")
+		return -1
+	}
+
+	children := p.Children()
+	isFirst := len(children) > 0 && children[0] == n
+
+	var cur, total int
+	if p.Kind == views.STVert {
+		cur = n.H
+		total = p.H
+	} else {
+		cur = n.W
+		total = p.W
+	}
+
+	// 档位用「像素」比较，不用比例 cur/total：pane 尺寸是整数像素，按 resize 实际产生的
+	// 截断方式算每个档位对应的像素，cur 就能精确命中某个档位，无需 epsilon 容差。resize 对
+	// 第一个子节点取 int(ratio*total)（截断），对第二个是 total - int((1-ratio)*total)，
+	// stepPixel 必须照搬这套——否则 cur 和档位像素会差 1，导致 grow/shrink 卡在原地。
+	stepPixel := func(r float64) int {
+		if isFirst {
+			return int(r * float64(total))
+		}
+		return total - int((1-r)*float64(total))
+	}
+
+	var target float64
+	found := false
+	if grow {
+		for _, s := range ratios {
+			if stepPixel(s) > cur {
+				target = s
+				found = true
+				break
+			}
+		}
+		if !found {
+			InfoBar.Message("pane already at max")
+			return -1
+		}
+	} else {
+		for i := len(ratios) - 1; i >= 0; i-- {
+			if stepPixel(ratios[i]) < cur {
+				target = ratios[i]
+				found = true
+				break
+			}
+		}
+		if !found {
+			InfoBar.Message("pane already at min")
+			return -1
+		}
+	}
+
+	// size 是传给 ResizeSplit 的「第一个子节点」尺寸：当前 pane 若是第一个直接用 target，
+	// 若是第二个取 1-target（vResizeSplit/hResizeSplit 恒把 c1=children[0] 设成 size）。
+	ratio := target
+	if !isFirst {
+		ratio = 1.0 - target
+	}
+	return int(ratio * float64(total))
+}
+
+// GrowPane expands the current pane to the next larger ratio step.
+func (h *BufPane) GrowPane() bool {
+	size := h.stepPaneRatio(true)
+	if size < 0 {
+		return false
+	}
+	h.ResizePane(size)
+	return true
+}
+
+// ShrinkPane shrinks the current pane to the next smaller ratio step.
+func (h *BufPane) ShrinkPane() bool {
+	size := h.stepPaneRatio(false)
+	if size < 0 {
+		return false
+	}
+	h.ResizePane(size)
+	return true
 }

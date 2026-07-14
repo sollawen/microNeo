@@ -122,6 +122,9 @@ func (n *Node) Children() []*Node {
 	return n.children
 }
 
+// Parent returns this node's parent, or nil if it is the root.
+func (n *Node) Parent() *Node { return n.parent }
+
 // GetNode returns the node with the given id in the tree of children
 // that this node has access to or nil if the node with that id cannot be found
 func (n *Node) GetNode(id uint64) *Node {

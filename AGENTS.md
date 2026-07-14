@@ -6,7 +6,14 @@
 - 用户配置目录统一在 `$XDG_CONFIG_HOME/microNeo`（未设置时 fallback 到 `~/.config/microNeo`），启动时可用 `--config <dir>` 临时覆盖
 - `docs/`目录是本项目所有设计方案和计划
 - **代码注释不引用文档**：注释必须自包含，用散文讲清「为什么」，不依赖任何外部文档即可读懂。**禁止在代码注释里写设计文档的文件名或章节号**
-- MD 诊断日志：`make build-dbg` 构建时写到 `/tmp/microNeo_debug.log`（对齐 micro 原生 `util.Debug` 开关）；`make build` / `make build-quick` 默认 OFF，不写日志。日志开关在 `internal/display/bufwindow_md.go` 的 `dbgLog`
+
+## Debug
+- microNeo 有统一的 debug 日志机制，**不要自己另写一套**（自建日志文件、自建 print 等），一律复用下面这个
+- 开关：对齐 micro 原生 `util.Debug`。`make build-dbg` 编译时注入 `util.Debug=ON`，运行时追加写 `/tmp/microNeo_debug.log`；`make build` / `make build-quick` 默认 `OFF`，不写日志、零开销
+- 写日志（函数都在 `internal/display/bufwindow_md.go`，内部先判 `util.Debug=="ON"` 才写）：
+  - `display` 包内：直接用 `dbgLog(format, args...)`
+  - 其他包（如 `action`）：用导出的 `display.DbgLog(format, args...)`——`dbgLog` 的透传包装，共用同一个 sink
+- 所有层（MD 渲染、分屏 resize 等）写进同一个文件，排查时用 `grep` 按各自前缀过滤
 
 ---
 
