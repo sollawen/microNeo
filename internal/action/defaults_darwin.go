@@ -55,6 +55,8 @@ var bufdefaults = map[string]string{
 	"Ctrl-t":         "AddTab",
 	"Alt-,":          "PreviousTab|LastTab",
 	"Alt-.":          "NextTab|FirstTab",
+	"Alt-=":          "GrowPane",
+	"Alt--":          "ShrinkPane",
 	"Home":           "StartOfTextToggle",
 	"End":            "EndOfLine",
 	"CtrlHome":       "CursorStart",

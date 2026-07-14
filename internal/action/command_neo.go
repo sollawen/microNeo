@@ -37,10 +37,6 @@ func InitNeoBindings() {
 	BufKeyActions["QuitNeo"] = (*BufPane).QuitNeo
 	BindKey("Ctrl-q", "QuitNeo", Binder["buffer"])
 
-	BufKeyActions["GrowPane"]   = (*BufPane).GrowPane
-	BufKeyActions["ShrinkPane"] = (*BufPane).ShrinkPane
-	BindKey("Alt-=", "GrowPane",   Binder["buffer"])
-	BindKey("Alt--", "ShrinkPane", Binder["buffer"])
 	// F4 / F10 留原生（整体移除 F 键默认绑定属独立清理任务，非本任务）。
 }
 
