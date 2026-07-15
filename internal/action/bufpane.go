@@ -251,7 +251,7 @@ type BufPane struct {
 	searchOrig buffer.Loc
 
 	// The pane may not yet be fully initialized after its creation
-	// since we may not know the window geometry yet. In such case we finish
+	// since we may not know the window rect yet. In such case we finish
 	// its initialization a bit later, after the initial resize.
 	initialized bool
 
@@ -288,7 +288,7 @@ func NewBufPaneFromBuf(buf *buffer.Buffer, tab *Tab) *BufPane {
 	initMDConfig(buf, w)
 
 	h := newBufPane(buf, w, tab)
-	// Postpone finishing initializing the pane until we know the actual geometry
+	// Postpone finishing initializing the pane until we know the actual rect
 	// of the buf window.
 	return h
 }

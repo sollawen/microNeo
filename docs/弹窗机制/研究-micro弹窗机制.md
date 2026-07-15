@@ -13,7 +13,7 @@
 
 **micro 没有任何弹窗框架——连一点基础设施都没有。** 整个 UI 架构是"一棵分屏树（tile 树）"，树上没有"浮在树之上的节点"这种东西。所有看起来像弹窗的交互（确认框、消息提示、命令输入），micro 都是用 InfoBar 切换状态标志位来"假装"的，没有独立的弹出窗口。
 
-**对 SelectPane 和未来所有浮窗的含义**：我们基本 on our own，micro 能给的只有"方法签名约定"和"路由范式"，几何计算 / z-order / 事件隔离 / 生命周期全得自建。这不是"没用 micro 的成熟框架"，而是"micro 在这个领域没有成熟框架可用"。
+**对 SelectPane 和未来所有浮窗的含义**：我们基本 on our own，micro 能给的只有"方法签名约定"和"路由范式"，rect计算 / z-order / 事件隔离 / 生命周期全得自建。这不是"没用 micro 的成熟框架"，而是"micro 在这个领域没有成熟框架可用"。
 
 ---
 
@@ -142,7 +142,7 @@ micro 属于第二类。指望它的 Pane 接口服务弹窗，就像指望 tmux
 
 | 能力 | micro 提供？ | SelectPane 当前怎么解决 |
 |---|---|---|
-| 浮窗几何计算（位置、大小、自适应展开） | ❌ | 自己写了 100+ 行（selectpane.go 的 Open 方法） |
+| 浮窗rect计算（位置、大小、自适应展开） | ❌ | 自己写了 100+ 行（selectpane.go 的 Open 方法） |
 | z-order 管理（盖在谁上面） | ❌ | 靠 "Display 调用顺序" 手动保证（D15 在 notePane 末尾追加） |
 | 事件隔离（开着时不让底层收键） | ❌ | 靠 hook 里 early return 手动保证 |
 | 生命周期（Open / Close / IsOpen） | ❌ | 每个弹窗自己管 |
@@ -156,11 +156,11 @@ micro 属于第二类。指望它的 Pane 接口服务弹窗，就像指望 tmux
 
 ### 7.1 坏消息：没有便车可搭
 
-micro 在弹窗领域没有成熟框架，SelectPane 改进时**不能指望"用上 micro 的 X 框架"**——因为 X 不存在。几何计算、z-order、事件隔离都得我们自己设计、自己维护。这部分工作量是逃不掉的。
+micro 在弹窗领域没有成熟框架，SelectPane 改进时**不能指望"用上 micro 的 X 框架"**——因为 X 不存在。rect计算、z-order、事件隔离都得我们自己设计、自己维护。这部分工作量是逃不掉的。
 
 ### 7.2 好消息：当前设计已被验证是合理的
 
-SelectPane 当前的设计**不实现 Pane 接口、不嵌入 BufPane、自己管几何和生命周期**——这种"自给自足"的取向，正是因为 micro 没给弹窗任何基础设施。**这不是"没用 micro 的成熟框架"，而是"micro 在这个领域没有成熟框架可用"**。
+SelectPane 当前的设计**不实现 Pane 接口、不嵌入 BufPane、自己管rect和生命周期**——这种"自给自足"的取向，正是因为 micro 没给弹窗任何基础设施。**这不是"没用 micro 的成熟框架"，而是"micro 在这个领域没有成熟框架可用"**。
 
 换句话说，SelectPane 没有错过任何本可利用的东西。它的设计是适应现实（micro 无弹窗框架）的正确选择，不是浪费。
 
@@ -195,12 +195,12 @@ type FloatingWidget interface {
     IsOpen() bool
 }
 
-// + 一个统一的几何计算工具（位置/自适应展开方向）
+// + 一个统一的rect计算工具（位置/自适应展开方向）
 // + 一个统一的 z-order 注册表（画在哪个层级）
 // + 一个统一的宿主转发 hook（任意 pane 一行接入）
 ```
 
-**何时做**：当浮窗数量 ≥ 3 个，且每个都在重复写几何计算和 hook 接线时。现在只有 SelectPane 一个，做这个属于 YAGNI（过早抽象），先按 D15 把第二个宿主接上再说。
+**何时做**：当浮窗数量 ≥ 3 个，且每个都在重复写rect计算和 hook 接线时。现在只有 SelectPane 一个，做这个属于 YAGNI（过早抽象），先按 D15 把第二个宿主接上再说。
 
 ---
 
@@ -231,7 +231,7 @@ type FloatingWidget interface {
 | 文档 | 回答什么 | 核心论点 |
 |---|---|---|
 | `研究-microPane机制.md` | micro **有**什么 pane 框架？ | Pane 接口是 tile 瓦片窗的成熟抽象，BufPane/TermPane 是真正用户；InfoPane/NotePane 是"碰巧满足"的浮层；SelectPane 不实现它是对的 |
-| **本文**（`研究-micro弹窗机制.md`） | micro **没有**什么框架？ | micro 没有任何弹窗框架，连 YNPrompt 都是 InfoBar 状态标志位假装的；SelectPane 和未来所有浮窗都得自建几何/z-order/事件隔离，micro 只给签名约定和路由范式 |
+| **本文**（`研究-micro弹窗机制.md`） | micro **没有**什么框架？ | micro 没有任何弹窗框架，连 YNPrompt 都是 InfoBar 状态标志位假装的；SelectPane 和未来所有浮窗都得自建rect/z-order/事件隔离，micro 只给签名约定和路由范式 |
 
 两篇合起来回答一个完整问题：**"SelectPane 改进时，micro 的哪些东西能用、哪些不能用？"**
 - Pane 接口不能用（见 Pane 机制研究 §9.4）

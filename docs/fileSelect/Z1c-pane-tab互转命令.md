@@ -9,7 +9,7 @@
 - micro 原生 pane↔tab 边界 action 0 个（Z1a §2.2 已 grep 全 0 命中）。
 - microNeocurrently 每个 tab 最多 2 pane（`VSplitBuf`/`HSplitBuf` 主卡口，bufpane.go:689/694）。本方案沿用此不变量，**不会突破 2 pane 上限**。
 - `TabList.AddTab(p *Tab)`（tab.go:52）/`RemoveTab(id uint64)`（tab.go:59）/`NewTabFromPane(x,y,w,h,pane Pane)`（tab.go:259）/`Tab.AddPane`/`Tab.RemovePane`（tab.go:353/373）/`Node.Unsplit()`（splits.go:467）/ `BufPane.SetTab`/`SetID`（bufpane.go:316/411）全部现成。
-- microNeo 的 Resize 补刀 pattern（command_neo.go:112-117 / :141-146）：`Tabs.AddTab` 内部已调 `t.Resize()`（tab.go:52），补一次 `MainTab().Resize()` 是幂等保险，确保跨 TabList 写后新旧 tab 几何都自洽。本方案在 4 处「跨 TabList 写」的地方都按这个 pattern 补。
+- microNeo 的 Resize 补刀 pattern（command_neo.go:112-117 / :141-146）：`Tabs.AddTab` 内部已调 `t.Resize()`（tab.go:52），补一次 `MainTab().Resize()` 是幂等保险，确保跨 TabList 写后新旧 tab rect都自洽。本方案在 4 处「跨 TabList 写」的地方都按这个 pattern 补。
 - micro 原生 `Tab.Panes` 添加新 pane 时 `AddPane(pane, i)` 把新 pane 插到 `i = 当前 pane idx + 1`（HSplitIndex:678-683），所以**最后一个 pane 是最近打开的**（按加入顺序）。本方案用作 "most recent" 兜底（见 §3.3）。
 
 ---
@@ -72,7 +72,7 @@
 | `Node.Unsplit()` | `internal/views/splits.go:467` | split tree 删叶子 |
 | `BufPane.SetTab(t)` | `internal/action/bufpane.go:316` | 改 pane 归属 |
 | `BufPane.SetID(id)` | `internal/action/bufpane.go:411` | 改 pane splitID |
-| `Tab.Resize()` | `internal/action/tab.go:380` | panes 对齐到 split tree 几何 |
+| `Tab.Resize()` | `internal/action/tab.go:380` | panes 对齐到 split tree rect |
 | `HSplitAction()` | `internal/action/actions.go:2032` | 场景 4 一行调用 |
 
 `views/splits.go` 的 `Parent()`（splits.go:126）已导出，不需加访问器（Z0 §3.3 加过）。
@@ -108,7 +108,7 @@
 - step 1 必须在 step 2 之前：`NewTabFromPane` 调 `pane.SetTab(t)` 和 `pane.SetID(t.ID())`，一旦执行，从原 tab 视角就找不到这个 pane 了（id 已变）。
 - **step 3（摘）必须在 step 4（AddTab）之前**：`NewTabFromPane`（step 2）调 `SetID(t.ID())` 把 h.splitID 改成 newTab root id，但 h 此刻仍在原 tab.Panes。若先 AddTab，其内部 `TabList.Resize`（tab.go:54）遍历到原 tab 时 `原tab.GetNode(h.ID())` 返回 nil（原 tab split tree 里没有 newTab root id）→ `Tab.Resize` 里 `n.X`（tab.go:385）nil deref。必须先 RemovePane 把 h 从原 tab.Panes 摘掉、Unsplit 让原 tab root `flatten` 成剩余叶子的 id，再 AddTab。
 - step 3 顺序：`Tab.RemovePane(idx)` → `Node.Unsplit()`。两者都只动各自数据结构、无依赖，但**先 RemovePane 再 Unsplit** 让 `Tab.Panes` 始终不出现「指向已删除 node」的脏状态，便于调试。
-- step 5 必须在 step 4 之后：`Tabs.AddTab` 内部已调 `t.Resize()`（tab.go:52），但补一次 `MainTab().Resize()` 是幂等保险，确保跨 TabList 写后几何自洽（microNeo 已知 pattern，见 command_neo.go:112-117）。
+- step 5 必须在 step 4 之后：`Tabs.AddTab` 内部已调 `t.Resize()`（tab.go:52），但补一次 `MainTab().Resize()` 是幂等保险，确保跨 TabList 写后rect自洽（microNeo 已知 pattern，见 command_neo.go:112-117）。
 
 ### 3.2 `:big` —— PromotePane
 
@@ -117,7 +117,7 @@
 边界：
 - **场景 2/3/4**（单 pane）：`len(tab.Panes) < 2` → 提示 + return。这条判断必须**先于** capture，否则单 pane 时 `tab.GetNode(h.splitID)` 拿到的是 root 叶子（`parent == nil`），后续 `Unsplit` 会因 `len(n.parent.children) <= 1`（splits.go:193）返回 false，不崩但不做事，留个 root 单叶子残留——所以早返更干净。
 - **剩余 pane 焦点**：从原 tab 摘完 pane 后，原 tab 还剩 1 个 pane。`tab.RemovePane` 后 `tab.active` 若越界显式 `tab.SetActive(0)` 兜底（场景 1 唯一合法的情况）。
-- **新 tab 全屏几何**：`screen.Screen.Size() - InfoBarOffset`，跟 `AddTab`（actions.go:1976）的算法一致。`Tab.Resize` 会重写 geometry，无需预判 tab bar 是否显示。
+- **新 tab 全屏rect**：`screen.Screen.Size() - InfoBarOffset`，跟 `AddTab`（actions.go:1976）的算法一致。`Tab.Resize` 会重写 rect，无需预判 tab bar 是否显示。
 
 ### 3.3 场景 1：`extractPaneToNewTab`（`:big` / `:small` 共享）
 
@@ -149,7 +149,7 @@ func extractPaneToNewTab(tab *Tab, h *BufPane, activate bool) bool {
     idx       := tab.GetPane(h.splitID)
     oldSplitID := h.splitID
 
-    // step 2: reparent —— 新 tab 全屏几何，NewTabFromPane 调 SetTab/SetID 把 h 归属改到 newTab
+    // step 2: reparent —— 新 tab 全屏rect，NewTabFromPane 调 SetTab/SetID 把 h 归属改到 newTab
     w, height  := screen.Screen.Size()
     iOffset    := config.GetInfoBarOffset()
     newTab     := NewTabFromPane(0, 0, w, height-iOffset, h)
@@ -339,7 +339,7 @@ func (h *BufPane) SmallCmd(args []string) { h.SmallPane() }
    - 场景 1 + `:big`：从场景 1 状态切到那个 2-pane tab → 选 a → `:big` → a 应变新全屏 tab，新 tab active，原 tab 还剩 b。
    - `:big` 在单 pane tab → 提示 "pane already at max"，无副作用。
 4. 验证 multi-pane → multi-tab 双向不变量：
-   - 场景 1 + `:big` → 场景 2 + `:small` 来回切几次，几何无残留、`tab.Panes` 与 split tree 一致。
+   - 场景 1 + `:big` → 场景 2 + `:small` 来回切几次，rect无残留、`tab.Panes` 与 split tree 一致。
    - 反复 `:small` + `:big` 直到所有 pane 都进单 pane tab（场景 4 状态），再 `:small` 应回到 2 pane。
 5. （可选）`:big` / `:small` 加默认键位，写 `runtime/help/keybindings.md` 一段。
 6. （未来扩展）`BufPane.lastActive` 跟踪 + `pickAbsorbTarget` 升级：单独立项，本方案不动。

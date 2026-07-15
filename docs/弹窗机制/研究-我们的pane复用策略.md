@@ -30,7 +30,7 @@
 
 - 重合多（如编辑能力）→ 深度复用（嵌入 BufPane 拿现成实现）
 - 重合少（如列表选择、浮窗导航）→ 浅层复用（只对齐签名、借鉴路由范式）
-- 不重合（如几何计算、z-order）→ 自己建，没有便车
+- 不重合（如rect计算、z-order）→ 自己建，没有便车
 
 这条原则比"用没用 Pane 接口"更本质。它解释了为什么 notePane 和 selectPane 走了两条不同的复用路径——不是因为"一个想用 micro、一个不想"，而是因为它们的能力需求不同。
 
@@ -203,7 +203,7 @@ type SelectPane struct {
   ├─ BufPane → 编辑能力（cursor / buffer / 文本操作）
   ├─ display 包各种 Window → 内容渲染（buf / term / tab）
   ├─ views 包 → 分屏布局
-  └─ 其它（弹窗几何 / z-order / 事件隔离）→ 没有，得自建
+  └─ 其它（弹窗rect / z-order / 事件隔离）→ 没有，得自建
 
 第 3 步：复用深度 = 重合度
   ├─ 重合度高 → 深复用（嵌入对应类型，白嫖实现）
@@ -211,14 +211,14 @@ type SelectPane struct {
   ├─ 重合度低但形态对得上 → 浅复用（对齐签名 + 借鉴路由范式）
   │             例：selectPane 用 HandleEvent/Display 签名 + 宿主转发模式
   └─ 不重合 → 自建（没有便车可搭）
-               例：浮窗几何计算、z-order、事件隔离
+               例：浮窗rect计算、z-order、事件隔离
 ```
 
 ### 6.2 几个反模式的提醒
 
 - ❌ **为了"更像 micro"而实现 Pane 接口**：Pane 接口是 tile 专属抽象，浮窗实现它只会得到 13/16 个无意义的方法桩（详见 `研究-microPane机制.md` §9.4）。
 - ❌ **把浮窗塞进 Tab.Panes**：这会破坏浮层语义（占一个分屏格子），且换不来自动路由（详见 `研究-microPane机制.md` §9.4 第 2 条）。
-- ❌ **期待 micro 提供"弹窗框架"**：micro 在弹窗领域没有基础设施（详见 `研究-micro弹窗机制.md`），几何/z-order/事件隔离都得自己建。
+- ❌ **期待 micro 提供"弹窗框架"**：micro 在弹窗领域没有基础设施（详见 `研究-micro弹窗机制.md`），rect/z-order/事件隔离都得自己建。
 - ❌ **把"嵌入 BufPane"等同于"加入 Pane 多态机制"**：嵌入 BufPane 拿的是编辑实现，不是多态身份。notePane 满足 Pane 接口是副作用，不是目的。
 
 ---
@@ -228,7 +228,7 @@ type SelectPane struct {
 | 文档 | 用本文的话概括 |
 |---|---|
 | `研究-microPane机制.md` | 解释了 micro 的 tile 框架，论证了为什么 selectPane 不该实现 Pane 接口（§9.4） |
-| `研究-micro弹窗机制.md` | 解释了 micro 没有弹窗框架，论证了为什么 selectPane 的几何/z-order 得自建 |
+| `研究-micro弹窗机制.md` | 解释了 micro 没有弹窗框架，论证了为什么 selectPane 的rect/z-order 得自建 |
 | **本文** | 解释了 notePane 和 selectPane 为什么复用深度不同（能力重合度），以及为什么两者都选对了 |
 
 三篇合起来回答一个完整问题：**"我们自己的 pane，该怎么对待 micro 的框架？"**
