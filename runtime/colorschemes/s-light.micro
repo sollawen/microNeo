@@ -19,6 +19,7 @@ color-link statusline.normal "#707070,#f0ead9"
 color-link message "#6090b0,#fffbee"
 
 color-link tabbar "#FFFFFF,#4D4D4C"
+color-link tabbar.active "#4D4D4C,#db7c41"
 color-link indent-char "#D3D3D3,#fffbee"
 color-link line-number "#8E908C,#f3f3e6"
 color-link current-line-number "#4D4D4C,#EEE8D5"

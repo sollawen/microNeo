@@ -35,6 +35,7 @@ color-link gutter-warning "#E6DB74"
 
 color-link statusline "#282A36,#F8F8F2"
 color-link tabbar "#282A36,#F8F8F2"
+color-link tabbar.active "#282A36,#FF79C6"
 color-link indent-char "#6272A4"
 color-link line-number "#6272A4"
 color-link current-line-number "#F8F8F2"
