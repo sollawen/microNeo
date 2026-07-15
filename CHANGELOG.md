@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Fixed**
+
+- In the file picker, files and subdirectories now keep their `U` / `I` git-status markers after navigating into an untracked or ignored directory (previously the markers disappeared below the top level of such directories).
+
 ## [1.1.16] - 2026-07-15
 
 **Changed**

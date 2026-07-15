@@ -209,7 +209,7 @@ func (fs *FileSelector) Open(pane *BufPane, startDir string, onSelect func(Selec
 // 把 getGitStatus 返回的 chars（name→rune）按文件名合并进各 entry.gitChar；
 // 仅当仍停留在该目录时才应用结果，避免快速导航下的竞态污染。
 func (fs *FileSelector) fetchGit(dir string) {
-	isRepo, branch, chars, allIgnored := getGitStatus(dir)
+	isRepo, branch, chars, state := getGitStatus(dir)
 	if fs.state == nil {
 		return
 	}
@@ -222,11 +222,18 @@ func (fs *FileSelector) fetchGit(dir string) {
 	s.isRepo = isRepo
 	s.gitBranch = branch
 	for i := range s.allEntries {
-		if allIgnored {
+		switch state {
+		case dirAllIgnored:
 			// 当前目录本身被 ignore：git 只报了折叠目录 "!! dir/"，
 			// 不报里面每个文件的 ignored 记录——所以 chars 必为空，
 			// 这里给所有条目打 I 是唯一正确的做法。
 			s.allEntries[i].gitChar = 'I'
+			continue
+		case dirAllUntracked:
+			// 当前目录本身整个 untracked：git 只报了折叠目录 "?? dir/"，
+			// 不报里面每个文件的 untracked 记录——chars 必为空，
+			// 这里给所有条目打 U 是唯一正确的做法（对称于 dirAllIgnored）。
+			s.allEntries[i].gitChar = 'U'
 			continue
 		}
 		if ch, ok := chars[s.allEntries[i].name]; ok {

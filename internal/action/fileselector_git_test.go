@@ -12,7 +12,7 @@ func TestParsePorcelain(t *testing.T) {
 		input       []byte
 		want        map[string]rune
 		branch      string
-		allIgnored  bool
+		state  dirState
 	}{
 		{
 			name:   "empty",
@@ -163,21 +163,21 @@ func TestParsePorcelain(t *testing.T) {
 			input:       []byte("!! build/artifact.o\x00"),
 			want:        map[string]rune{}, // 深处单文件不冒泡到父目录
 			branch:      "",
-			allIgnored:  false,
+			state:  dirNormal,
 		},
 		{
 			name:        "ignored single file in current dir → I on file",
 			input:       []byte("!! secret.md\x00"),
 			want:        map[string]rune{"secret.md": 'I'},
 			branch:      "",
-			allIgnored:  false,
+			state:  dirNormal,
 		},
 		{
 			name:        "ignored direct subdir (node_modules/) → I on name",
 			input:       []byte("!! node_modules/\x00"),
 			want:        map[string]rune{"node_modules": 'I'},
 			branch:      "",
-			allIgnored:  false,
+			state:  dirNormal,
 		},
 		{
 			name:        "ignored deep subdir (aaa/bbb/ccc/) from bbb/ level → I on ccc",
@@ -185,7 +185,7 @@ func TestParsePorcelain(t *testing.T) {
 			input:       []byte("!! aaa/bbb/ccc/\x00"),
 			want:        map[string]rune{"ccc": 'I'},
 			branch:      "",
-			allIgnored:  false,
+			state:  dirNormal,
 		},
 		{
 			name:        "ignored deep subdir from root → no bubble (too deep)",
@@ -193,22 +193,22 @@ func TestParsePorcelain(t *testing.T) {
 			input:       []byte("!! aaa/bbb/ccc/\x00"),
 			want:        map[string]rune{},
 			branch:      "",
-			allIgnored:  false,
+			state:  dirNormal,
 		},
 		{
-			name:        "browsing into ignored dir itself → allIgnored",
+			name:        "browsing into ignored dir itself → dirAllIgnored",
 			prefix:      "aaa/bbb/ccc/",
 			input:       []byte("!! aaa/bbb/ccc/\x00"),
 			want:        map[string]rune{},
 			branch:      "",
-			allIgnored:  true, // rel==""：当前目录本身被 ignore
+			state:  dirAllIgnored, // rel==""：当前目录本身被 ignore
 		},
 		{
 			name:        "M + ignored file in subdir → M not polluted by I bubble",
 			input:       []byte(" M x/mod.go\x00!! x/ignored.log\x00"),
 			want:        map[string]rune{"x": 'M'}, // ignored 深处单文件被丢弃
 			branch:      "",
-			allIgnored:  false,
+			state:  dirNormal,
 		},
 		{
 			name:        "ignored file deep in subtree from root → no bubble",
@@ -216,7 +216,7 @@ func TestParsePorcelain(t *testing.T) {
 			input:       []byte("!! aaa/bbb/ccc/secret.md\x00"),
 			want:        map[string]rune{},
 			branch:      "",
-			allIgnored:  false,
+			state:  dirNormal,
 		},
 		{
 			name:        "ignored file deep in subtree from immediate parent → I on file",
@@ -224,21 +224,90 @@ func TestParsePorcelain(t *testing.T) {
 			input:       []byte("!! aaa/bbb/ccc/secret.md\x00"),
 			want:        map[string]rune{"secret.md": 'I'},
 			branch:      "",
-			allIgnored:  false,
+			state:  dirNormal,
+		},
+		// —— untracked（??）「整目录折叠」修复（fix "U 标志缺失" bug） ——
+		// cwd 在仓库根，git 折叠 bigdir/ → 冒泡到顶层目录名，state=dirNormal（原有逻辑不变）
+		{
+			name:        "untracked dir from root to bubbles to top-level name",
+			input:       []byte("?? bigdir/\x00"),
+			prefix:      "",
+			want:        map[string]rune{"bigdir": 'U'},
+			branch:      "",
+			state:       dirNormal,
+		},
+		// cwd 在 bigdir/，git 折叠 bigdir/（路径恒等于 cwd）→ dirAllUntracked，chars 为空
+		{
+			name:        "browsing into untracked dir itself dirAllUntracked",
+			input:       []byte("?? bigdir/\x00"),
+			prefix:      "bigdir/",
+			want:        map[string]rune{},
+			branch:      "",
+			state:       dirAllUntracked,
+		},
+		// cwd 在 bigdir/sub/，git 折叠 bigdir/sub/（cwd 自己）→ dirAllUntracked，chars 为空
+		{
+			name:        "browsing into deep untracked dir sub dirAllUntracked",
+			input:       []byte("?? bigdir/sub/\x00"),
+			prefix:      "bigdir/sub/",
+			want:        map[string]rune{},
+			branch:      "",
+			state:       dirAllUntracked,
+		},
+		// cwd 在仓库根但 git 逐个列出（目录内有 staged 文件所以不折叠）：
+		// "?? bigdir/sub/b.txt" → rel = "bigdir/sub/b.txt"（含 /）→ 取 "bigdir" 冒泡，
+		// state=dirNormal。这验证了「非折叠 untracked 走原冒泡路径、不误触 dirAllUntracked」。
+		{
+			name:        "non-collapsed untracked mixed staged untracked from root bubbles no dirAllUntracked",
+			input:       []byte("?? bigdir/sub/b.txt\x00"),
+			prefix:      "",
+			want:        map[string]rune{"bigdir": 'U'},
+			branch:      "",
+			state:       dirNormal,
+		},
+		// —— ignored（!!）「深处」bug 修复 ——
+		// ignored 的折叠路径是「ignored 树根」，不是 cwd 自己。
+		// cwd 进实体深处时，git 仍报 "!! <树根>/"，prefix 是 path 的祖先，
+		// 统一判据（HasPrefix(prefix, path)）捕获这种情况，不误算成孤儿。
+		// igtest 场景：igroot/ 整 ignored，含 igroot/mid/deep/f3.txt
+		{
+			name:        "ignored deep dir cwd igroot mid dirAllIgnored",
+			input:       []byte("!! igroot/\x00"),
+			prefix:      "igroot/mid/",
+			want:        map[string]rune{},
+			branch:      "",
+			state:       dirAllIgnored,
+		},
+		{
+			name:        "ignored deep dir cwd igroot mid deep dirAllIgnored",
+			input:       []byte("!! igroot/\x00"),
+			prefix:      "igroot/mid/deep/",
+			want:        map[string]rune{},
+			branch:      "",
+			state:       dirAllIgnored,
+		},
+		// .ruff_cache/ 整目录 ignored，cwd=.ruff_cache/0.12.5/
+		{
+			name:        "ignored real dir dot ruff_cache cwd dot ruff_cache 0.12.5 dirAllIgnored",
+			input:       []byte("!! .ruff_cache/\x00"),
+			prefix:      ".ruff_cache/0.12.5/",
+			want:        map[string]rune{},
+			branch:      "",
+			state:       dirAllIgnored,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			chars, branch, allIgnored := parsePorcelain(tt.input, tt.prefix)
+			chars, branch, state := parsePorcelain(tt.input, tt.prefix)
 			if !reflect.DeepEqual(chars, tt.want) {
 				t.Errorf("chars = %#v, want %#v", chars, tt.want)
 			}
 			if branch != tt.branch {
 				t.Errorf("branch = %q, want %q", branch, tt.branch)
 			}
-			if allIgnored != tt.allIgnored {
-				t.Errorf("allIgnored = %v, want %v", allIgnored, tt.allIgnored)
+			if state != tt.state {
+				t.Errorf("state = %v, want %v", state, tt.state)
 			}
 		})
 	}
