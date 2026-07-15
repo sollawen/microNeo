@@ -79,7 +79,7 @@ func (s *SelectPane) Open(
 		Display:     s.display,
 		HandleEvent: s.handleEvent,
 		AutoExpand:  true, // SelectPane: 贴光标/贴 statusLine 展开(旧行为)
-		OnCancel: func() { // resize 即关时清理业务回调
+		OnResize: func() { // resize 即关时清理业务回调
 			if s.onSelect != nil {
 				s.onSelect(nil)
 			}

@@ -43,7 +43,7 @@ type FloatOpenSpec struct {
 	FrameColor  tcell.Style                     // 边框色; 零值 = config.DefStyle
 	Display     func(contentArea Rect)          // 画内容(收到的 area 已扣除边框)
 	HandleEvent func(event tcell.Event)         // 处理键事件(resize 不会到达, FloatFrame 已拦截)
-	OnCancel    func()                          // FloatFrame 自身被关(resize)时回调; 具体浮窗在此清理业务回调
+	OnResize    func()                          // 仅 resize 导致容器自关时触发(ESC 取消/主动 Close 都不触发); 具体浮窗在此清理业务回调
 	AutoExpand  bool                            // true: 锚点自适应展开(SelectPane); false: 钉死 Anchor(FileSelector)
 }
 
@@ -58,7 +58,7 @@ type FloatFrame struct {
 	frameColor  tcell.Style // 边框绘制颜色；零值 = config.DefStyle（见 ADR-7）
 	display     func(contentArea Rect)
 	handleEvent func(event tcell.Event)
-	onCancel    func()       // FloatFrame 自身关闭时回调(F0a §4); Close() 清空
+	onResize    func()       // 仅 resize 自关时触发; Close() 清空防残留
 
 	// —— FloatFrame 自己算 ——
 	outerW, outerH int // 含边框总尺寸（contentSize + 2，title 撑宽取 max）
@@ -116,7 +116,7 @@ func (f *FloatFrame) Open(spec FloatOpenSpec) bool {
 	f.frameColor = fc
 	f.display = spec.Display
 	f.handleEvent = spec.HandleEvent
-	f.onCancel = spec.OnCancel
+	f.onResize = spec.OnResize
 	f.outerW, f.outerH = outerW, outerH
 
 	// —— layout 分叉(F0a §3) ——
@@ -139,7 +139,7 @@ func (f *FloatFrame) Close() {
 	f.isOpen = false
 	f.display = nil
 	f.handleEvent = nil       // 断引用，便于 GC（设计 §五）
-	f.onCancel = nil          // 避免旧回调残留(F0a §4.4)
+	f.onResize = nil          // 避免旧回调残留(F0a §4.4)
 	screen.Redraw()
 }
 
@@ -213,15 +213,15 @@ func (f *FloatFrame) Display() {
 	f.display(Rect{X: f.fx + 1, Y: f.fy + 1, W: f.contentSize.W, H: f.contentSize.H})
 }
 
-// HandleEvent 转发事件给具体浮窗。resize 由 FloatFrame 统一拦截（resize 即关 + onCancel），
+// HandleEvent 转发事件给具体浮窗。resize 由 FloatFrame 统一拦截（resize 即关 + onResize），
 // 不再转发；其它事件照旧转发。
 func (f *FloatFrame) HandleEvent(event tcell.Event) {
 	if !f.isOpen {
 		return
 	}
 	if _, ok := event.(*tcell.EventResize); ok {
-		cb := f.onCancel          // 先存(F0a §4.4 顺序)
-		f.Close()                 // 关容器(内部已清 onCancel)
+		cb := f.onResize          // 先存(F0a §4.4 顺序)
+		f.Close()                 // 关容器(内部已清 onResize)
 		if cb != nil { cb() }     // 再触发业务取消回调
 		return                    // 不再转发给具体浮窗
 	}

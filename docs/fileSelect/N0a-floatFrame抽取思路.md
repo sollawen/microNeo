@@ -50,7 +50,22 @@
 
 **`FloatOpenSpec` —— 打开的全部入参（options 模式，`Open` 的唯一入参）**
 
-几何 / 外观（调用方给值）：
+完整结构（抽取后这些字段连同 `Rect`/`Pos`/`Size` 一起迁入 `floatframe` 包）：
+
+```go
+type FloatOpenSpec struct {
+    Anchor      Pos                      // AutoExpand=true: 展开中心点; false: 外矩形左上角(含边框)
+    ContentSize Size                     // 纯内容尺寸(不含边框); 容器内部派生含边框 outerW/outerH
+    Title       string                   // 嵌入上边框的标签; 空串=纯横线
+    FrameColor  tcell.Style              // 边框色; 零值=config.DefStyle
+    Display     func(contentArea Rect)   // 画内容(收到的 area 已扣边框)
+    HandleEvent func(event tcell.Event)  // 处理键事件(resize 不会到达, 已被容器拦截)
+    OnResize    func()                   // 仅 resize 导致容器自关时触发(ESC 取消/主动 Close 都不触发); 具体浮窗在此清理业务回调
+    AutoExpand  bool                     // true: 锚点自适应展开(贴光标); false: 钉死 Anchor
+}
+```
+
+8 个字段分两层（下面按此补充语义，结构本身已自解释）：**位置 / 尺寸 / 外观（调用方直接给值）**——
 - `Anchor Pos` —— AutoExpand=true：展开中心点；false：外矩形左上角（含边框）
 - `ContentSize Size` —— 纯内容尺寸（不含边框）；容器内部派生含边框 outerW/outerH
 - `Title string` —— 嵌入上边框；空串=纯横线
@@ -63,11 +78,11 @@
 |---|---|---|---|
 | `Display(contentArea Rect)` | 每次渲染（主循环调容器 `Display` 时） | 已扣边框的内容区（左上=fx+1,fy+1） | 在该 Rect 内画自己的内容 |
 | `HandleEvent(event)` | 每个**非 resize** 事件 | 原始 `tcell.Event` | 处理键位 |
-| `OnCancel()` | resize 触发容器自关时 | 无 | 清理业务回调（如 onSelect(nil)） |
+| `OnResize()` | resize 触发容器自关时 | 无 | 清理业务回调（如 onSelect(nil)） |
 
 **关键约定（标准化使用必读）**
 - 边框对调用者透明：`Display` 回调收到的 Rect 已扣边框，调用者完全无需感知边框存在。
-- resize 不外传：resize 永远不会到达调用者的 `HandleEvent`——容器统一拦截 → `Close` + `OnCancel`。
+- resize 不外传：resize 永远不会到达调用者的 `HandleEvent`——容器统一拦截 → `Close` + `OnResize`。
 - 关闭顺序：调用方先 `Close()` 再触发业务回调（如 `onSelect`），保证回调读到的是关闭后状态。
 - Open 幂等：同一容器已开时再 `Open` 直接返回 false（C1 单浮窗）。
 
@@ -92,7 +107,7 @@
 **放（基础设施层）**：
 
 - 容器本体 `FloatFrame`（画框 / 清屏 / 锚点展开 / 事件路由 / resize 拦截 / 生命周期）
-- 共享几何与契约类型 `Rect` / `Pos` / `Size` / `FloatOpenSpec`
+- 共享坐标尺寸类型与契约 `Rect` / `Pos` / `Size` / `FloatOpenSpec`
 - 构造 `NewFloatFrame`
 
 **不放（消费者层，各自归域）**：

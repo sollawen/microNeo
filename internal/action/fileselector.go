@@ -377,7 +377,7 @@ func (fs *FileSelector) buildSpec(anchor Pos, contentSize Size) FloatOpenSpec {
 		Display:     fs.display,
 		HandleEvent: fs.handleEvent,
 		AutoExpand:  false, // F1 D2：钉死 pane 左上角，跳过 expandAnchor
-		OnCancel: func() { // resize 即关时清理业务回调（F1a）；统一上报 ReasonResize（F3 §4.1f）
+		OnResize: func() { // resize 即关时清理业务回调（F1a）；统一上报 ReasonResize（F3 §4.1f）
 			fs.finish(SelectResult{Kind: Closed, Reason: ReasonResize})
 		},
 	}
@@ -727,7 +727,7 @@ func fitMeta(w int, perms, size, mtime string) string {
 
 // ---- Controller：handleEvent（F1 §8.2 键位表）----
 //
-// resize 不会到达这里（FloatFrame 已拦截 → Close + OnCancel）。
+// resize 不会到达这里（FloatFrame 已拦截 → Close + OnResize）。
 // 显示模式切换键（s/S/c）本期不接，留待以后。
 
 func (fs *FileSelector) handleEvent(event tcell.Event) {
