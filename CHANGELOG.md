@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Changed**
+
+- Tab switching is bound to `Alt-9` (previous, wrapping to last) and `Alt-0` (next, wrapping to first); `Ctrl+PageUp` / `Ctrl+PageDown` are no longer used for this.
+
 ## [1.1.15] - 2026-07-15
 
 **Added**
