@@ -9,7 +9,9 @@ description: Writes/updates CHANGELOG.md entries. Use when user asks to add a ne
 
 用户读 changelog 是想知道「这个版本我能用到什么新东西、什么变了、什么修好了」。实现层面用了什么 sentinel、归一化放哪一层、调了哪个内部函数 —— 这些属于 commit message 和设计文档，不属于 changelog。
 
-判断标准：如果一个变化用户在界面上**看不到、操作不到、感知不到**，它就不该单独占一条 changelog bullet（除非是影响升级兼容性的重构）。
+判断标准：
+- 如果一个变化用户在界面上**看不到、操作不到、感知不到**，它通常不该单独占一条 changelog bullet。
+- **较大规模的内部重构**值得记一条（放 **Changed**），让读者了解架构演进和潜在的升级影响；琐碎重构不记。
 
 ## Format (hard constraint)
 
@@ -26,7 +28,7 @@ description: Writes/updates CHANGELOG.md entries. Use when user asks to add a ne
 - 一条 bullet = 一个变化。动名词或名词开头，先说「是什么」再说「有什么用」。
 - 句尾可点一句用户价值（为什么 / 解决了什么），但不要展开怎么做。
 - 命令、配置项、文件名用反引号。
-- 内部重构若无用户可见行为变化，**不进 changelog**；确需记录的放 **Changed** 一句话带过。
+- 较大规模的内部重构（即使无用户可见行为变化）应记入 **Changed**，一句话点明重构的范围和动机（如「重构 X 模块以提升 Y」），不写实现细节；琐碎重构不记。
 
 ### 反例（实现细节泄漏，不要这样写）
 

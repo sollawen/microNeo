@@ -11,6 +11,7 @@ description: Handles git commit operations. Use when user explicitly asks to com
 - When in doubt, make the edit and ask before committing.
 - When user says "commit all", stage and commit all modified files together in one commit.
 - Do NOT push after commit. Leave that to the user.
+- When the commit involves user-visible code changes or a significant internal refactor, use the `changelog` skill to update the `[Unreleased]` section of `CHANGELOG.md`, then commit the changelog update together with the code in the same commit. Skip this for pure `docs:` / `chore:` commits and trivial refactors.
 
 ### Requirements
 
