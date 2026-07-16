@@ -53,7 +53,7 @@ func startDirOf(h *BufPane) string {
 //
 // 为什么能在 spawn 之后立刻开：三种 spawn（VSplitIndex/HSplitIndex/AddTab 及对应 *Cmd）
 // 末尾都同步调 SetActive + Resize，返回时新 pane 已是 active（MainTab().CurPane() 即它）、
-// 且 BWindow 已有真实几何（computeLayout 预检不会 0×0 误判）。详见 F4a §6.1 时序验证。
+// 且 BWindow 已有真实 Layout（computeLayout 预检不会 0×0 误判）。详见 F4a §6.1 时序验证。
 func OpenBirthSelector(pane *BufPane, dir string) {
 	if !isNoNameBuf(pane.Buf) {
 		return

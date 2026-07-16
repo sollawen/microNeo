@@ -157,7 +157,7 @@ func extractPaneToNewTab(tab *Tab, h *BufPane, activate bool) bool {
 	idx := tab.GetPane(h.splitID)
 	oldSplitID := h.splitID
 
-	// step 2: reparent——新 tab 全屏几何，NewTabFromPane 调 SetTab/SetID 把 h 归属改到 newTab
+	// step 2: reparent——新 tab 全屏 Layout，NewTabFromPane 调 SetTab/SetID 把 h 归属改到 newTab
 	w, height := screen.Screen.Size()
 	iOffset := config.GetInfoBarOffset()
 	newTab := NewTabFromPane(0, 0, w, height-iOffset, h)
@@ -244,14 +244,14 @@ func pickAbsorbTarget() (*BufPane, *Tab, bool) {
 // ---- spawn 包装：捕获父目录 → 调原生 spawn → 对新 pane 开 birth selector ----
 // 覆盖 split/tab 的 3 个 key action 与 3 个 command（见 command_neo.go::InitNeoCommands）。
 // 关键时序事实：三种 spawn 末尾都同步 SetActive+Resize，返回时新 pane = MainTab().CurPane()、
-// 已有真实几何，故 OpenBirthSelector 可立即开（不在 Resize 里搞，Resize 保持纯净）。
+// 已有真实 Layout，故 OpenBirthSelector 可立即开（不在 Resize 里搞，Resize 保持纯净）。
 // 带文件参数的 :vsplit foo / :tab foo 开 file-born pane（isNoNameBuf=false），OpenBirthSelector 直接 bail。
 
 func (h *BufPane) neoAddTabAction() bool {
 	dir := birthDir(h)
 	r := h.AddTab()
 	np := MainTab().CurPane()
-	MainTab().Resize() // AddTab 不像 VSplitIndex 那样内部 Resize，这里补上让新 pane BWindow 几何就绪
+	MainTab().Resize() // AddTab 不像 VSplitIndex 那样内部 Resize，这里补上让新 pane BWindow Layout 就绪
 	OpenBirthSelector(np, dir)
 	return r
 }

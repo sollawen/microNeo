@@ -9,7 +9,7 @@ import (
 // SelectPane 是 receiver 选择列表（具体浮窗，参见 docs/弹窗机制/弹窗框架设计.md §四.2）。
 //
 // v2 列表滚动：调用方传入 maxVisible / wrap，SelectPane 内部管理 topIdx（视口偏移）。
-// 边框 / title / 清屏 / 锚点展开 / 几何 / 生命周期全部移交 FloatFrame，
+// 边框 / title / 清屏 / 锚点展开 / Layout / 生命周期全部移交 FloatFrame，
 // 本文件只保留业务逻辑（列表状态、键盘映射、回调通知）。
 //
 // 生命周期（设计 §五）：
@@ -41,7 +41,7 @@ func NewSelectPane() *SelectPane {
 //   wrap        true: 上下循环（默认）；false: 到顶/底停住
 //   onSelect    回调：Enter → onSelect(&items[selected])；Esc / resize → onSelect(nil)
 //
-// 几何 / 边框 / 失败前置检查全部归 FloatFrame：SelectPane 不读屏幕尺寸、不碰任何几何逻辑。
+// Layout / 边框 / 失败前置检查全部归 FloatFrame：SelectPane 不读屏幕尺寸、不碰任何 Layout 逻辑。
 // 如果 FloatFrame.Open 返回 false（拒绝再开 / 屏幕放不下），直接 onSelect(nil) 返回，
 // 不设置任何业务状态——对调用方完全透明（与旧实现一致）。
 func (s *SelectPane) Open(

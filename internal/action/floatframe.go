@@ -15,7 +15,7 @@ import (
 //
 // 关键约束（设计 §一）：C1 单浮窗（同时全局最多一个）、C2 无嵌套、C3 模态、C5 框架要薄。
 //
-// 几何语义：Open 入参 contentSize 是纯内容尺寸（不含边框）；FloatFrame 内部派生
+// Layout 语义：Open 入参 contentSize 是纯内容尺寸（不含边框）；FloatFrame 内部派生
 // 含边框外尺寸 outerW = max(contentSize.W+2, len(title)+6)、outerH = contentSize.H+2，
 // 再做锚点展开得到 (fx, fy)。委托画内容时 contentArea 始终是
 // Rect{fx+1, fy+1, contentSize.W, contentSize.H}——具体浮窗完全不需要知道边框存在。

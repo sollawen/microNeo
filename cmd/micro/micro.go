@@ -509,7 +509,7 @@ func main() {
 	}
 
 	// microNeo: 启动 pane 若 noName 则开 birth selector
-	// （resize 事件已在上面的 HandleEvent 里同步填好真实几何，此时开不会 0×0）
+	// （resize 事件已在上面的 HandleEvent 里同步填好真实 Layout，此时开不会 0×0）
 	action.OpenBirthSelector(action.MainTab().CurPane(), "")
 
 	for {
