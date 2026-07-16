@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Fixed**
 
 - In the file picker, files and subdirectories now keep their `U` / `I` git-status markers after navigating into an untracked or ignored directory (previously the markers disappeared below the top level of such directories).
+- In multi-tab layouts, the active tab's highlight color no longer bleeds past `]` onto the trailing padding cells — the highlight now ends cleanly at the right bracket.
 
 ## [1.1.16] - 2026-07-15
 

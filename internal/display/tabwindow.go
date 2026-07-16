@@ -158,7 +158,7 @@ func (w *TabWindow) Display() {
 
 		if i == w.active {
 			draw(']', 1, true, tabCharHighlight)
-			draw(' ', 2, true, globalTabReverse)
+			draw(' ', 2, false, globalTabReverse)
 		} else {
 			draw(' ', 1, false, tabCharHighlight)
 			draw(' ', 2, false, globalTabReverse)
