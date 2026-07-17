@@ -1,4 +1,4 @@
-package action
+package finder
 
 import (
 	"fmt"
@@ -46,7 +46,6 @@ func TestTruncateNameKeepExt(t *testing.T) {
 }
 
 func TestTruncateLeftPath(t *testing.T) {
-	sep := "/"
 	tests := []struct {
 		name     string
 		path     string
@@ -68,9 +67,7 @@ func TestTruncateLeftPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 本测试用 / 作分隔符，统一输入
 			got := truncateLeftPath(tt.path, tt.maxW)
-			_ = sep
 			if got != tt.expected {
 				t.Errorf("truncateLeftPath(%q, %d) = %q, want %q",
 					tt.path, tt.maxW, got, tt.expected)
@@ -82,9 +79,7 @@ func TestTruncateLeftPath(t *testing.T) {
 	}
 }
 
-// runeLen 已移除：断言改用包级 stringWidth（按 CJK 显示列宽计）。
-
-// ---- F1d 元数据辅助函数测试 ----
+// ---- 元数据辅助函数测试 ----
 
 func TestHumanSize(t *testing.T) {
 	tests := []struct {
@@ -92,7 +87,7 @@ func TestHumanSize(t *testing.T) {
 		n        int64
 		expected string
 	}{
-		// §3.2 边界值
+		// 边界值
 		{"零字节", 0, "0B"},
 		{"小于1KB", 1, "1B"},
 		{"1023B上限", 1023, "1023B"},
@@ -129,7 +124,7 @@ func TestHumanSize(t *testing.T) {
 			if got != tt.expected {
 				t.Errorf("humanSize(%d) = %q, want %q", tt.n, got, tt.expected)
 			}
-			// §3.2 硬约束：输出恒 ≤5 列
+			// 硬约束：输出恒 ≤5 列
 			if dw := stringWidth(got); dw > 5 {
 				t.Errorf("humanSize(%d)=%q display width %d exceeds 5 cols", tt.n, got, dw)
 			}

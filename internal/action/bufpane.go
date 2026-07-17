@@ -9,6 +9,7 @@ import (
 	"github.com/micro-editor/micro/v2/internal/buffer"
 	"github.com/micro-editor/micro/v2/internal/config"
 	"github.com/micro-editor/micro/v2/internal/display"
+	"github.com/micro-editor/micro/v2/internal/finder"
 	ulua "github.com/micro-editor/micro/v2/internal/lua"
 	"github.com/micro-editor/micro/v2/internal/screen"
 	"github.com/micro-editor/micro/v2/internal/util"
@@ -256,8 +257,21 @@ type BufPane struct {
 	initialized bool
 
 	// microNeo: 本 pane 诞生时是否 noName（空 buffer）。诞生时赋值一次、终身不变。
-	// 决定 Ctrl-q 路由与 birth selector 行为（见 F4a §2）。
+	// 决定 Ctrl-q 路由与 birth selector 行为。
 	isNoName bool
+
+	// microNeo: 一次性触发许可，每个 pane 出生时由 newBufPane 授予 true，
+	// Display 首帧消费后置 false。消费时按 noName 三条件判定，结果赋给 isNoName
+	// 缓存；条件成立才 OpenFinder。许可只触发一次，天然防住"开 finder → Esc 关 →
+	// 下一帧又被自动开"的循环。Display 在首个 EventResize 处理完之后才跑，
+	// 此时 OpenFinder 不会被 finder 的 resize 自关机制秒杀。
+	pendingBirth bool
+
+	// finder 是本 pane 私有的文件选择器会话。pane-local overlay：
+	// finder 自画边框、自截事件、自算布局，不依赖全局 FloatFrame。
+	// 会话是一次性的：Open 后靠 onClose 回调收尾，HandleEvent/Display/NotifyBlur
+	// 在 IsOpen() 时才转发。各 pane 各持一份，互不串扰。
+	finder *finder.Session
 }
 
 func newBufPane(buf *buffer.Buffer, win display.BWindow, tab *Tab) *BufPane {
@@ -265,9 +279,13 @@ func newBufPane(buf *buffer.Buffer, win display.BWindow, tab *Tab) *BufPane {
 	h.Buf = buf
 	h.BWindow = win
 	h.tab = tab
+	h.finder = finder.NewSession()
 
 	h.Cursor = h.Buf.GetActiveCursor()
 	h.mousePressed = make(map[MouseEvent]bool)
+	// microNeo: 每个 pane 出生天然有的一次性"检查机会"，
+	// 由最低层构造函数授予；Display 首帧消费。
+	h.pendingBirth = true
 
 	return h
 }
@@ -309,6 +327,30 @@ func (h *BufPane) Resize(width, height int) {
 	h.BWindow.Resize(width, height)
 	if !h.initialized {
 		h.finishInitialize()
+	}
+}
+
+// Display 画本 pane：先交底层 BWindow 画编辑区，再追加 finder overlay。
+// shadow 提升的 display.BWindow.Display()（BufPane 嵌入 BWindow，原本靠提升调它），
+// 这里重定义为同名 method 会覆盖提升方法，确保 finder.Display() 在编辑区画完之后叠加。
+func (h *BufPane) Display() {
+	// microNeo: 消费一次性触发许可——每个 pane 出生时被授予一次"检查要不要开
+	// birth finder"。许可立即清（不重入）；条件在此一次性算出，结果赋给 isNoName
+	// 字段缓存。Display 是首个 EventResize 处理完之后才跑（DoEvent 主循环渲染入口），
+	// 此时 OpenFinder 不会被 finder 的 resize 自关机制秒杀。
+	if h.pendingBirth {
+		h.pendingBirth = false
+		h.isNoName = h.Buf != nil &&
+			h.Buf.AbsPath == "" &&
+			h.Buf.Type == buffer.BTDefault &&
+			h.Buf.Size() == 0
+		if h.isNoName {
+			h.OpenFinder(false)
+		}
+	}
+	h.BWindow.Display()
+	if h.finder.IsOpen() {
+		h.finder.Display()
 	}
 }
 
@@ -434,6 +476,14 @@ func (h *BufPane) getReloadSetting() string {
 
 // HandleEvent executes the tcell event properly
 func (h *BufPane) HandleEvent(event tcell.Event) {
+	// finder modal 转发：会话开着时所有事件先交给 finder，整段 owner 逻辑全不跑。
+	// 必须在最头部——早于 ExternallyModified reload 检查与后续键鼠处理。
+	// finder 内部会拦截 EventResize 自关（不转发给 owner），其余事件按键位映射处理。
+	if h.finder.IsOpen() {
+		h.finder.HandleEvent(event)
+		return
+	}
+
 	if h.Buf.ExternallyModified() && !h.Buf.ReloadDisabled {
 		reload := h.getReloadSetting()
 
@@ -740,6 +790,11 @@ func (h *BufPane) SetActive(b bool) {
 		if err != nil {
 			screen.TermMessage(err)
 		}
+	} else {
+		// 失焦时取消本 pane 的 finder 会话（若开着）。
+		// Tab 的鼠标路由（点别的 pane 切焦点）在 owner 的 HandleEvent modal 转发之上执行，
+		// modal 的 return 拦不住这条路径，故用失焦通道兜底。
+		h.onOwnerBlur()
 	}
 }
 
@@ -856,7 +911,7 @@ var BufKeyActions = map[string]BufKeyAction{
 	"LastSplit":                 (*BufPane).LastSplit,
 	"Unsplit":                   (*BufPane).Unsplit,
 	"VSplit":                    (*BufPane).VSplitAction,
-	"HSplit":                    (*BufPane).neoHSplitAction,
+	"HSplit":                    (*BufPane).HSplitAction,
 	"ToggleMacro":               (*BufPane).ToggleMacro,
 	"PlayMacro":                 (*BufPane).PlayMacro,
 	"Suspend":                   (*BufPane).Suspend,

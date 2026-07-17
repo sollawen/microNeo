@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Changed**
+
+- The file picker is rewritten as a per-pane overlay: each pane now owns its own picker session that draws inside the pane and captures events locally, replacing the previous global floating-frame implementation.
+- When quitting microNeo from the file picker (`Ctrl-q` / `q`), the `--cwd-file` output now reflects the directory you navigated to inside the picker instead of just the last buffer's parent directory.
+
 ## [1.1.17] - 2026-07-15
 
 **Fixed**

@@ -40,7 +40,7 @@ var (
 	flagCheckAgent    = flag.Bool("check-agent", false, "Check and self-heal aibp extensions for installed AI agents (pi/opencode), then exit")
 	flagUpdateAIBP    = flag.Bool("update-aibp", false, "Update aibp extensions for installed AI agents to the latest released version, then exit")
 	flagCwdFile       = flag.String("cwd-file", "", "Write the working directory to this file on exit (for shell integration)")
-	optionFlags   map[string]*string
+	optionFlags       map[string]*string
 
 	sighup chan os.Signal
 
@@ -277,12 +277,15 @@ func checkBackup(name string) error {
 	return nil
 }
 
-// lastWorkingDir returns the directory to report back to the shell: the parent
-// directory of the last active pane's buffer. Returns "" when no file is open
-// (e.g., an empty nameless buffer or Help/Log pane). Only called from exit(),
-// which is always reached after InitTabs(), so Tabs is guaranteed to be
-// initialised — nil checks here are defensive only.
+// lastWorkingDir returns the directory to report back to the shell.
+// 优先级：finder 会话的导航成果（LastFinderCwd）> 最后活动 pane 的 buffer 父目录。
+// LastFinderCwd 非空表示用户在 finder 里导航到过别的目录（仅 quit 路径会写入），
+// 让 shell 的 m() 能跟到那里。空串则回退到 buffer 父目录。返回 "" 表示无文件可报
+// （空 nameless buffer 或 Help/Log pane）。仅在 exit() 调用，那时 Tabs 必已初始化。
 func lastWorkingDir() string {
+	if action.LastFinderCwd != "" { // finder 会话的导航成果优先
+		return action.LastFinderCwd
+	}
 	if t := action.MainTab(); t != nil {
 		if pane := t.CurPane(); pane != nil && pane.Buf != nil {
 			if ap := pane.Buf.AbsPath; ap != "" {
@@ -432,7 +435,7 @@ func main() {
 	}
 
 	action.InitBindings()
-	action.InitNeoBindings()      // neo：Ctrl-q→QuitNeo 始终绑定（F4b §2.4）
+	action.InitNeoBindings() // neo：Ctrl-q→QuitNeo 始终绑定（F4b §2.4）
 	action.InitCommands()
 	action.InitNeoCommands()
 
@@ -507,10 +510,6 @@ func main() {
 	case <-time.After(10 * time.Millisecond):
 		// time out after 10ms
 	}
-
-	// microNeo: 启动 pane 若 noName 则开 birth selector
-	// （resize 事件已在上面的 HandleEvent 里同步填好真实 Layout，此时开不会 0×0）
-	action.OpenBirthSelector(action.MainTab().CurPane(), "")
 
 	for {
 		DoEvent()

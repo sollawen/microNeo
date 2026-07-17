@@ -1,4 +1,4 @@
-package action
+package finder
 
 import (
 	"context"
@@ -25,7 +25,7 @@ const (
 
 // dirState 描述「当前目录整体」的状态，区别于单文件的 statusKind。
 // git 会对「整个 untracked 或 ignored 目录」做折叠报告（只有一条记录，路径恒等于 cwd）。
-// parsePorcelain 据折叠记录判定这个状态，fetchGit 据它给本目录所有条目统一打标志。
+// parsePorcelain 据折叠记录判定这个状态，上层据它给本目录所有条目统一打标志。
 // 枚举值互斥：一个目录不可能既全 ignored 又全 untracked。
 type dirState uint8
 
@@ -116,12 +116,12 @@ func parsePorcelain(out []byte, prefix string) (chars map[string]rune, branch st
 			name = rel // 当前目录内的文件
 		}
 		var st statusKind
-			// —— 统一「整目录折叠」判据 ——
+		// —— 统一「整目录折叠」判据 ——
 		// git 对 untracked（??）和 ignored（!!）整目录折叠的路径行为不同：
 		//   untracked：cwd 在树内任意层，git 恒报 cwd 自己（"?? <cwd>/"，path==prefix）
 		//   ignored：  cwd 在实体内任意层，git 恒报 ignored 树根（"!! <树根>/"，prefix 是 path 的祖先）
 		// 两种情况 path 都是 prefix 的祖先或等于 prefix；git 只回这一条、不报内部文件，
-		// 所以 cwd 整个落在折叠实体内——统一打 dirAllXxx 标志，chars 留空，由 fetchGit 给本目录
+		// 所以 cwd 整个落在折叠实体内——统一打 dirAllXxx 标志，chars 留空，由上层给本目录
 		// 所有条目统一上标志。
 		if strings.HasSuffix(path, "/") && strings.HasPrefix(prefix, path) {
 			if indexSt == '!' && workSt == '!' {
