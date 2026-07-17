@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Changed**
 
+- `Ctrl-t` 现在创建新 tab 页（携带空 buffer），不再打开水平分割。
 - 把文件选择器从「全局 FloatFrame 浮窗」重写为「pane-local overlay」，并把目录导航 / git 查询 / 字符串工具独立成新的 `internal/finder` package。结构变化（核心）：
 
   - 新增 `internal/finder` package（Session + state + git + strutil + model），从 action 包下沉出去，自画边框、自截事件、自算布局，不再依赖全局 FloatFrame。原 `fileselector.go`(1179) / `fileselector_git.go` / `filemanager.go` 全部删除（净减约 2000 行），git 查询与字符串工具随包迁入 `internal/finder`。
