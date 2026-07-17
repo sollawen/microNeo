@@ -9,8 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Changed**
 
-- The file picker is rewritten as a per-pane overlay: each pane now owns its own picker session that draws inside the pane and captures events locally, replacing the previous global floating-frame implementation.
-- When quitting microNeo from the file picker (`Ctrl-q` / `q`), the `--cwd-file` output now reflects the directory you navigated to inside the picker instead of just the last buffer's parent directory.
+- 把文件选择器从「全局 FloatFrame 浮窗」重写为「pane-local overlay」，并把目录导航 / git 查询 / 字符串工具独立成新的 `internal/finder` package。结构变化（核心）：
+
+  - 新增 `internal/finder` package（Session + state + git + strutil + model），从 action 包下沉出去，自画边框、自截事件、自算布局，不再依赖全局 FloatFrame。原 `fileselector.go`(1179) / `fileselector_git.go` / `filemanager.go` 全部删除（净减约 2000 行），git 查询与字符串工具随包迁入 `internal/finder`。
+  - 每个 BufPane 持有私有 `finder.Session`（`h.finder`）。事件路由改为：`HandleEvent` 在最顶部 `IsOpen()` 时整段转发给 finder（modal）；`Display()` 在 `BWindow.Display()` 之后叠加 `finder.Display()`。失焦兜底：`BufPane.SetActive(false)` 调 `onOwnerBlur`，覆盖「点别的 pane 切焦点」这条绕过 modal return 的路径。
+  - birth 检测从「imperative 接管」改为「declarative 自动触发」：每个 pane 在 `newBufPane` 被授予一次性 `pendingBirth` 许可，`BufPane.Display` 首帧消费（EventResize 处理完之后，避开 finder 的 resize 自关），按 noName 三条件判定后 `OpenFinder`。删除全部 spawn 包装（`neoAddTabAction` / `neoVSplit` / `neoHSplit` + 三个 Cmd 变体）与 `command_neo.go` 里对 `BufKeyActions`/`commands` 的 split/tab 覆盖，以及 `main.go` 里的 `OpenBirthSelectors` 调用。
+  - `action/fileops.go` 作为接线层：`OpenFinder` 统一三入口（Ctrl-o / noName 的 Ctrl-q / birth），`onFinderClose` 按 `Result.Reason` 一维分发（Picked→`OpenCmd` / Quit→`doQuit` / Esc·Resize→no-op）。
+  - shell cwd 上报：新增包级 `LastFinderCwd`，finder 因 Quit 关闭时由 `doQuit` 写入；`cmd/micro` `lastWorkingDir` 优先读它，让 `--cwd-file` 能跟到 finder 里导航到的目录。
+  - FloatFrame 保留（SelectPane 仍用），仅 gofmt 与 `AutoExpand=false` 注释更新（不再提已删除的 FileSelector）。
 
 ## [1.1.17] - 2026-07-15
 
