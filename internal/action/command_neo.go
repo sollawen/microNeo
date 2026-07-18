@@ -30,6 +30,9 @@ func InitNeoCommands() {
 	// :inputtest 是 InputDialog 测试命令，验证完成后删除
 	MakeCommand("inputtest", (*BufPane).InputTestCmd, nil)
 
+	// :msgtest 是 MsgDialog 测试命令，验证完成后删除
+	MakeCommand("msgtest", (*BufPane).MsgTestCmd, nil)
+
 	// :big / :small pane 原语
 	BufKeyActions["BigPane"] = (*BufPane).BigPane
 	BufKeyActions["SmallPane"] = (*BufPane).SmallPane
@@ -108,6 +111,62 @@ func (h *BufPane) FileCmd(args []string) {
 // 用于测试 InputDialog 功能，验证完成后删除此测试代码。
 func (h *BufPane) InputTestCmd(args []string) {
 	h.InputTest()
+}
+
+// MsgTestCmd 是 :msgtest 命令的 action。
+// 用于测试 MsgDialog 功能，验证完成后删除此测试代码。
+func (h *BufPane) MsgTestCmd(args []string) {
+	h.MsgTest()
+}
+
+// MsgTest 打开一个 MsgDialog 测试浮窗。
+// 测试场景：
+// - 短文本（多行）
+// - 长文本（需要 softwrap）
+// - CJK 双宽字符
+// - 三种 align（Left/Center/Right）
+// - maxH 限制（截断测试）
+// - 各种关闭方式（Enter/Space/Esc/鼠标点击按钮）
+//
+// 用法：:msgtest [align]
+//   align 可选值：left, center, right（默认 center）
+func (h *BufPane) MsgTest() {
+	w, _ := screen.Screen.Size()
+
+	// 构造测试文本：包含中英文、长行、多行
+	testText := "MsgDialog 测试\n\n" +
+		"这是一行中文测试文本，用来验证 CJK 双宽字符的显示是否正常。\n" +
+		"This is a very long line of English text that should be soft-wrapped when it exceeds the specified width parameter.\n" +
+		"短行\n" +
+		"Another medium length line with some 中文 mixed in for testing purposes." +
+		" 这里还有更多中文用来测试换行效果是否正常工作。"
+
+	// 测试各种 align（可以轮流测试，这里默认居中）
+	align := dialog.AlignCenter
+
+	// 测试 maxH 限制：softwrap 后假设有 8 行，maxH=5 只显示前 5 行
+	maxH := 5
+
+	// 设置较小的宽度以测试 softwrap 效果（40-50 列能看到明显的换行）
+	width := 40
+	if w < width+10 {
+		width = w - 10
+	}
+
+	dlg := dialog.NewMsgDialog()
+	dlg.Open(
+		testText,                 // 多行文本
+		"MsgDialog Test",         // 标题
+		dialog.Pos{X: 0, Y: -1},  // anchor：sentinel，紧贴 statusLine 上方
+		width,                     // 内容区宽度
+		align,                     // 文本对齐（居中）
+		maxH,                      // 最大显示行数（限制）
+		tcell.Style{},             // 默认边框色
+		func() {                   // 关闭回调
+			InfoBar.Message("MsgDialog closed")
+			screen.Redraw()
+		},
+	)
 }
 
 // InputTest 打开一个 InputDialog 测试浮窗。
