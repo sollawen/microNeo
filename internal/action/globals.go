@@ -14,7 +14,6 @@ func InitGlobals() {
 	buffer.LogBuf = buffer.NewBufferFromString("", "", buffer.BTLog)
 	buffer.LogBuf.SetName("Log")
 	TheNotePane = NewNotePane()
-	TheFloatFrame = NewFloatFrame() // microNeo 弹窗框架（v1）
 }
 
 // GetInfoBar returns the infobar pane

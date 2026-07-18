@@ -7,10 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/micro-editor/micro/v2/internal/aibp"
 	"github.com/micro-editor/micro/v2/internal/buffer"
 	"github.com/micro-editor/micro/v2/internal/config"
+	"github.com/micro-editor/micro/v2/internal/dialog"
 	"github.com/micro-editor/micro/v2/internal/display"
-	"github.com/micro-editor/micro/v2/internal/aibp"
 	"github.com/micro-editor/micro/v2/internal/screen"
 	"github.com/micro-editor/micro/v2/internal/util"
 	"github.com/micro-editor/tcell/v2"
@@ -164,7 +165,7 @@ func NotePaneSwitchReceiver(h *BufPane) bool {
 		names[i] = r.Name
 	}
 	// 锚点 = notePane 左上角。展开方向交给 FloatFrame 自适应（D13）。
-	NewSelectDialog().Open(names, "Receivers", Pos{X: n.x, Y: n.y}, tcell.Style{}, 10, true, func(s *string) {
+	dialog.NewSelectDialog().Open(names, "Receivers", dialog.Pos{X: n.x, Y: n.y}, tcell.Style{}, 10, true, func(s *string) {
 		if s == nil {
 			// Esc：selectedReceiver 不变（伪代码明确要求）
 			return
@@ -244,7 +245,7 @@ func notePaneOpen(h *BufPane) bool {
 	for i, r := range receivers {
 		names[i] = r.Name
 	}
-	NewSelectDialog().Open(names, "Receiver", Pos{X: ax, Y: ay}, tcell.Style{}, 10, true, func(s *string) {
+	dialog.NewSelectDialog().Open(names, "Receiver", dialog.Pos{X: ax, Y: ay}, tcell.Style{}, 10, true, func(s *string) {
 		if s == nil {
 			// Esc：清零缓存（走到此分支时缓存已失效，决策 14）
 			n.selectedReceiver = aibp.RegFile{}

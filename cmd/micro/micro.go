@@ -21,6 +21,7 @@ import (
 	"github.com/micro-editor/micro/v2/internal/buffer"
 	"github.com/micro-editor/micro/v2/internal/clipboard"
 	"github.com/micro-editor/micro/v2/internal/config"
+	"github.com/micro-editor/micro/v2/internal/dialog"
 	"github.com/micro-editor/micro/v2/internal/screen"
 	"github.com/micro-editor/micro/v2/internal/shell"
 	"github.com/micro-editor/micro/v2/internal/util"
@@ -532,8 +533,8 @@ func DoEvent() {
 	if action.TheNotePane != nil && action.TheNotePane.IsOpen() {
 		action.TheNotePane.Display()
 	}
-	if action.TheFloatFrame.IsOpen() {
-		action.TheFloatFrame.Display()
+	if dialog.TheFloatFrame.IsOpen() {
+		dialog.TheFloatFrame.Display()
 	}
 	screen.Screen.Show()
 
@@ -580,11 +581,11 @@ func DoEvent() {
 			if action.TheNotePane != nil && action.TheNotePane.IsOpen() {
 				action.TheNotePane.HandleEvent(event)
 			}
-			if action.TheFloatFrame.IsOpen() {
-				action.TheFloatFrame.HandleEvent(event)
+			if dialog.TheFloatFrame.IsOpen() {
+				dialog.TheFloatFrame.HandleEvent(event)
 			}
-		} else if action.TheFloatFrame.IsOpen() {
-			action.TheFloatFrame.HandleEvent(event)
+		} else if dialog.TheFloatFrame.IsOpen() {
+			dialog.TheFloatFrame.HandleEvent(event)
 		} else if action.TheNotePane != nil && action.TheNotePane.IsOpen() {
 			action.TheNotePane.HandleEvent(event)
 		} else if action.InfoBar.HasPrompt {

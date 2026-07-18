@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+**Refactor**
+
+- 把 modal 浮窗组件从 `internal/action/` 迁出，创建独立的 `internal/dialog/` 包。结构变化：
+	 - 新增 `internal/dialog/` 包（`frame.go`、`select.go`），承载 `FloatFrame` 容器与 `SelectDialog` 选择器，以及共享的 `Rect/Pos/Size/FloatOpenSpec` 契约。包内自初始化 `TheFloatFrame`，不再依赖 action 全局变量。
+	 - 删除 `internal/action/floatframe.go`（~303 行）与 `internal/action/selectdialog.go`（~235 行），原 `action.TheFloatFrame` / `action.Rect` 等符号移至 `dialog.TheFloatFrame` / `dialog.Rect`。
+	 - 引用点迁移：`cmd/micro/micro.go`（Display / HandleEvent 路由）与 `internal/action/{command_neo.go,notepane.go}`（`:theme` 与 NotePane receiver 选择）改为引用 `dialog` 包。
+	 - `internal/action/globals.go` 删除 `TheFloatFrame` 初始化，交由 dialog 包自理。
+- 文档更新：删除 `docs/fileSelect/N1-floatFrame设计方案.md` 与 `N1a-floatFrame技术架构方案.md`，新增 `N1-InputDialog设计.md` 与 `N1a-Dialog包迁移计划.md`。
+
 ## [1.1.18] - 2026-07-18
 
 **Fixed**

@@ -1,4 +1,4 @@
-package action
+package dialog
 
 import (
 	"github.com/micro-editor/micro/v2/internal/config"
@@ -6,44 +6,46 @@ import (
 	"github.com/micro-editor/tcell/v2"
 )
 
-// SelectDialog 是 modal 选择列表（具体浮窗，参见 docs/弹窗机制/弹窗框架设计.md §四.2）。
+// SelectDialog is a modal list selection dialog (concrete floating window).
 //
-// v2 列表滚动：调用方传入 maxVisible / wrap，SelectDialog 内部管理 topIdx（视口偏移）。
-// 边框 / title / 清屏 / 锚点展开 / Layout / 生命周期全部移交 FloatFrame，
-// 本文件只保留业务逻辑（列表状态、键盘映射、回调通知）。
+// v2 scrolling: caller passes maxVisible/wrap; SelectDialog internally manages
+// topIdx (viewport offset). Frame, title, clearing, anchor expansion, layout,
+// and lifecycle are entirely handled by FloatFrame. This file only contains
+// business logic: list state, keyboard mapping, and callback notification.
 //
-// 生命周期（设计 §五）：
-//   - 调用方 new 一个 SelectDialog，调 Open(...)，把 display / handleEvent 塞给 TheFloatFrame；
-//   - 运行期 SelectDialog 对象本身不再被主循环引用（D2'：用完即弃，靠 GC 回收）；
-//   - 关闭由 handleEvent 内部发起：先 TheFloatFrame.Close() 再 onSelect(...)。
+// Lifecycle:
+//   - Caller creates a SelectDialog, calls Open(...), passing display/handleEvent to TheFloatFrame.
+//   - During execution the SelectDialog object is not referenced by the main loop (D2': GC-eligible).
+//   - Close is initiated from handleEvent: first TheFloatFrame.Close(), then onSelect(...).
+
 type SelectDialog struct {
 	items      []string
-	selected   int   // 绝对选中索引（0..len-1）
-	topIdx     int   // 视口顶端在 items 中的索引
-	maxVisible int   // 视口上限（<=0 视为无上限）
-	wrap       bool  // true: 上下循环；false: 到顶/底停住
+	selected   int   // Absolute selected index (0..len-1)
+	topIdx     int   // Viewport top in items
+	maxVisible int   // Viewport height limit (<=0 means unlimited)
+	wrap       bool  // true: wrap around; false: stop at ends
 	title      string
 	onSelect   func(*string)
 }
 
-// NewSelectDialog 返回空 SelectDialog（未打开状态）。
+// NewSelectDialog returns an empty SelectDialog (closed state).
 func NewSelectDialog() *SelectDialog {
 	return &SelectDialog{}
 }
 
-// Open 打开选择浮窗。
+// Open opens the selection floating window.
 //
-//   items       候选项
-//   title       上边框标签（如 "Receiver"）
-//   anchor      触发锚点（屏坐标，通常来自光标位置）
-//   frameColor  浮窗边框色；tcell.Style{} 零值 = config.DefStyle
-//   maxVisible  视口最大可见行数；<=0 时 fallback 到 len(items)（不滚动）
-//   wrap        true: 上下循环（默认）；false: 到顶/底停住
-//   onSelect    回调：Enter → onSelect(&items[selected])；Esc / resize → onSelect(nil)
+//	items       list of options
+//	title       top border label (e.g. "Receiver")
+//	anchor      trigger anchor in screen coordinates (usually from cursor position)
+//	frameColor  frame color; tcell.Style{} zero = config.DefStyle
+//	maxVisible  viewport height; <=0 falls back to len(items) (no scrolling)
+//	wrap        true: wrap around (default); false: stop at ends
+//	onSelect    callback: Enter → onSelect(&items[selected]); Esc/resize → onSelect(nil)
 //
-// Layout / 边框 / 失败前置检查全部归 FloatFrame：SelectDialog 不读屏幕尺寸、不碰任何 Layout 逻辑。
-// 如果 FloatFrame.Open 返回 false（拒绝再开 / 屏幕放不下），直接 onSelect(nil) 返回，
-// 不设置任何业务状态——对调用方完全透明（与旧实现一致）。
+// Layout, frame, and pre-flight checks are handled by FloatFrame. If FloatFrame.Open
+// returns false (rejected or doesn't fit), we call onSelect(nil) directly without
+// setting any business state (transparent to caller).
 func (s *SelectDialog) Open(
 	items []string,
 	title string,
@@ -61,7 +63,7 @@ func (s *SelectDialog) Open(
 	s.title = title
 	s.onSelect = onSelect
 
-	// 算纯内容尺寸（宽含左右 padding 各 1；高为 maxVisible，过长时由 FloatFrame 拒绝）。
+	// Compute pure content size (width includes 1 padding each side; height = maxVisible or len(items))
 	visibleH := len(s.items)
 	if maxVisible > 0 && visibleH > maxVisible {
 		visibleH = maxVisible
@@ -78,15 +80,14 @@ func (s *SelectDialog) Open(
 		FrameColor:  frameColor,
 		Display:     s.display,
 		HandleEvent: s.handleEvent,
-		AutoExpand:  true, // SelectDialog: 贴光标/贴 statusLine 展开(旧行为)
-		OnResize: func() { // resize 即关时清理业务回调
+		AutoExpand:  true, // SelectDialog: 贴光标/贴 statusLine 展开
+		OnResize: func() {
 			if s.onSelect != nil {
 				s.onSelect(nil)
 			}
 		},
 	}
 	if !TheFloatFrame.Open(spec) {
-		// 没开成：清状态 + 回调取消
 		s.items = nil
 		s.onSelect = nil
 		if onSelect != nil {
@@ -95,8 +96,8 @@ func (s *SelectDialog) Open(
 	}
 }
 
-// display 只画视口内 [topIdx, topIdx+visibleH) 的项；当前选中项 Reverse。
-// 边框 / title 由 FloatFrame 负责。
+// display draws only visible items [topIdx, topIdx+visibleH); current selection is reversed.
+// Frame and title are handled by FloatFrame.
 func (s *SelectDialog) display(area Rect) {
 	revStyle := config.DefStyle.Reverse(true)
 	visibleH := min(len(s.items), s.effMaxVisible())
@@ -111,9 +112,9 @@ func (s *SelectDialog) display(area Rect) {
 		if i == s.selected {
 			style = revStyle
 		}
-		// 左 padding
+		// Left padding
 		screen.Screen.SetContent(area.X, row, ' ', nil, style)
-		// 文本
+		// Text
 		col := area.X + 1
 		for _, r := range s.items[i] {
 			if col >= area.X+area.W {
@@ -122,14 +123,14 @@ func (s *SelectDialog) display(area Rect) {
 			screen.Screen.SetContent(col, row, r, nil, style)
 			col++
 		}
-		// 右 padding（保持 Reverse 视觉连续）
+		// Right padding
 		for col < area.X+area.W {
 			screen.Screen.SetContent(col, row, ' ', nil, style)
 			col++
 		}
 	}
 
-	// 滚动指示符（仅当内容溢出时）；style 跟随所在行（ADR A4 修订版）。
+	// Scroll indicators (only when content overflows)
 	if len(s.items) > visibleH {
 		rightCol := area.X + area.W - 1
 		topStyle := config.DefStyle
@@ -150,8 +151,8 @@ func (s *SelectDialog) display(area Rect) {
 	}
 }
 
-// handleEvent 处理键盘事件。Up/Down 改选中态并跟随视口；Enter/Esc/Resize 先关容器再回调；
-// 其它键吞掉（modal）。
+// handleEvent processes keyboard events. Up/Down change selection and scroll viewport;
+// Enter/Esc/Resize close container first then callback; other keys are swallowed (modal).
 func (s *SelectDialog) handleEvent(event tcell.Event) {
 	switch ev := event.(type) {
 	case *tcell.EventKey:
@@ -175,7 +176,6 @@ func (s *SelectDialog) handleEvent(event tcell.Event) {
 			screen.Redraw()
 			return
 		case tcell.KeyEnter:
-			// 回调顺序：先关容器，再回调（设计 §五）
 			picked := s.items[s.selected]
 			onSelect := s.onSelect
 			TheFloatFrame.Close()
@@ -191,12 +191,10 @@ func (s *SelectDialog) handleEvent(event tcell.Event) {
 			}
 			return
 		}
-		// 其它键（含字母 j / Ctrl-X 等）：完全吞掉
-
 	}
 }
 
-// ensureVisible 把视口拉到包含 selected 的最小位置。
+// ensureVisible scrolls the viewport to include selected index.
 func (s *SelectDialog) ensureVisible() {
 	visibleH := min(len(s.items), s.effMaxVisible())
 	if s.selected < s.topIdx {
@@ -207,7 +205,7 @@ func (s *SelectDialog) ensureVisible() {
 	}
 }
 
-// effMaxVisible 返回实际生效的视口上限（maxVisible<=0 视为无上限）。
+// effMaxVisible returns the effective viewport height limit (maxVisible<=0 means unlimited).
 func (s *SelectDialog) effMaxVisible() int {
 	if s.maxVisible <= 0 {
 		return len(s.items)
@@ -215,7 +213,7 @@ func (s *SelectDialog) effMaxVisible() int {
 	return s.maxVisible
 }
 
-// maxItemLen 返回 items 中最长项的字符数（rune 计数）。
+// maxItemLen returns the character count of the longest item (rune count).
 func maxItemLen(items []string) int {
 	m := 0
 	for _, it := range items {
@@ -226,7 +224,7 @@ func maxItemLen(items []string) int {
 	return m
 }
 
-// min 返回 a/b 中较小者。
+// min returns the smaller of a and b.
 func min(a, b int) int {
 	if a < b {
 		return a

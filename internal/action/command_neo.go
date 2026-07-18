@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/micro-editor/micro/v2/internal/config"
+	"github.com/micro-editor/micro/v2/internal/dialog"
 	"github.com/micro-editor/micro/v2/internal/screen"
 	"github.com/micro-editor/micro/v2/internal/views"
 	"github.com/micro-editor/tcell/v2"
@@ -54,9 +55,9 @@ func (h *BufPane) ThemeCmd(args []string) {
 	}
 
 	// anchor.Y = -1 是 FloatFrame sentinel：紧贴 statusLine 上方 1 行
-	anchor := Pos{X: 0, Y: -1}
+	anchor := dialog.Pos{X: 0, Y: -1}
 
-	NewSelectDialog().Open(items, "Themes", anchor, tcell.Style{}, 8, false, func(picked *string) {
+	dialog.NewSelectDialog().Open(items, "Themes", anchor, tcell.Style{}, 8, false, func(picked *string) {
 		if picked == nil {
 			return // 用户按 Esc / resize，关闭即结束
 		}
