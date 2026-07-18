@@ -27,6 +27,9 @@ func InitNeoCommands() {
 	MakeCommand("file", (*BufPane).FileCmd, nil)
 	MakeCommand("quit", (*BufPane).QuitNeoCmd, nil) // QuitNeoCmd 已存在，包 QuitNeo，不改
 
+	// :inputtest 是 InputDialog 测试命令，验证完成后删除
+	MakeCommand("inputtest", (*BufPane).InputTestCmd, nil)
+
 	// :big / :small pane 原语
 	BufKeyActions["BigPane"] = (*BufPane).BigPane
 	BufKeyActions["SmallPane"] = (*BufPane).SmallPane
@@ -97,6 +100,54 @@ func (h *BufPane) QuitNeo() bool {
 // 行为与原生 :open 一致：Enter 选文件后由 OpenCmd 问「保存? y/n/esc」。
 func (h *BufPane) FileCmd(args []string) {
 	h.OpenFinder(false)
+}
+
+// ---- InputDialog 测试 ----
+
+// InputTestCmd 是 :inputtest 命令的 action。
+// 用于测试 InputDialog 功能，验证完成后删除此测试代码。
+func (h *BufPane) InputTestCmd(args []string) {
+	h.InputTest()
+}
+
+// InputTest 打开一个 InputDialog 测试浮窗。
+// 测试场景：
+// - 三态退出（Enter 返回编辑内容，ESC/Resize 返回 canceled）
+// - 光标显示与移动
+// - 中文输入（双宽字符）
+// - 组合字符
+// - 水平滚动
+// - 用户键位映射
+// - 边界处理（Backspace 行首，Delete 行末）
+func (h *BufPane) InputTest() {
+	w, _ := screen.Screen.Size()
+
+	// 创建 keyResolver：复用 BufPane 的 keyEvent 解析逻辑
+	keyResolver := func(event tcell.Event) string {
+		if k, ok := event.(*tcell.EventKey); ok {
+			return keyEvent(k).Name()
+		}
+		return ""
+	}
+
+	dlg := dialog.NewInputDialog()
+	dlg.Open(
+		"test filename",          // 初始内容
+		"Test Input",             // 标题
+		dialog.Pos{X: 0, Y: -1},  // anchor：sentinel，紧贴 statusLine 上方
+		w-4,                       // width（留边框余量）
+		tcell.Style{},             // 默认边框色
+		func(result string, canceled bool) {
+			// 回调里 InfoBar 显示结果（临时测试用）
+			if canceled {
+				InfoBar.Message("InputDialog: canceled")
+			} else {
+				InfoBar.Message("InputDialog: ", result)
+			}
+			screen.Redraw()
+		},
+		keyResolver,
+	)
 }
 
 // ---- :big / :small ----

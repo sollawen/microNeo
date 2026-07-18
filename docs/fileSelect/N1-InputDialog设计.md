@@ -138,6 +138,8 @@ SelectDialog 用 `onSelect func(*string)`（nil = 取消）。InputDialog 选择
 - Enter 时返回编辑后的 string，取消时 `canceled=true`，`result` 无定义（调用方应忽略）。
 - 代价是「与 SelectDialog 的 idiom 不同」，但二者语义本就不同（SelectDialog 是「选择」，InputDialog 是「编辑」），一致性在此让位于语义清晰。
 
+**完整 API 一致性说明**见 §十三。
+
 ### 5.4 内部 display / handleEvent（由 Open 塞给 floatFrame）
 
 ```go
@@ -212,7 +214,7 @@ func (d *InputDialog) lookupAction(event tcell.Event) string {
 
 ### 6.3 动作白名单（支持的动作）
 
-InputDialog 只支持单行编辑所需的动作子集（从 `infodefaults` 和 `BufKeyActions` 筛选）：
+InputDialog 只支持单行编辑所需的动作子集（从 InfoBar 的实际支持动作筛选，与 InfoBar 行为对齐）：
 
 | 动作名 | 原语调用 | 说明 |
 |---|---|---|
@@ -229,15 +231,16 @@ InputDialog 只支持单行编辑所需的动作子集（从 `infodefaults` 和 
 | `Delete` | `Remove(...)` | 删除当前字符（绑定为 Delete） |
 | `DeleteWordLeft` | 按词删除 | 删除前一个词（绑定为 Alt-Ctrl-H / Alt-Backspace / Ctrl-W） |
 | 字符输入（`KeyRune`） | `Insert(...) + cursor.Right()` | 插入字符（含中文输入） |
-| `Enter` | 确认 | 关闭并返回 edited |
-| `Escape` / `AbortCommand` | 取消 | 关闭并返回 canceled=true |
+| `KeyEnter` | 确认 | 关闭并返回 edited |
+| `KeyEscape` / `AbortCommand` | 取消 | 关闭并返回 canceled=true |
 | `CtrlC` | 取消 | 同 Escape |
 
 **不支持的动作**（忽略，即使有绑定）：
 - Tab / Autocomplete / Indent 等多行操作（InputDialog 单行，无缩进逻辑）
+- Ctrl-m / `ExecuteCommand`：InfoBar 不支持此键用于确认，InputDialog 也不支持
 - Undo / Redo（首版不暴露，buffer 原语支持但 keymap 不暴露）
 - Cut / Copy / Paste（首版不暴露）
-- Ctrl-U（删除至行首）和 Ctrl-K（删除至行尾）：`infodefaults` 中没有绑定，首版不支持
+- Ctrl-U（删除至行首）和 Ctrl-K（删除至行尾）：InfoBar 不支持，InputDialog 也不支持
 - 任何与 finder / 插件 / 多光标相关的动作
 - HistoryUp / HistoryDown（InfoBar 特有，InputDialog 无历史）
 
@@ -264,11 +267,11 @@ InputDialog 只支持单行编辑所需的动作子集（从 `infodefaults` 和 
 
 1. `line := d.buf.LineBytes(0)`；`cX := d.cursor.X`（光标字符列，**非可视列**）。
 2. **水平滚动**（保证光标在框内）：
-   - 光标可视列：`cursorVisualCol = d.cursor.GetVisualX(false)`（`false` = 不考虑软换行，单行恒为 false）。
+   - 光标可视列：`cursorVisualCol = d.cursor.GetVisualX(false)`（`false` = 不考虑软换行，单行恒为 false）。`GetVisualX` 返回从行首到光标位置的累积可视宽度，对含双宽字符的行正确计算。
    - 若 `cursorVisualCol < d.hscroll` → `d.hscroll = cursorVisualCol`（光标左出框，左拉）。
-   - 若 `cursorVisualCol > d.hscroll + contentArea.W` → `d.hscroll = cursorVisualCol - contentArea.W`（光标右出框，右拉）。
-   - 上限：`d.hscroll = clamp(d.hscroll, 0, max(visualLineWidth-width+1, 0))`。
-3. **画字符**：从 `hscroll` 起逐字符查找其在可视列中的位置（`util.GetCharPosInLine` 或自实现类似逻辑），找到起始字符列 `startCharCol`；从 `startCharCol` 起逐 rune 解码（`util.DecodeCharacter`），用 `runewidth.RuneWidth` 累加可视宽，写到 `contentArea`，直到可视列达到 `contentArea.W`。
+   - 若 `cursorVisualCol >= d.hscroll + contentArea.W` → `d.hscroll = cursorVisualCol - contentArea.W + 1`（光标右出框，右拉）。
+   - 上限：`d.hscroll = clamp(d.hscroll, 0, max(visualLineWidth-width, 0))`。
+3. **画字符**：从 `hscroll` 起用 `util.GetCharPosInLine` 反向查找起始字符列 `startCharCol`；从 `startCharCol` 起逐 rune 解码（`util.DecodeCharacter`），用 `runewidth.RuneWidth` 累加可视宽，用 `screen.SetContent` 写到 `contentArea`（支持组合字符，combc 参数传递零宽组合标记），直到可视列达到 `contentArea.W`。此过程与 InfoBar `displayBuffer`（`internal/display/infowindow.go:80-126`）一致。
 4. **光标**：`screen.ShowCursor(contentArea.X + cursorVisualCol - d.hscroll, contentArea.Y)`。
 5. **清背景**：`FloatFrame.Display` 已把整个外矩形清成 frameColor；内容区因 `H==1` 且已被清，无需再清。若需区分内容区底色（例如用 `config.DefStyle`），可在此重刷一行——默认沿用边框色，与 SelectDialog 视觉一致。
 
@@ -296,7 +299,7 @@ InputDialog 只支持单行编辑所需的动作子集（从 `infodefaults` 和 
 | Ctrl-Left / Ctrl-B / Alt-b | 按词左移 | `d.cursor.WordLeft()` |
 | Ctrl-Right / Ctrl-F / Alt-f | 按词右移 | `d.cursor.WordRight()` |
 | `KeyBackspace` / Ctrl-H | 删除前一字符 | `loc := d.cursor.Loc; d.buf.Remove(loc.Move(-1, d.buf), loc)` 后 `cursor.Left()` |
-| `KeyDelete` | 删除当前字符 | `loc := d.cursor.Loc; d.buf.Remove(loc, loc.Move(1, d.buf))` |
+| `KeyDelete` | 删除当前字符 | `if d.cursor.Loc.LessThan(d.buf.End()) { d.buf.Remove(loc, loc.Move(1, d.buf)) }`（与 InfoBar `actions.go:797-805` 边界检查一致）|
 | Alt-Backspace / Alt-Ctrl-H / Ctrl-w / Ctrl-d | 按词删除 | 删除光标前的一个词（绑定 `DeleteWordLeft`） |
 | `KeyEnter` | **确认** | 取 `edited := string(d.buf.LineBytes(0))` → `Close` → `onResult(edited, false)` |
 | `KeyEscape` / Ctrl-C / Ctrl-q | **取消** | `Close` → `onResult("", true)`（result 无定义，调用方应忽略） |
@@ -306,10 +309,10 @@ InputDialog 只支持单行编辑所需的动作子集（从 `infodefaults` 和 
 
 - **Home vs Ctrl-A**：`Home` 绑定 `StartOfTextToggle`（跳到第一个非空白字符），`Ctrl-A` 绑定 `StartOfLine`（X=0）。InputDialog 同时支持，遵循 InfoBar 惯例。
 - **按词移动**：`Ctrl-Left` / `Ctrl-B` / `Alt-b` 都绑定 `WordLeft`，遵循 Readline/Emacs 惯例。
-- **按词删除**：`Alt-Backspace` / `Alt-Ctrl-H` / `Ctrl-w` / `Ctrl-d` 都绑定 `DeleteWordLeft`，与 InfoBar 一致。
-- **Ctrl-K**：在 `infodefaults` 中绑定 `CutLine`，不是删除至行尾。InputDialog 首版不支持（需要额外逻辑）。
-- **Ctrl-U**：在 `infodefaults` 中不存在，首版不支持删除至行首。
+- **按词删除**：`Alt-Backspace` / `Alt-Ctrl-H` / `Ctrl-w` 都绑定 `DeleteWordLeft`，与 InfoBar 一致（`actions.go:764`）。
+- **Ctrl-K / Ctrl-U**：InfoBar 不支持删除至行首/行尾的快捷键，InputDialog 也不支持。
 - Backspace 的 `cursor.Loc.Move(-1, buf)` 在光标处于 `buf.Start()` 时返回 Start 自身，`Remove(Start, Start)` 是 no-op，天然安全（与 `actions.go:723` Backspace 的边界一致，单行无 tab-to-spaces 分支需求）。
+- Delete 在行末（`cursor.Loc == buf.End()`）时 `LessThan(End)` 为 false，不执行删除，与 InfoBar 一致（`actions.go:797-805`）。
 - 不接 undo/redo（Ctrl-Z / Ctrl-Y）：BTInfo buffer 本身支持，但首版 keymap 不暴露，避免与「确认/取消」语义混淆；列为未来可选。
 - 不接剪贴板 Cut/Copy/Paste：首版可省；若 finder 重命名场景需要，再补。
 - 每个编辑分支末尾 `screen.Redraw()`，让 `d.display` 重画并把光标拉回框内（水平滚动在 display 里算）。
@@ -422,14 +425,42 @@ h.finder = finder.NewSession(func(e tcell.Event) string {
 
 | 风险 | 说明 | 应对 |
 |---|---|---|
-| 双宽字符水平滚动差一列 | hscroll 按字符列近似可视列 | **已解决**：§七算法用 `GetVisualX` 以可视列为单位，精确计算 |
+| 双宽字符水平滚动 | hscroll 按字符列近似可视列 | **已解决**：§七算法用 `GetVisualX` 以可视列为单位，精确计算 |
+| 组合字符 / 零宽字符 | CJK 输入法可能产生组合字符 | **已解决**：渲染用 `screen.SetContent(vlocX, i.Y, r, combc, style)`，支持零宽组合标记（与 InfoBar `infowindow.go:80-102` 一致） |
 | 与 InfoBar 同时活跃 | floatFrame modal 期间 InfoBar 收不到事件，反之 InfoBar prompt 期间 floatFrame 也开不出（Open 返回 false） | 由 C1/C3 自然保证，无额外处理 |
 | 回调里再 Open 浮窗 | onResult 触发时 floatFrame 已 Close | 安全，已验证顺序（先 Close 后回调） |
 | 插件 `onAnyEvent` | 主循环每事件后跑 `RunPluginFn("onAnyEvent")`（`micro.go:597`） | 与 InputDialog 无关，不拦截；插件读到的是 floatFrame 开启态，符合预期 |
 | Ctrl-A 语义重定义 | 全局 Ctrl-A=SelectAll，InputDialog 内=至行首 | 自包含 switch 不读全局绑定，行为可预测；文档已注明 |
 | BTInfo buffer 的 undo 栈 | 首版不暴露 undo/redo | 留作未来可选项；BTInfo 是否记 undo 不影响首版 |
+| 回调函数签名差异 | SelectDialog 用 `func(*string)`，InputDialog 用 `func(string, bool)` | **已说明**：§5.3 明确 rationale，与 SelectDialog 的语义差异（选择 vs 编辑）决定一致性让位于清晰度 |
 
-## 十三、实现步骤
+## 十三、API 一致性说明
+
+InputDialog 与 SelectDialog 同属 `dialog` 包，生命周期一致（floatFrame modal、Open → 编辑 → Close → 回调），但回调签名不同：
+
+| Dialog | 回调签名 | 语义 |
+|---|---|---|
+| SelectDialog | `onSelect func(*string)` | 选择：nil = 取消，非 nil = 选中项 |
+| InputDialog | `onResult func(result string, canceled bool)` | 编辑：result 有效当且仅当 canceled=false |
+
+此差异是语义驱动的：SelectDialog 是「从列表选一个」，InputDialog 是「编辑输入文本」。InputDialog 的 `result string, canceled bool` 更符合 Go 的 `val, ok` 惯例，一眼可读。一致性在此让位于语义清晰，且二者调用方不同（SelectDialog 被多个子系统调用，InputDialog 主要服务于 finder），不存在统一调用接口的需求。
+
+## 十四、未来考虑（与 InfoBar 对齐）
+
+首版 InputDialog 聚焦单行编辑核心功能，未来可按需增强，优先参考 InfoBar 已有的能力：
+
+| 功能 | InfoBar 状态 | InputDialog 首版 | 未来考虑 |
+|---|---|---|---|
+| 鼠标点击重定位光标 | InfoBar 不支持 | 不支持 | 若需支持，参考 `GetCharPosInLine` 映射屏坐标到字符列 |
+| Ctrl-K / Ctrl-U | 不支持 | 不支持 | 可添加，优先参考 InfoBar 实现方式（若未来 InfoBar 添加） |
+| Tab 键输入 | 支持 | 不支持 | 文件名可含 Tab（Unix 合法），若需支持参考 InfoBar |
+| 剪贴板 Cut/Copy/Paste | 支持 | 不支持 | 若需支持，复制 InfoBar 的 keymap 与原语调用 |
+| Undo / Redo | 支持 | 不支持 | BTInfo buffer 已支持 undo 栈，仅需暴露 keymap |
+| Emoji 渲染 | 按 micro 主编辑器方式 | 按主编辑器方式 | ZWJ 序列（🏳️‍🌈）可能拆分，是终端渲染层行为 |
+
+**原则**：InfoBar 有的我们就有，抄它的实现。首版不抄的是 InputDialog 用不上的（历史记录、建议列表等 InfoBar 特有机制）。
+
+## 十五、实现步骤
 
 落地顺序（供执行）：
 
@@ -443,7 +474,9 @@ h.finder = finder.NewSession(func(e tcell.Event) string {
    - **三态退出**：Enter 返回 edited，ESC / Resize / Open 失败返回 canceled=true
    - **光标显示**：输入后光标位置正确（单行居中）
    - **中文输入**：输入中文字符后光标位置正确（双宽字符）
+   - **组合字符**：输入带变音符号的字符（如 é）正确显示
    - **水平滚动**：长文本超出宽度时滚动跟随光标
    - **用户键位**：修改 bindings.json 后键位生效（如 Ctrl-Left 按词移动）；验证 keyResolver 注入 + config.Bindings["command"] 读取正确
+   - **边界处理**：Backspace 在行首无操作，Delete 在行末无操作
    - **回调触发**：验证 `onResult` 恰好触发一次，无重复调用
 8. 移除临时调用点，提交。
