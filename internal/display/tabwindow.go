@@ -33,7 +33,7 @@ func (w *TabWindow) LocFromVisual(vloc buffer.Loc) int {
 
 	for i, n := range w.Names {
 		x++
-		s := util.CharacterCountInString(n)
+		s := runewidth.StringWidth(n)
 		if vloc.Y == w.Y && vloc.X < x+s {
 			return i
 		}
@@ -74,7 +74,7 @@ func (w *TabWindow) SetActive(a int) {
 	s := w.TotalSize()
 
 	for i, n := range w.Names {
-		c := util.CharacterCountInString(n)
+		c := runewidth.StringWidth(n)
 		if i == a {
 			if x+c >= w.hscroll+w.Width {
 				w.hscroll = util.Clamp(x+c+1-w.Width, 0, s-w.Width)

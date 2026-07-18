@@ -47,6 +47,7 @@ description: Writes/updates CHANGELOG.md entries. Use when user asks to add a ne
 3. 必要时 `git show <hash>` 看提交正文确认变化的**用户面**（不是实现面）。
 4. 在 CHANGELOG.md 顶部插入新 `## [X.Y.Z]` 段。
 5. 拿不准一条要不要写时，默认不写 —— changelog 宁精勿滥。
+6. 如果仅是修改了changelog.md的时候，**不要commit**
 
 ## Language
 
