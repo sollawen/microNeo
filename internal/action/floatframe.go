@@ -44,7 +44,7 @@ type FloatOpenSpec struct {
 	Display     func(contentArea Rect)  // 画内容(收到的 area 已扣除边框)
 	HandleEvent func(event tcell.Event) // 处理键事件(resize 不会到达, FloatFrame 已拦截)
 	OnResize    func()                  // 仅 resize 导致容器自关时触发(ESC 取消/主动 Close 都不触发); 具体浮窗在此清理业务回调
-	AutoExpand  bool                    // true: 锚点自适应展开(SelectPane); false: 直接以 Anchor 为外矩形左上角
+	AutoExpand  bool                    // true: 锚点自适应展开(SelectDialog); false: 直接以 Anchor 为外矩形左上角
 }
 
 // FloatFrame 容器本体。
@@ -77,7 +77,7 @@ func NewFloatFrame() *FloatFrame {
 // Open 打开浮窗。
 //
 // 入参通过 FloatOpenSpec（options 模式）传入。layout 按 AutoExpand 分叉：
-//   - AutoExpand=true  → 锚点自适应展开（SelectPane 贴光标弹窗）
+//   - AutoExpand=true  → 锚点自适应展开（SelectDialog 贴光标弹窗）
 //   - AutoExpand=false → 直接以 Anchor 为外矩形左上角（调用方精确控制）
 //
 // 返回 bool：
@@ -105,7 +105,7 @@ func (f *FloatFrame) Open(spec FloatOpenSpec) bool {
 
 	// —— 存字段 ——
 	ax, ay := spec.Anchor.X, spec.Anchor.Y
-	if spec.AutoExpand && ay < 0 { // sentinel: 仅 SelectPane 用, 贴 statusLine
+	if spec.AutoExpand && ay < 0 { // sentinel: 仅 SelectDialog 用, 贴 statusLine
 		ay = bottomLimit + ay + 1 // 直接读入参, 不抄到容器字段(避免抄写时机 bug)
 	}
 	fc := spec.FrameColor
@@ -234,7 +234,7 @@ func (f *FloatFrame) HandleEvent(event tcell.Event) {
 
 // expandAnchor 算锚点自适应展开后的最终左上角 (fx, fy)。
 //
-// 仅在 AutoExpand=true 时调用（SelectPane 贴光标弹窗路径）。
+// 仅在 AutoExpand=true 时调用（SelectDialog 贴光标弹窗路径）。
 // AutoExpand=false 时 FloatFrame 直接以 Anchor 为左上角，不调用本函数。
 //
 // 算法体从 selectpane.go 旧实现原样迁移，保持逐字节一致：

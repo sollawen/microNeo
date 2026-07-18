@@ -3,6 +3,10 @@ name: commit
 description: Handles git commit operations. Use when user explicitly asks to commit code changes.
 ---
 
+## Usage
+
+This is a rules document for the assistant to follow. When the user says "commit", load these rules and execute the commit directly—**do not summon another assistant**.
+
 ## Rules
 
 ### Principles

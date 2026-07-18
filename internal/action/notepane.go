@@ -158,13 +158,13 @@ func NotePaneSwitchReceiver(h *BufPane) bool {
 		return true
 	}
 
-	// 4. case 2+：弹 SelectPane
+	// 4. case 2+：弹 SelectDialog
 	names := make([]string, len(receivers))
 	for i, r := range receivers {
 		names[i] = r.Name
 	}
 	// 锚点 = notePane 左上角。展开方向交给 FloatFrame 自适应（D13）。
-	NewSelectPane().Open(names, "Receivers", Pos{X: n.x, Y: n.y}, tcell.Style{}, 10, true, func(s *string) {
+	NewSelectDialog().Open(names, "Receivers", Pos{X: n.x, Y: n.y}, tcell.Style{}, 10, true, func(s *string) {
 		if s == nil {
 			// Esc：selectedReceiver 不变（伪代码明确要求）
 			return
@@ -173,7 +173,7 @@ func NotePaneSwitchReceiver(h *BufPane) bool {
 		for _, r := range receivers {
 			if r.Name == *s {
 				n.selectedReceiver = r
-				// 不需要 screen.Redraw()：本回调在 DoEvent 事件链里执行（SelectPane
+				// 不需要 screen.Redraw()：本回调在 DoEvent 事件链里执行（SelectDialog
 				// 的 KeyEnter 经 FloatFrame.HandleEvent 走到这里），下一帧自然重画。
 				return
 			}
@@ -196,7 +196,7 @@ func notePaneClose(h *BufPane) bool {
 // notePaneOpen 从主编辑器打开 NotePane。
 // 注册为主编辑器的 BufKeyAction，可走标准 bindings.json 机制覆盖默认键位。
 // 守卫：notePane 已开态下重复触发是 no-op。
-// 流程：discover → (1 个 / 缓存命中 / SelectPane 弹窗) → n.open(receiver)（D16：receiver 作为显式参数）。
+// 流程：discover → (1 个 / 缓存命中 / SelectDialog 弹窗) → n.open(receiver)（D16：receiver 作为显式参数）。
 func notePaneOpen(h *BufPane) bool {
 	n := TheNotePane
 	if n == nil {
@@ -233,7 +233,7 @@ func notePaneOpen(h *BufPane) bool {
 		}
 	}
 
-	// 4. case 2+ 未命中：弹 SelectPane（D14：传真实锚点）
+	// 4. case 2+ 未命中：弹 SelectDialog（D14：传真实锚点）
 	pane := MainTab().CurPane()
 	view := pane.BWindow.GetView()
 	bw := pane.BWindow.(*display.BufWindow)
@@ -244,7 +244,7 @@ func notePaneOpen(h *BufPane) bool {
 	for i, r := range receivers {
 		names[i] = r.Name
 	}
-	NewSelectPane().Open(names, "Receiver", Pos{X: ax, Y: ay}, tcell.Style{}, 10, true, func(s *string) {
+	NewSelectDialog().Open(names, "Receiver", Pos{X: ax, Y: ay}, tcell.Style{}, 10, true, func(s *string) {
 		if s == nil {
 			// Esc：清零缓存（走到此分支时缓存已失效，决策 14）
 			n.selectedReceiver = aibp.RegFile{}
@@ -258,7 +258,7 @@ func notePaneOpen(h *BufPane) bool {
 				return
 			}
 		}
-		// 理论上不会到这（SelectPane 的 items 来自 receivers），防御性
+		// 理论上不会到这（SelectDialog 的 items 来自 receivers），防御性
 		InfoBar.Message("✗ internal: selected name not in receivers")
 	})
 	return true

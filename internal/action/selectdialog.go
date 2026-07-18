@@ -6,17 +6,17 @@ import (
 	"github.com/micro-editor/tcell/v2"
 )
 
-// SelectPane 是 receiver 选择列表（具体浮窗，参见 docs/弹窗机制/弹窗框架设计.md §四.2）。
+// SelectDialog 是 modal 选择列表（具体浮窗，参见 docs/弹窗机制/弹窗框架设计.md §四.2）。
 //
-// v2 列表滚动：调用方传入 maxVisible / wrap，SelectPane 内部管理 topIdx（视口偏移）。
+// v2 列表滚动：调用方传入 maxVisible / wrap，SelectDialog 内部管理 topIdx（视口偏移）。
 // 边框 / title / 清屏 / 锚点展开 / Layout / 生命周期全部移交 FloatFrame，
 // 本文件只保留业务逻辑（列表状态、键盘映射、回调通知）。
 //
 // 生命周期（设计 §五）：
-//   - 调用方 new 一个 SelectPane，调 Open(...)，把 display / handleEvent 塞给 TheFloatFrame；
-//   - 运行期 SelectPane 对象本身不再被主循环引用（D2'：用完即弃，靠 GC 回收）；
+//   - 调用方 new 一个 SelectDialog，调 Open(...)，把 display / handleEvent 塞给 TheFloatFrame；
+//   - 运行期 SelectDialog 对象本身不再被主循环引用（D2'：用完即弃，靠 GC 回收）；
 //   - 关闭由 handleEvent 内部发起：先 TheFloatFrame.Close() 再 onSelect(...)。
-type SelectPane struct {
+type SelectDialog struct {
 	items      []string
 	selected   int   // 绝对选中索引（0..len-1）
 	topIdx     int   // 视口顶端在 items 中的索引
@@ -26,9 +26,9 @@ type SelectPane struct {
 	onSelect   func(*string)
 }
 
-// NewSelectPane 返回空 SelectPane（未打开状态）。
-func NewSelectPane() *SelectPane {
-	return &SelectPane{}
+// NewSelectDialog 返回空 SelectDialog（未打开状态）。
+func NewSelectDialog() *SelectDialog {
+	return &SelectDialog{}
 }
 
 // Open 打开选择浮窗。
@@ -41,10 +41,10 @@ func NewSelectPane() *SelectPane {
 //   wrap        true: 上下循环（默认）；false: 到顶/底停住
 //   onSelect    回调：Enter → onSelect(&items[selected])；Esc / resize → onSelect(nil)
 //
-// Layout / 边框 / 失败前置检查全部归 FloatFrame：SelectPane 不读屏幕尺寸、不碰任何 Layout 逻辑。
+// Layout / 边框 / 失败前置检查全部归 FloatFrame：SelectDialog 不读屏幕尺寸、不碰任何 Layout 逻辑。
 // 如果 FloatFrame.Open 返回 false（拒绝再开 / 屏幕放不下），直接 onSelect(nil) 返回，
 // 不设置任何业务状态——对调用方完全透明（与旧实现一致）。
-func (s *SelectPane) Open(
+func (s *SelectDialog) Open(
 	items []string,
 	title string,
 	anchor Pos,
@@ -78,7 +78,7 @@ func (s *SelectPane) Open(
 		FrameColor:  frameColor,
 		Display:     s.display,
 		HandleEvent: s.handleEvent,
-		AutoExpand:  true, // SelectPane: 贴光标/贴 statusLine 展开(旧行为)
+		AutoExpand:  true, // SelectDialog: 贴光标/贴 statusLine 展开(旧行为)
 		OnResize: func() { // resize 即关时清理业务回调
 			if s.onSelect != nil {
 				s.onSelect(nil)
@@ -97,7 +97,7 @@ func (s *SelectPane) Open(
 
 // display 只画视口内 [topIdx, topIdx+visibleH) 的项；当前选中项 Reverse。
 // 边框 / title 由 FloatFrame 负责。
-func (s *SelectPane) display(area Rect) {
+func (s *SelectDialog) display(area Rect) {
 	revStyle := config.DefStyle.Reverse(true)
 	visibleH := min(len(s.items), s.effMaxVisible())
 
@@ -152,7 +152,7 @@ func (s *SelectPane) display(area Rect) {
 
 // handleEvent 处理键盘事件。Up/Down 改选中态并跟随视口；Enter/Esc/Resize 先关容器再回调；
 // 其它键吞掉（modal）。
-func (s *SelectPane) handleEvent(event tcell.Event) {
+func (s *SelectDialog) handleEvent(event tcell.Event) {
 	switch ev := event.(type) {
 	case *tcell.EventKey:
 		switch ev.Key() {
@@ -197,7 +197,7 @@ func (s *SelectPane) handleEvent(event tcell.Event) {
 }
 
 // ensureVisible 把视口拉到包含 selected 的最小位置。
-func (s *SelectPane) ensureVisible() {
+func (s *SelectDialog) ensureVisible() {
 	visibleH := min(len(s.items), s.effMaxVisible())
 	if s.selected < s.topIdx {
 		s.topIdx = s.selected
@@ -208,7 +208,7 @@ func (s *SelectPane) ensureVisible() {
 }
 
 // effMaxVisible 返回实际生效的视口上限（maxVisible<=0 视为无上限）。
-func (s *SelectPane) effMaxVisible() int {
+func (s *SelectDialog) effMaxVisible() int {
 	if s.maxVisible <= 0 {
 		return len(s.items)
 	}
