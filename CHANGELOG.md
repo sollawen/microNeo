@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Added**
 
+- FileSelector 新增 `r` 键重命名功能：在 finder 中按 `r` 打开 InputDialog 预填当前文件名，编辑后执行 `os.Rename` 并刷新列表。支持文件/目录重命名（目录显示保留 `/` 后缀），同名/空名跳过，错误时弹出 MsgDialog 提示。新增 `internal/finder/rename.go` 与 `docs/fileSelect/F4-rename-实现方案.md`。
 - 新增 `MsgDialog` 只读多行文本展示浮窗组件，支持文本对齐（左/中/右）、softwrap 换行、最大行数限制。包含 `Open(text, title, anchor, width, align, maxH, frameColor, onClose)` API，支持 Enter/Space/Esc 关闭及鼠标点击按钮关闭。新增 `internal/dialog/msg.go` 与 `docs/fileSelect/N1c-MsgDialog设计.md` 设计文档。
 
 **Refactor**

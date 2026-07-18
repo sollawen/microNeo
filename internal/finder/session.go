@@ -688,6 +688,8 @@ func (fm *Session) handleKey(event tcell.Event) {
 			case 'q':
 				// 等价 Ctrl-q：q 退出
 				fm.close(Quit)
+			case 'r':
+				fm.startRename()
 			}
 		}
 		// 其它键吞掉（modal）
