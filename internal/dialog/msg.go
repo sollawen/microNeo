@@ -24,11 +24,11 @@ const (
 type MsgDialog struct {
 	lines   []string // softwrap 后的文本行（已按 width 换行）
 	width   int      // 内容区宽度（字符列，不含边框），由调用者传入
-	align   Align   // 文本对齐方式
-	maxH    int     // 最大显示行数（0=不限制）
-	textH   int     // 实际显示的文本行数
+	align   Align    // 文本对齐方式
+	maxH    int      // 最大显示行数（0=不限制）
+	textH   int      // 实际显示的文本行数
 	title   string
-	onClose func()  // 关闭回调（一次性）
+	onClose func() // 关闭回调（一次性）
 
 	// 鼠标命中判断用：display 每帧刷新
 	lastArea Rect // 最近一次 display 收到的 contentArea
@@ -93,6 +93,61 @@ func runeWidthInLine(r rune, col int, tabsize int) int {
 	}
 }
 
+// drawTextLines 在指定区域绘制多行文本（不含按钮）。
+func drawTextLines(area Rect, lines []string, textH, width int, align Align, style tcell.Style) {
+	for vi := 0; vi < textH; vi++ {
+		row := area.Y + vi
+		line := lines[vi]
+		lineWidth := runewidth.StringWidth(line)
+
+		// 按 align 计算起始 X
+		var startX int
+		switch align {
+		case AlignLeft:
+			startX = area.X
+		case AlignCenter:
+			startX = area.X + (width-lineWidth)/2
+		case AlignRight:
+			startX = area.X + width - lineWidth
+		}
+
+		// 先清空整行（底色一致）
+		for col := area.X; col < area.X+width; col++ {
+			screen.SetContent(col, row, ' ', nil, style)
+		}
+
+		// 从 startX 起逐 rune 画文本
+		col := startX
+		for _, r := range line {
+			w := runewidth.RuneWidth(r)
+			screen.SetContent(col, row, r, nil, style)
+			if w > 1 {
+				// 双宽字符后半格写空格占位
+				for k := 1; k < w; k++ {
+					screen.SetContent(col+k, row, ' ', nil, style)
+				}
+			}
+			col += w
+		}
+	}
+}
+
+// drawButton 在指定矩形绘制单个按钮文案（不处理双宽字符对齐）。
+func drawButton(rect Rect, text string, style tcell.Style) {
+	col := rect.X
+	row := rect.Y
+	for _, r := range text {
+		w := runewidth.RuneWidth(r)
+		screen.SetContent(col, row, r, nil, style)
+		if w > 1 {
+			for k := 1; k < w; k++ {
+				screen.SetContent(col+k, row, ' ', nil, style)
+			}
+		}
+		col += w
+	}
+}
+
 // Open 打开消息展示浮窗。
 //
 //	text       多行文本（\n 分隔）；空串按 1 行空文本处理
@@ -104,14 +159,14 @@ func runeWidthInLine(r rune, col int, tabsize int) int {
 //	frameColor 边框色；零值 = config.DefStyle
 //	onClose    关闭回调（恒触发一次）
 func (d *MsgDialog) Open(
-	text       string,
-	title      string,
-	anchor     Pos,
-	width      int,
-	align      Align,
-	maxH       int,
+	text string,
+	title string,
+	anchor Pos,
+	width int,
+	align Align,
+	maxH int,
 	frameColor tcell.Style,
-	onClose    func(),
+	onClose func(),
 ) {
 	d.title = title
 	d.align = align
@@ -162,39 +217,7 @@ func (d *MsgDialog) display(contentArea Rect) {
 	style := config.DefStyle
 
 	// 1. 文本行 [0, textH)
-	for vi := 0; vi < d.textH; vi++ {
-		row := contentArea.Y + vi
-		line := d.lines[vi]
-		lineWidth := runewidth.StringWidth(line)
-
-		// 按 align 计算起始 X
-		var startX int
-		switch d.align {
-		case AlignLeft:
-			startX = contentArea.X
-		case AlignCenter:
-			startX = contentArea.X + (d.width-lineWidth)/2
-		case AlignRight:
-			startX = contentArea.X + d.width - lineWidth
-		}
-
-		// 先清空整行（底色一致）
-		for col := contentArea.X; col < contentArea.X+d.width; col++ {
-			screen.SetContent(col, row, ' ', nil, style)
-		}
-
-		// 画文本（从 startX 开始）
-		col := startX
-		for _, r := range line {
-			w := runewidth.RuneWidth(r)
-			screen.SetContent(col, row, r, nil, style)
-			// 双宽字符后半格写空格占位
-			for k := 1; k < w; k++ {
-				screen.SetContent(col+k, row, ' ', nil, style)
-			}
-			col += w
-		}
-	}
+	drawTextLines(contentArea, d.lines, d.textH, d.width, d.align, style)
 
 	// 2. 空行（文本与按钮的分隔）
 	emptyRow := contentArea.Y + d.textH
@@ -202,16 +225,14 @@ func (d *MsgDialog) display(contentArea Rect) {
 		screen.SetContent(col, emptyRow, ' ', nil, style)
 	}
 
-	// 3. 按钮行（文本下方 +1 行，水平居中，反白底）
+	// 3. 按钮行（文本下方 +1 行，水平居中，方括号样式）
 	btnRow := contentArea.Y + d.textH + 1
-	btnText := " Close "
+	btnText := "[Close]"
 	btnVisualW := runewidth.StringWidth(btnText)
 	d.btnX = contentArea.X + (d.width-btnVisualW)/2
 	d.btnY = btnRow
 	d.btnW = btnVisualW
-	for i, r := range btnText {
-		screen.SetContent(d.btnX+i, btnRow, r, nil, revStyle)
-	}
+	drawButton(Rect{X: d.btnX, Y: btnRow, W: btnVisualW, H: 1}, btnText, revStyle)
 }
 
 // handleEvent 处理键盘和鼠标事件。
