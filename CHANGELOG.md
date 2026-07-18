@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Refactor**
 
+- 把 `tcell.EventKey → 标准键名` 的翻译能力从 `action` 包私有下沉到 `config` 包公共，消除 `keyResolver` 注入机制。结构变化：
+	 - 新增 `internal/config/keyname.go`，定义公共函数 `MetaToAlt` / `KeyNameOf` / `KeyName`，实现按键事件到键名字符串的翻译（与 `bindings.json` 的 key 一致）。
+	 - `action/events.go` 删除私有 `metaToAlt` 函数，`KeyEvent.Name()` 改为委托 `config.KeyNameOf`（保留 `any` 特殊态判断）。
+	 - `action/bufpane.go` 与 `action/events.go` 的 MouseEvent 构造改为调用 `config.MetaToAlt`。
+	 - `internal/dialog/input.go` 删除 `KeyResolver` 类型与 `keyResolver` 字段，`Open()` 签名删去 `keyResolver` 参数，`handleEvent` 改为直接调用 `config.KeyName(ev)` 自闭环。
+	 - `action/command_neo.go` 的 `InputTest` 删除 `keyResolver` 闭包定义。
+	 - 文档更新：新增 `docs/fileSelect/N1b-键名翻译公共化.md`。
+
+- 把 modal 浮窗组件从 `internal/action/` 迁出，创建独立的 `internal/dialog/` 包。结构变化：
+
 - 把 modal 浮窗组件从 `internal/action/` 迁出，创建独立的 `internal/dialog/` 包。结构变化：
 	 - 新增 `internal/dialog/` 包（`frame.go`、`select.go`），承载 `FloatFrame` 容器与 `SelectDialog` 选择器，以及共享的 `Rect/Pos/Size/FloatOpenSpec` 契约。包内自初始化 `TheFloatFrame`，不再依赖 action 全局变量。
 	 - 删除 `internal/action/floatframe.go`（~303 行）与 `internal/action/selectdialog.go`（~235 行），原 `action.TheFloatFrame` / `action.Rect` 等符号移至 `dialog.TheFloatFrame` / `dialog.Rect`。

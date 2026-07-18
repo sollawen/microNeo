@@ -13,16 +13,15 @@ import (
 // InputDialog 是单行文本输入浮窗（modal，走 floatFrame）。
 // 边框 / title / 清屏 / 锚点 / Layout / 生命周期全部移交 FloatFrame；
 // 本结构只保留单行编辑状态（buffer + cursor）、关闭回调。
-// 键名解析由调用方注入 keyResolver，键位映射直接读 config.Bindings["command"]（自动跟随用户自定义）。
+// 键位映射直接读 config.Bindings["command"]（自动跟随用户自定义）。
 type InputDialog struct {
-	buf         *buffer.Buffer  // BTInfo 单行 buffer，编辑基座（与 InfoBar 同源）
-	cursor      *buffer.Cursor // buf 的活跃光标，编辑原语入口
-	initial     string         // 取消时回退的原值
-	width       int            // 内容区宽度（字符列），不含边框
-	hscroll     int            // 水平滚动偏移（光标出框时拉动），字符列
-	keyResolver KeyResolver    // 注入的键位解析函数（ownerPane 闭包包住 keyEvent）
-	title       string
-	onResult    func(result string, canceled bool) // 关闭回调（一次性）
+	buf      *buffer.Buffer  // BTInfo 单行 buffer，编辑基座（与 InfoBar 同源）
+	cursor   *buffer.Cursor // buf 的活跃光标，编辑原语入口
+	initial  string         // 取消时回退的原值
+	width    int            // 内容区宽度（字符列），不含边框
+	hscroll  int            // 水平滚动偏移（光标出框时拉动），字符列
+	title    string
+	onResult func(result string, canceled bool) // 关闭回调（一次性）
 }
 
 // NewInputDialog 返回空 InputDialog（未打开状态）。
@@ -30,33 +29,26 @@ func NewInputDialog() *InputDialog {
 	return &InputDialog{}
 }
 
-// KeyResolver 是从 tcell.Event 解析键名的函数类型。
-// ownerPane 在创建 InputDialog 时注入（闭包包住私有 keyEvent）。
-type KeyResolver func(event tcell.Event) string
-
 // Open 打开输入浮窗。
 //
-//	initial      初始内容（可空）
-//	title        上边框标签（如 "Rename"）；空串=纯横线
-//	anchor       锚点屏坐标；AutoExpand=false 时为外矩形左上角
-//	width        内容区宽度（字符列，不含边框）；<=0 时给安全下限
-//	frameColor   边框色；零值 = config.DefStyle
-//	onResult     关闭回调：Enter → onResult(edited, false)；ESC/Resize/失败 → onResult("", true)
-//	keyResolver  注入的键位解析函数
+//	initial     初始内容（可空）
+//	title       上边框标签（如 "Rename"）；空串=纯横线
+//	anchor      锚点屏坐标；AutoExpand=false 时为外矩形左上角
+//	width       内容区宽度（字符列，不含边框）；<=0 时给安全下限
+//	frameColor  边框色；零值 = config.DefStyle
+//	onResult    关闭回调：Enter → onResult(edited, false)；ESC/Resize/失败 → onResult("", true)
 //
 // 回调顺序：先 TheFloatFrame.Close()，再触发 onResult。
 func (d *InputDialog) Open(
-	initial     string,
-	title       string,
-	anchor      Pos,
-	width       int,
-	frameColor  tcell.Style,
-	onResult    func(result string, canceled bool),
-	keyResolver KeyResolver,
+	initial    string,
+	title      string,
+	anchor     Pos,
+	width      int,
+	frameColor tcell.Style,
+	onResult   func(result string, canceled bool),
 ) {
 	d.initial = initial
 	d.title = title
-	d.keyResolver = keyResolver
 	d.onResult = onResult
 
 	// 安全下限
@@ -194,7 +186,7 @@ func (d *InputDialog) handleEvent(event tcell.Event) {
 	}
 
 	// 先查键位映射
-	keyName := d.keyResolver(event)
+	keyName := config.KeyName(ev)
 	action, ok := config.Bindings["command"][keyName]
 	if !ok {
 		action = ""

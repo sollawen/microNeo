@@ -122,14 +122,6 @@ func (h *BufPane) InputTestCmd(args []string) {
 func (h *BufPane) InputTest() {
 	w, _ := screen.Screen.Size()
 
-	// 创建 keyResolver：复用 BufPane 的 keyEvent 解析逻辑
-	keyResolver := func(event tcell.Event) string {
-		if k, ok := event.(*tcell.EventKey); ok {
-			return keyEvent(k).Name()
-		}
-		return ""
-	}
-
 	dlg := dialog.NewInputDialog()
 	dlg.Open(
 		"test filename",          // 初始内容
@@ -146,7 +138,6 @@ func (h *BufPane) InputTest() {
 			}
 			screen.Redraw()
 		},
-		keyResolver,
 	)
 }
 

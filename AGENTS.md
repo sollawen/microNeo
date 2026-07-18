@@ -6,6 +6,7 @@
 - 用户配置目录统一在 `$XDG_CONFIG_HOME/microNeo`（未设置时 fallback 到 `~/.config/microNeo`），启动时可用 `--config <dir>` 临时覆盖
 - `docs/`目录是本项目所有设计方案和计划
 - **代码注释不引用文档**：注释必须自包含，用散文讲清「为什么」，不依赖任何外部文档即可读懂。**禁止在代码注释里写设计文档的文件名或章节号**
+- **特殊 Skill 触发**：当用户说 `commit` / `changelog` / `release` 时，**不要 summon 任何 assistant**。先读取 `.agents/skills/` 下对应的 `SKILL.md` 文件，按规则直接执行。这些是项目的特殊 skill，有专门的执行规则。
 
 ## Debug
 - microNeo 有统一的 debug 日志机制，**不要自己另写一套**（自建日志文件、自建 print 等），一律复用下面这个

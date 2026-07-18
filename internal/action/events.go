@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"strings"
 
+	"github.com/micro-editor/micro/v2/internal/config"
 	"github.com/micro-editor/tcell/v2"
 )
 
@@ -36,18 +36,10 @@ type KeyEvent struct {
 	any  bool
 }
 
-func metaToAlt(mod tcell.ModMask) tcell.ModMask {
-	if mod&tcell.ModMeta != 0 {
-		mod &= ^tcell.ModMeta
-		mod |= tcell.ModAlt
-	}
-	return mod
-}
-
 func keyEvent(e *tcell.EventKey) KeyEvent {
 	ke := KeyEvent{
 		code: e.Key(),
-		mod:  metaToAlt(e.Modifiers()),
+		mod:  config.MetaToAlt(e.Modifiers()),
 	}
 	if e.Key() == tcell.KeyRune {
 		ke.r = e.Rune()
@@ -59,39 +51,7 @@ func (k KeyEvent) Name() string {
 	if k.any {
 		return "<any>"
 	}
-	s := ""
-	m := []string{}
-	if k.mod&tcell.ModShift != 0 {
-		m = append(m, "Shift")
-	}
-	if k.mod&tcell.ModAlt != 0 {
-		m = append(m, "Alt")
-	}
-	if k.mod&tcell.ModMeta != 0 {
-		m = append(m, "Meta")
-	}
-	if k.mod&tcell.ModCtrl != 0 {
-		m = append(m, "Ctrl")
-	}
-
-	ok := false
-	if s, ok = tcell.KeyNames[k.code]; !ok {
-		if k.code == tcell.KeyRune {
-			s = string(k.r)
-		} else {
-			s = fmt.Sprintf("Key[%d]", k.code)
-		}
-	}
-	if len(m) != 0 {
-		if k.mod&tcell.ModCtrl != 0 && strings.HasPrefix(s, "Ctrl-") {
-			s = s[5:]
-			if len(s) == 1 {
-				s = strings.ToLower(s)
-			}
-		}
-		return fmt.Sprintf("%s-%s", strings.Join(m, "-"), s)
-	}
-	return s
+	return config.KeyNameOf(k.code, k.mod, k.r)
 }
 
 // A KeySequence defines a list of consecutive
@@ -174,7 +134,7 @@ func ConstructEvent(event tcell.Event) (Event, error) {
 	case *tcell.EventMouse:
 		return MouseEvent{
 			btn: e.Buttons(),
-			mod: metaToAlt(e.Modifiers()),
+			mod: config.MetaToAlt(e.Modifiers()),
 		}, nil
 	}
 	return nil, errors.New("No micro event equivalent")
