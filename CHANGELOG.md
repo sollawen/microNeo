@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Added**
 
 - Finder supports renaming files and directories with `r`.
+- Finder supports permanently deleting files and non-empty directories with `d`, with a confirmation prompt before removal.
 - `MsgDialog` provides a multi-line message modal.
 - `InputDialog` provides a single-line text input modal.
 - `ConfirmDialog` provides an OK/Cancel confirmation modal for destructive actions.
