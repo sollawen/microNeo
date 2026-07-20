@@ -9,15 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Added**
 
-- Finder supports renaming files and directories with `r`.
-- Finder supports permanently deleting files and non-empty directories with `d`, with a confirmation prompt before removal.
+- 在Finder中按d键可以delete当前文件或子目录
+- 在Finder中按r键可以rename当前文件或子目录
 - `MsgDialog` provides a multi-line message modal.
 - `InputDialog` provides a single-line text input modal.
-- `ConfirmDialog` provides an OK/Cancel confirmation modal for destructive actions.
-
-**Changed**
-
-- `ConfirmDialog` adds a `Kind` parameter for interaction mode: `KindOkCancel` (default, unchanged OK/Cancel behavior) and `KindYesNo` (single-key mode accepting only `y` / `n` / `Esc`, swallowing all other input including mouse). The delete confirmation in the file finder switches to `KindYesNo`, requiring explicit `y` to confirm deletion — preventing accidental Enter-to-confirm.
+- `ConfirmDialog` provides a confirmation modal supporting two modes: `KindOkCancel` (OK/Cancel) and `KindYesNo` (single-key `y` / `n` / `Esc`).
 
 **Refactor**
 
