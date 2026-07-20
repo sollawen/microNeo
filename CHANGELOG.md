@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Changed**
+
+- Finder border redesigned: full-width top/bottom borders with a vertical separator between the file list and the preview panel, replacing the old 4-sided box.
+
 **Added**
 
 - Finder now shows a read-only preview of the file under the cursor in the right 60% of the pane, with mouse-wheel scrolling inside the preview area.

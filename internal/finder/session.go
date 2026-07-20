@@ -164,7 +164,7 @@ func (fm *Session) Open(rect Rect, cwd, file string, isQuit bool, onClose func(R
 	}
 	fm.state = newFinderState(cwd, file)
 
-	// 算内容尺寸：外矩形减边框 2，再减 statusLine 1
+	// 算内容尺寸：外矩形减分隔符 1，再减 statusLine 1
 	widthFrac := config.GetGlobalOption("fileselectwidth").(float64)
 	pickerW := int(widthFrac * float64(rect.W))
 	if pickerW < fsMinWidth {
@@ -173,7 +173,7 @@ func (fm *Session) Open(rect Rect, cwd, file string, isQuit bool, onClose func(R
 	if pickerW > rect.W {
 		pickerW = rect.W
 	}
-	contentW := pickerW - 2
+	contentW := pickerW - 1
 	contentH := rect.H - 1 - 2 // -1 statusLine, -2 边框
 	if contentW < 1 {
 		contentW = 1
@@ -365,8 +365,8 @@ func (fm *Session) drawContent() {
 	}
 	revStyle := config.DefStyle.Reverse(true)
 
-	// 内容区 = 外矩形内缩 1
-	x := fm.rect.X + 1
+	// 内容区 = 外矩形左侧无边框，顶缩 1（top border）
+	x := fm.rect.X
 	y := fm.rect.Y + 1
 	w := fm.state.pickerW
 	h := fm.state.listH + 2 // 列表 + 面包屑 + hint
@@ -438,29 +438,35 @@ func (fm *Session) drawContent() {
 // + 左右 │ + 上边框嵌 title 三块机械代码。
 func (fm *Session) drawBorder() {
 	x, y, w, h := fm.rect.X, fm.rect.Y, fm.rect.W, fm.rect.H
+	totalW := w + fm.state.pvRect.W
+	sep := x + w - 1 // 分隔符列
 	color := config.DefStyle
 
-	// 1. clear 整个矩形
-	fm.clearRect(x, y, w, h, color)
-	// 2. 4 角 + 上下 ─
-	screen.Screen.SetContent(x, y, '┌', nil, color)
-	screen.Screen.SetContent(x+w-1, y, '┐', nil, color)
-	screen.Screen.SetContent(x, y+h-1, '└', nil, color)
-	screen.Screen.SetContent(x+w-1, y+h-1, '┘', nil, color)
-	for i := 1; i < w-1; i++ {
-		screen.Screen.SetContent(x+i, y, '─', nil, color)
-		screen.Screen.SetContent(x+i, y+h-1, '─', nil, color)
+	// 1. clear 整个联合区域
+	fm.clearRect(x, y, totalW, h, color)
+	// 2. 全幅上下 ─，分隔符列用交叉字符
+	for i := 0; i < totalW; i++ {
+		c := '─'
+		if i == sep-x {
+			c = '┬' // 下接 │
+		}
+		screen.Screen.SetContent(x+i, y, c, nil, color)
+
+		c = '─'
+		if i == sep-x {
+			c = '┴' // 上接 │
+		}
+		screen.Screen.SetContent(x+i, y+h-1, c, nil, color)
 	}
-	// 3. 左右 │
+	// 3. 分隔符 │（上下边框行已被 ─/┬/┴ 覆盖，不重复画）
 	for row := 1; row < h-1; row++ {
-		screen.Screen.SetContent(x, y+row, '│', nil, color)
-		screen.Screen.SetContent(x+w-1, y+row, '│', nil, color)
+		screen.Screen.SetContent(sep, y+row, '│', nil, color)
 	}
-	// 4. 上边框嵌 ──<title>──...─
+	// 4. 上边框嵌 ──<title>──...─（左对齐，全幅填充），分隔符列用 ┬
 	title := "Open File"
 	col := x + 1
 	write := func(r rune) {
-		if col < x+w-1 {
+		if col < x+totalW-1 {
 			screen.Screen.SetContent(col, y, r, nil, color)
 			col++
 		}
@@ -472,8 +478,13 @@ func (fm *Session) drawBorder() {
 	}
 	write('─')
 	write('─')
-	for col < x+w-1 {
-		write('─')
+	for col < x+totalW-1 {
+		if col == sep {
+			screen.Screen.SetContent(col, y, '┬', nil, color)
+		} else {
+			screen.Screen.SetContent(col, y, '─', nil, color)
+		}
+		col++
 	}
 }
 

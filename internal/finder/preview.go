@@ -133,10 +133,10 @@ func (fm *Session) drawPreview() {
 	if r.W < previewMinWidth {
 		return // 预览宽不够，整个预览区域不绘（让给 finder）
 	}
-	// 1) 清屏（盖底层编辑区）
-	fm.clearRect(r.X, r.Y, r.W, r.H, config.DefStyle)
-	// 2) 按状态分支
-	x, y, w, h := r.X, r.Y, r.W, r.H
+	// 1) 清屏（盖底层编辑区，避开上下边框行）
+	fm.clearRect(r.X, r.Y+1, r.W, r.H-2, config.DefStyle)
+	// 2) 按状态分支，内容区在上下边框之间
+	x, y, w, h := r.X, r.Y+1, r.W, r.H-2
 	switch {
 	case pv.readErr:
 		fm.drawCenteredText(x, y, w, h, "Unable to preview", config.DefStyle)
