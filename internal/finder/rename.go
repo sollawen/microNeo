@@ -29,7 +29,7 @@ func (fm *Session) startRename() {
 		initial += string(filepath.Separator)
 	}
 
-	// anchor：当前行下方一行，X = finder 外框右 1 格（让出 finder 的左/右边框）
+	// anchor：当前行下方一行，左右各离 finder 边框 1 格
 	anchorY := fm.rect.Y + 2 + s.cursor - s.topIdx
 	anchor := dialog.Pos{
 		X: fm.rect.X + 1,
@@ -43,7 +43,7 @@ func (fm *Session) startRename() {
 		initial,
 		"Rename",
 		anchor,
-		fm.state.pickerW-9, // 内容区宽：比 finder 内容区窄 9 格，让出右边框
+		fm.state.pickerW-2, // 内容区宽：比 finder 内容区左右各窄 1 格
 		config.DefStyle,
 		func(result string, canceled bool) {
 			if canceled {
