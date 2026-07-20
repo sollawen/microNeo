@@ -100,6 +100,10 @@ type finderState struct {
 	pickerW int // 内容区宽（截断用）
 	listH   int // 文件列表可见行数（内容区高 - 面包屑 - hint）
 
+	// —— 预览（previewState 独立，无需锁）——
+	preview *previewState // 文件预览状态；Session 持有指针供 reload/draw 访问
+	pvRect  Rect          // 预览区矩形（finder.Open 时算一次，handlePreviewWheel 读）
+
 	mu sync.RWMutex
 }
 
@@ -187,8 +191,14 @@ func (fm *Session) Open(rect Rect, cwd, file string, isQuit bool, onClose func(R
 	//（按比例缩放，不溢出 owner pane），高取 rect.H - 1（末行留给 statusLine）。
 	// 与 fm.state 的 contentW/contentH 保持相差 2（边框）。
 	fm.rect = Rect{X: rect.X, Y: rect.Y, W: pickerW, H: rect.H - 1}
+
+	// 预览区 = owner pane 右侧剩余区域。宽 < previewMinWidth 时不绘预览（纯降级）。
+	fm.state.pvRect = Rect{X: rect.X + pickerW, Y: rect.Y, W: rect.W - pickerW, H: rect.H - 1}
+	fm.state.preview = &previewState{}
+
 	fm.isOpen = true
 	go fm.fetchGit(fm.state.currentDir)
+	fm.refreshPreview() // 首帧有预览内容
 	return true
 }
 
@@ -316,6 +326,10 @@ func (fm *Session) HandleEvent(event tcell.Event) {
 		fm.close(Resize) // 运行中终端 resize → 取消（不转发）
 		return
 	}
+	if ev, ok := event.(*tcell.EventMouse); ok {
+		fm.handlePreviewWheel(ev)
+		return
+	}
 	fm.handleKey(event)
 }
 
@@ -335,6 +349,7 @@ func (fm *Session) Display() {
 	screen.Screen.HideCursor()
 	fm.drawBorder()
 	fm.drawContent()
+	fm.drawPreview()
 }
 
 // ---- View：内容区三段布局（面包屑 / 文件列表 / hint） ----
@@ -426,11 +441,7 @@ func (fm *Session) drawBorder() {
 	color := config.DefStyle
 
 	// 1. clear 整个矩形
-	for row := 0; row < h; row++ {
-		for col := 0; col < w; col++ {
-			screen.Screen.SetContent(x+col, y+row, ' ', nil, color)
-		}
-	}
+	fm.clearRect(x, y, w, h, color)
 	// 2. 4 角 + 上下 ─
 	screen.Screen.SetContent(x, y, '┌', nil, color)
 	screen.Screen.SetContent(x+w-1, y, '┐', nil, color)
@@ -633,6 +644,15 @@ func (fm *Session) drawString(x, y, w int, text string, style tcell.Style) {
 	}
 }
 
+// clearRect 在 [x,y,w,h] 矩形内填 style（覆盖底层编辑区内容）。
+func (fm *Session) clearRect(x, y, w, h int, style tcell.Style) {
+	for row := 0; row < h; row++ {
+		for col := 0; col < w; col++ {
+			screen.Screen.SetContent(x+col, y+row, ' ', nil, style)
+		}
+	}
+}
+
 // buildMetaLine 组装光标条目的元数据行（perms + size + mtime）。
 // 所有数据从 entry.info 读，零 stat。w 参数控制窄屏字段优先级裁剪。
 func (fm *Session) buildMetaLine(w int) string {
@@ -710,6 +730,7 @@ func (fm *Session) moveCursor(delta int) {
 		s.cursor = max
 	}
 	fm.ensureVisible()
+	fm.refreshPreview()
 	screen.Redraw()
 }
 
@@ -785,6 +806,7 @@ func (fm *Session) chdirTo(target, focusName string) {
 	fm.ensureVisible()
 	s.mu.Unlock()
 
+	fm.refreshPreview()
 	screen.Redraw()        // 首帧：git 列空
 	go fm.fetchGit(target) // 异步填 allEntries[*].gitChar → 内部 Redraw
 }
@@ -830,6 +852,7 @@ func (fm *Session) toggleHidden() {
 	fm.ensureVisible()
 	s.mu.Unlock()
 
+	fm.refreshPreview()
 	screen.Redraw()
 }
 
