@@ -314,6 +314,78 @@ func (fm *Session) reset() {
 	fm.onClose = nil
 }
 
+// ---- 鼠标定位 ----
+
+// mousePos 是鼠标坐标落在 finder 内的哪个区域。
+type mousePos uint8
+
+const (
+	mouseOutside mousePos = iota // 坐标不在任何栏内（边框、分隔符列、栏外）→ no-op
+	mouseLeft                    // 坐标落在 finder 左栏（面包屑/条目/空白）
+	mouseRight                   // 坐标落在 preview 右栏
+)
+
+// whereIsMouse 把鼠标坐标映射成对应的 mousePos。左栏优先判断，右栏次之，其余外。
+func (fm *Session) whereIsMouse(mx, my int) mousePos {
+	s := fm.state
+		// 左栏：横向 [X, X+pickerW)（含最右一列内容，不含分隔符列）
+	if mx >= fm.rect.X && mx < fm.rect.X+s.pickerW &&
+		my >= fm.rect.Y+1 && my < fm.rect.Y+1+s.listH+1 {
+		return mouseLeft
+	}
+	// 右栏：直接用 pvRect 判，跳过 X+pickerW（即分隔符列）和 X+pickerW+1（即 pvRect.X-1，
+	// 这列不属于 preview 内容区，只是外框边）
+	// pvRect.X = X+pickerW+1，pvRect.W = rect.W-pickerW
+	r := s.pvRect
+	if mx >= r.X && mx < r.X+r.W && my >= r.Y && my < r.Y+r.H {
+		return mouseRight
+	}
+	return mouseOutside
+}
+
+// listRowAt 把 finder 内容区内的屏坐标 my 映射成目标 cursor 值。
+// 横向坐标已由入口 whereIsMouse 保证落在左栏，函数内不再判横向。
+// 命中面包屑行 → 0；命中可见条目行 → topIdx+(my-listTop)+1；
+// 落在空白/边框/hint/越界 → ok=false（调用方 no-op）。
+func (fm *Session) listRowAt(my int) (cursor int, ok bool) {
+	s := fm.state
+	bcRow := fm.rect.Y + 1
+	listTop := fm.rect.Y + 2
+	if my == bcRow {
+		return 0, true
+	}
+	visibleH := len(s.showEntries)
+	if visibleH > s.listH {
+		visibleH = s.listH
+	}
+	if my >= listTop && my < listTop+visibleH {
+		return s.topIdx + (my - listTop) + 1, true
+	}
+	return 0, false
+}
+
+// handleLeftMouse 处理左栏内的全部鼠标事件（由入口 whereIsMouse 筛选后送达）。
+// 左键点面包屑/条目行 → 移光标（不 activate）；滚轮上下 → 移光标 ±1。
+func (fm *Session) handleLeftMouse(ev *tcell.EventMouse) {
+	s := fm.state
+	switch ev.Buttons() {
+	case tcell.Button1:
+		_, my := ev.Position()
+		target, ok := fm.listRowAt(my)
+		if !ok {
+			return
+		}
+		if target == s.cursor {
+			return // 点的就是当前行：免一次无谓重绘
+		}
+		fm.moveCursor(target - s.cursor)
+	case tcell.WheelUp:
+		fm.moveCursor(-1)
+	case tcell.WheelDown:
+		fm.moveCursor(1)
+	}
+}
+
 // ---- HandleEvent / NotifyBlur / Display ----
 
 // HandleEvent 转发键盘事件给 Session。EventResize 在头部拦截（运行中 resize → 取消）；
@@ -327,7 +399,15 @@ func (fm *Session) HandleEvent(event tcell.Event) {
 		return
 	}
 	if ev, ok := event.(*tcell.EventMouse); ok {
-		fm.handlePreviewWheel(ev)
+		mx, my := ev.Position()
+		switch fm.whereIsMouse(mx, my) {
+		case mouseRight:
+			fm.handleRightMouse(ev)
+		case mouseLeft:
+			fm.handleLeftMouse(ev)
+		case mouseOutside:
+			// 不在任何栏内的事件 → no-op
+		}
 		return
 	}
 	fm.handleKey(event)

@@ -195,13 +195,9 @@ func (fm *Session) scrollPreview(delta int) {
 	pv.topLine = top
 }
 
-// handlePreviewWheel 仅处理预览区滚轮：坐标落在预览矩形内才滚动，其余鼠标事件丢弃。
-func (fm *Session) handlePreviewWheel(ev *tcell.EventMouse) {
-	mx, my := ev.Position()
-	r := fm.state.pvRect
-	if mx < r.X || mx >= r.X+r.W || my < r.Y || my >= r.Y+r.H {
-		return // 不在预览区：丢弃（finder 列表区滚轮仍 no-op）
-	}
+// handleRightMouse 处理右栏内的全部鼠标事件（由入口 whereIsMouse 筛选后送达）。
+// 滚轮上下 → 滚动 preview 正文；其余事件 no-op。
+func (fm *Session) handleRightMouse(ev *tcell.EventMouse) {
 	switch ev.Buttons() {
 	case tcell.WheelUp:
 		fm.scrollPreview(-previewScrollStep)

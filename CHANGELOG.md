@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Added**
 
 - Finder now shows a read-only preview of the file under the cursor in the right 60% of the pane, with mouse-wheel scrolling inside the preview area.
+- Finder file list responds to mouse: left-click on a row (breadcrumb or entry) moves the cursor there; mouse wheel on the list moves the cursor up/down. Preview area wheel behavior is unchanged.
 
 ## [1.1.19] - 2026-07-20
 
