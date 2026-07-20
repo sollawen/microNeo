@@ -29,10 +29,10 @@ func (fm *Session) startRename() {
 		initial += string(filepath.Separator)
 	}
 
-	// anchor：当前行下方一行，左右各离 finder 边框 1 格
+	// anchor：当前行下方一行，左对齐 finder 内容区
 	anchorY := fm.rect.Y + 2 + s.cursor - s.topIdx
 	anchor := dialog.Pos{
-		X: fm.rect.X + 1,
+		X: fm.rect.X,
 		Y: anchorY,
 	}
 
@@ -74,7 +74,7 @@ func (fm *Session) showError(msg string) {
 	// anchor：左对齐 finder 内容区，用 AlignCenter 居中文本
 	anchorY := fm.rect.Y + (fm.rect.H / 2)
 	anchor := dialog.Pos{
-		X: fm.rect.X + 1, // 内容区左边界
+		X: fm.rect.X,
 		Y: anchorY,
 	}
 	dlg.Open(

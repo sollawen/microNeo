@@ -31,10 +31,10 @@ func (fm *Session) startDelete() {
 		message = "Delete folder [" + name + "] and all its contents?"
 	}
 
-	// anchor：当前行下方一行，左右各离 finder 边框 1 格（与 rename InputDialog 一致）
+	// anchor：当前行下方一行，左对齐 finder 内容区
 	anchorY := fm.rect.Y + 2 + s.cursor - s.topIdx
 	anchor := dialog.Pos{
-		X: fm.rect.X + 1,
+		X: fm.rect.X,
 		Y: anchorY,
 	}
 
