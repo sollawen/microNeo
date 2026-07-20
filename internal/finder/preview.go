@@ -179,18 +179,28 @@ func (fm *Session) drawCenteredText(x, y, w, h int, text string, style tcell.Sty
 	fm.drawString(sx, sy, w-(sx-x), text, style)
 }
 
-// scrollPreview 按原始行滚动预览。delta 正向下、负向上；clamp 到 [0, len(previewLines)-1]。
+// scrollPreview 按原始行滚动预览。delta 正向下、负向上。可滚动的 topLine 受两端
+// 边界约束：上界 0（首行不能被滚出区域），下界 = max(0, len(previewLines)-visible)
+// （末行不能被滚出区域；文件完全装得下时 = 0，不能滚动）。
 func (fm *Session) scrollPreview(delta int) {
 	pv := fm.state.preview
 	if len(pv.previewLines) == 0 {
 		return // 空预览 / load 未就绪不滚动
 	}
+	visible := fm.state.pvRect.H - 2 // 预览正文可见行数 = 内容区高 = 外高 - 上下边框
+	if visible < 1 {
+		return // 区域太小没法滚（防御：drawPreview 也走这里）
+	}
+	maxTop := len(pv.previewLines) - visible
+	if maxTop < 0 {
+		maxTop = 0 // 文件短于区域 → 不可滚，等价于 fixed viewport
+	}
 	top := pv.topLine + delta
 	if top < 0 {
 		top = 0
 	}
-	if top > len(pv.previewLines)-1 {
-		top = len(pv.previewLines) - 1
+	if top > maxTop {
+		top = maxTop
 	}
 	pv.topLine = top
 }
