@@ -106,7 +106,7 @@ func (fm *Session) startDelete() {
 	}
 
 	anchor := dialog.Pos{
-		X: fm.rect.X,
+		X: fm.rect.X + 1, // 与 rename InputDialog 一致：左右各离 finder 边框 1 格
 		Y: fm.rect.Y + 2 + s.cursor - s.topIdx,
 	}
 
@@ -115,7 +115,7 @@ func (fm *Session) startDelete() {
 		message,
 		"Delete",
 		anchor,
-		s.pickerW,
+		s.pickerW - 2, // 与 rename InputDialog 一致
 		dialog.AlignCenter,
 		0,
 		config.DefStyle,
