@@ -47,6 +47,8 @@ func (fm *Session) startDelete() {
 		dialog.AlignCenter,
 		0,
 		config.DefStyle,
+		dialog.KindYesNo, // 破坏性操作切单键确认
+		dialog.FocusOK,
 		func(confirmed bool) {
 			if !confirmed {
 				return

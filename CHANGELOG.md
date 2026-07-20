@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `InputDialog` provides a single-line text input modal.
 - `ConfirmDialog` provides an OK/Cancel confirmation modal for destructive actions.
 
+**Changed**
+
+- `ConfirmDialog` adds a `Kind` parameter for interaction mode: `KindOkCancel` (default, unchanged OK/Cancel behavior) and `KindYesNo` (single-key mode accepting only `y` / `n` / `Esc`, swallowing all other input including mouse). The delete confirmation in the file finder switches to `KindYesNo`, requiring explicit `y` to confirm deletion — preventing accidental Enter-to-confirm.
+
 **Refactor**
 
 - 把键名翻译能力从 `action` 包私有下沉到 `config` 包公共，消除 `keyResolver` 注入机制。叶子包（dialog/finder）现在能直接调用 `config.KeyName` 自己闭环处理键盘和用户自定义键位。新增 `internal/config/keyname.go`。
