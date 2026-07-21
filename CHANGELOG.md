@@ -9,12 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Added**
 
+- Finder now supports pressing `a` to create new files or directories: enter a name (ending with `/` for directory, otherwise file), with validation for duplicates and path separators. Newly created files are automatically opened for editing; newly created directories refresh the list and position the cursor.
 - Finder now shows a read-only preview of the file under the cursor in the right 60% of the pane, with mouse-wheel scrolling inside the preview area.
 - Finder file list responds to mouse: left-click on a row (breadcrumb or entry) moves the cursor there; mouse wheel on the list moves the cursor up/down. Preview area wheel behavior is unchanged.
 
-**Fixed**
-
-- Finder preview no longer scrolls past the file's last line: the wheel is a no-op when the file fits entirely in the preview area; otherwise the last line stays pinned to the bottom of the preview, matching the existing behavior that keeps the first line pinned at the top.
 
 ## [1.1.19] - 2026-07-20
 

@@ -292,6 +292,8 @@ func (fm *Session) pickedName() string {
 
 // close 统一关闭路径：集中填 Cwd / IsQuit，5 条路径只换 Reason。
 // Picked 时附 File（仅文件名，不含路径）；其余为空。
+// close 统一关闭路径：集中填 Cwd / IsQuit，5 条路径只换 Reason。
+// Picked 时附 File（仅文件名，不含路径）；其余为空。
 func (fm *Session) close(reason CloseReason) {
 	if !fm.isOpen {
 		return
@@ -299,6 +301,22 @@ func (fm *Session) close(reason CloseReason) {
 	r := Result{Reason: reason, Cwd: fm.state.currentDir, IsQuit: fm.isQuit}
 	if reason == Picked {
 		r.File = fm.pickedName()
+	}
+	fm.finishClose(r)
+}
+
+// closePicked 以指定文件名触发 Picked 关闭（add 新建文件后用，绕过光标定位）。
+func (fm *Session) closePicked(name string) {
+	fm.finishClose(Result{
+		Reason: Picked, Cwd: fm.state.currentDir, File: name, IsQuit: fm.isQuit,
+	})
+}
+
+// finishClose 构造好 Result 后的统一收尾：reset 会话、回调 owner。
+// 顺序必须与现有 close 一致：先保存 cb 引用、reset、最后调 cb（reset 会把 onClose 置 nil）。
+func (fm *Session) finishClose(r Result) {
+	if !fm.isOpen {
+		return
 	}
 	cb := fm.onClose
 	fm.reset()
@@ -801,6 +819,8 @@ func (fm *Session) handleKey(event tcell.Event) {
 				fm.close(Quit)
 			case 'd':
 				fm.startDelete()
+			case 'a':
+				fm.startAdd()
 			case 'r':
 				fm.startRename()
 			}
