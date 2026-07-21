@@ -29,11 +29,11 @@
   --md-primary-bg-color--light: #b0b0b0;
 }
 
-/* 收窄左侧导航栏（Material 默认 12rem，本项目目录项较短，缩到 9rem）
+/* 侧边栏（Material 默认 12rem）。当前 10.5rem 让英文长标题也能完整显示
    只在桌面端（≥ 1220px）生效，移动端 drawer 保持原宽度 */
 @media screen and (min-width: 76.25em) {
   .md-sidebar--primary {
-    width: 7rem;
+    width: 10.5rem;
   }
 }
 
@@ -58,4 +58,20 @@
 .md-typeset table:not([class]) th,
 .md-typeset table:not([class]) td {
   border: 1px solid var(--md-default-fg-color--lightest);
+}
+
+/* 并排图片（flex 容器）。html 端用 .image-pair 包裹两张图。
+   markdown 解析器会在内部自动生成 <p> 包裹，用 display:contents 让
+   <p> 不参与布局，两个 <img> 直接成为 div 的 flex 子项 */
+.image-pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1em;
+}
+.image-pair p {
+  display: contents;
+}
+.image-pair img {
+  flex: 1;
+  min-width: 0;
 }

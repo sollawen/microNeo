@@ -44,6 +44,7 @@ pkill -f "mkdocs serve"
 - 监听机制：mkdocs 用轮询（PollingObserver，0.5 秒一次），**不是** fsevents。这是 mkdocs 源码写死的，没有开关切换。对本项目完全够用。
 - 文件改动后约 0.5 秒检测到，再 0.3 秒重建完成。
 - `--dirty` 模式改了 `mkdocs.yml` / nav / 新增页面时，要重启服务才生效。
+- HTML 容器里放图片必须用 markdown `![alt](src)` 语法（mkdocs 会按 build 深度自动补 `../`），不能用 `<img src="...">`（src 不会被翻译，i18n 下英文版会 404）。示例：`<div class="image-pair" markdown>![a](../assets/a.png)![b](../assets/b.png)</div>`。markdown 在 div 里会被 `<p>` 包裹，flex 容器并排时给 `<p>` 加 `display: contents` 让它不参与布局
 
 ## GitHub README 视频：必须用 .mov
 

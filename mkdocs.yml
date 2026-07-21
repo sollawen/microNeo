@@ -74,6 +74,8 @@ plugins:
           nav_translations:
             Introduction: 简介
             Quick Start: 快速开始
+            File Manager: 文件导航
+            Multi-file Editing: 同时编辑多文件
             Settings: Settings.json
             Syntax: 语法高亮
             Config: 配置
@@ -90,6 +92,8 @@ extra:
 nav:
   - Introduction: index.md
   - Quick Start: quick-start.md
+  - File Manager: finder.md
+  - Multi-file Editing: multi-file.md
   - Config:
       - Settings.json: settings.md
       - theme.md

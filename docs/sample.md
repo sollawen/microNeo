@@ -58,13 +58,6 @@ func main() {
 | Data 4   | Data 5   | Data 6 |
 | **Bold** | `Code`   | *Italic* |
 
-| 场景 | 修复前（bug） | 修复后 |
-|---|---|---|
-| list 下一行紧跟 `go` | list 覆盖 codeblock，codeblock 错位/丢失 | list 正常收尾，codeblock 独立成块、顺序正确 |
-| blockquote 紧跟 codeblock | 同上 | blockquote 收尾，codeblock 独立 |
-| table 紧跟 codeblock | 同上 | table 收尾，codeblock 独立 |
-| 中间有空行分隔 | 本就正常 | 仍正常（回归） |
-
 # Blockquotes
 
 > Blockquote first line
