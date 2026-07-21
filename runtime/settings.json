@@ -2,8 +2,8 @@
 
 {
     // ── theme ──
-    // "colorscheme": "s-dark",  
-    "colorscheme": "s-light",  
+    "colorscheme": "s-dark",  
+    // "colorscheme": "s-light",  
     "mouse": true,  // mouse support.
 
 	// UI settings    
