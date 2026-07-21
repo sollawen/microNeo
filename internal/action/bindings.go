@@ -22,6 +22,7 @@ var Binder = map[string]func(e Event, action string){
 	"command":  InfoMapEvent,
 	"buffer":   BufMapEvent,
 	"terminal": TermMapEvent,
+	"notepane": notePaneMapEvent,
 }
 
 func writeFile(name string, txt []byte) error {

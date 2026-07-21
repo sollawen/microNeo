@@ -11,5 +11,6 @@ func init() {
 		"command":  make(map[string]string),
 		"buffer":   make(map[string]string),
 		"terminal": make(map[string]string),
+		"notepane": make(map[string]string),
 	}
 }

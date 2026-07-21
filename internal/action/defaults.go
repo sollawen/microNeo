@@ -1,5 +1,10 @@
 package action
 
+var notepanedefaults = map[string]string{
+	"Alt-Enter": "NotePaneSend",
+	"Alt-i":     "NotePaneSwitchReceiver",
+}
+
 var termdefaults = map[string]string{
 	"<Ctrl-q><Ctrl-q>": "Exit",
 	"<Ctrl-e><Ctrl-e>": "CommandMode",
@@ -15,6 +20,8 @@ func DefaultBindings(pane string) map[string]string {
 		return bufdefaults
 	case "terminal":
 		return termdefaults
+	case "notepane":
+		return notepanedefaults
 	default:
 		return map[string]string{}
 	}

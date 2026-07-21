@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+**Added**
+
+- notePane exclusive keybindings are now configurable via the `notepane` section in `bindings.json`. `Alt-Enter` (send draft) and `Alt-i` (switch receiver) follow the `notepanedefaults` mechanism and can be overridden or extended by users. `Esc` is hard-bound to `NotePaneClose` and not user-configurable to prevent users from trapping themselves in notePane. Common editing keys from the buffer section (Enter, Ctrl-s, etc.) are automatically copied to notePane via whitelist filtering for consistency.
+
 ## [1.1.20] - 2026-07-21
 
 **Added**

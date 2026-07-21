@@ -128,6 +128,13 @@ var notePaneActions = map[string]BufKeyAction{
 	"NotePaneSwitchReceiver": NotePaneSwitchReceiver,
 }
 
+// notePaneMapEvent is notePane's Binder registration function.
+// It writes to config.Bindings["notepane"] and reuses notePaneMapBinding for whitelist + compound action filtering.
+func notePaneMapEvent(k Event, action string) {
+	config.Bindings["notepane"][k.Name()] = action
+	notePaneMapBinding(k.Name(), action)
+}
+
 // NotePaneSwitchReceiver 在 notePane 已开态下切换 receiver。
 // 绑定 alt-i。只更新 selectedReceiver 字段，不调 open()（保留草稿）。
 // 守卫：notePane 未开时静默 no-op（alt-i 在主编辑器无意义）。
@@ -268,12 +275,6 @@ func notePaneOpen(h *BufPane) bool {
 func init() {
 	NotePaneBindings = NewKeyTree()
 	notePaneMapDefaults(DefaultBindings("buffer"))
-	// Bind Alt-Enter to NotePaneSend (fallback Alt-s if Alt-Enter not available in terminal)
-	notePaneMapBinding("Alt-Enter", "NotePaneSend")
-	// Bind Esc to NotePaneClose (cancel draft without sending — TUI convention).
-	// 依赖 KeyTree 覆盖语义（后注册覆盖前注册），无需 DeleteBinding。
-	notePaneMapBinding("Esc", "NotePaneClose")
-	notePaneMapBinding("Alt-i", "NotePaneSwitchReceiver")
 }
 
 // notePaneMapDefaults registers allowed key bindings from defaults into NotePaneBindings.
@@ -420,6 +421,14 @@ func NewNotePane() *NotePane {
 	// Create BufPane using newBufPane (lowercase, does not trigger finishInitialize)
 	n.BufPane = newBufPane(buf, win, nil)
 	n.BufPane.bindings = NotePaneBindings
+
+	// NotePaneBindings has already been populated by InitBindings via Binder with notepanedefaults + user config.
+	// The following two steps handle "notePane buffer collaboration":
+	// 1. Copy buffer's common editing keys with whitelist filtering
+	notePaneMapDefaults(config.Bindings["buffer"])
+
+	// 2. Hard-bind Esc (TUI exit convention, not user-configurable)
+	notePaneMapBinding("Esc", "NotePaneClose")
 
 	return n
 }
