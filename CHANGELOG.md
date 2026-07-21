@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Added**
 
-- notePane exclusive keybindings are now configurable via the `notepane` section in `bindings.json`. `Alt-Enter` (send draft) and `Alt-i` (switch receiver) follow the `notepanedefaults` mechanism and can be overridden or extended by users. `Esc` is hard-bound to `NotePaneClose` and not user-configurable to prevent users from trapping themselves in notePane. Common editing keys from the buffer section (Enter, Ctrl-s, etc.) are automatically copied to notePane via whitelist filtering for consistency.
+- Make notePane keybindings configurable via the `notepane` section in `bindings.json`. `Alt-Enter` (send) and `Alt-i` (switch receiver) can be overridden. Buffer section common editing keys are auto-copied to notePane. See [Custom Keybindings](https://sollawen.github.io/microNeo/key-binding/) for details.
 
 ## [1.1.20] - 2026-07-21
 
