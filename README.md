@@ -59,7 +59,7 @@ microneo README.md
 
 And you can press `ctrl-q` while you are editing some file to open the Finder.
 
-![fileManager](./docs/website/assets/finder.png){ width="70%" }
+<img src="./docs/website/assets/finder.png" width="70%" alt="fileManager" />
 
 ---
 
@@ -71,10 +71,10 @@ microNeo can edit multiple files at the same time.
 
 While editing file A, if you also want to open file B, press `ctrl-t` to open a new tab. Then, in that tab's File Manager, pick the file you want to open for editing.
 
-<div class="image-pair" markdown>
-![multi-tab](./docs/website/assets/multi-tab.png)
-![multi-pane](./docs/website/assets/multi-pane.png)
-</div>
+<p align="center">
+  <img src="./docs/website/assets/multi-tab.png" width="49%" alt="multi-tab" />
+  <img src="./docs/website/assets/multi-pane.png" width="49%" alt="multi-pane" />
+</p>
 
 ### Keyboard Shortcuts with Multiple Files
 
@@ -96,10 +96,10 @@ microNeo supports a variety of color themes. Users can also customize their own.
 - In the main editor view, press `ctrl-e` to enter the InfoBar at the bottom.
 - Then type the command `theme` and press Enter to choose a different theme.
 
-<div class="image-pair" markdown>
-![s-dark](./docs/website/assets/s-dark.png)
-![s-light](./docs/website/assets/s-light.png)
-</div>
+<p align="center">
+  <img src="./docs/website/assets/s-dark.png" width="49%" alt="s-dark" />
+  <img src="./docs/website/assets/s-light.png" width="49%" alt="s-light" />
+</p>
 
 
 
