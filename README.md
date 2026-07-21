@@ -41,6 +41,68 @@ curl -fsSL https://cdn.jsdelivr.net/gh/sollawen/microNeo@master/tools/install.sh
 
 ---
 
+## File Manager
+
+I don't like the `cd` command — navigating across multi-level directories is really cumbersome. I also don't like installing a bunch of tools on the system and then jumping back and forth between them. So I built a fairly complete and lightweight Finder inside microNeo — one place where I can switch directories, find files, and open them for editing all in one go.
+
+**How to Open the Finder**
+
+Run microNeo without a filename argument to automatically open the Finder:
+```
+microneo
+```
+
+If you run microNeo with a filename argument, it goes straight into the editor without opening the Finder:
+```
+microneo README.md
+```
+
+And you can press `ctrl-q` while you are editing some file to open the Finder.
+
+![fileManager](./docs/website/assets/finder.png){ width="70%" }
+
+---
+
+## Multi-file Editing
+
+microNeo can edit multiple files at the same time.
+
+### Open Files in a New Tab
+
+While editing file A, if you also want to open file B, press `ctrl-t` to open a new tab. Then, in that tab's File Manager, pick the file you want to open for editing.
+
+<div class="image-pair" markdown>
+![multi-tab](./docs/website/assets/multi-tab.png)
+![multi-pane](./docs/website/assets/multi-pane.png)
+</div>
+
+### Keyboard Shortcuts with Multiple Files
+
+- `alt--` (alt + minus) -> Shrink the area occupied by the current file
+- `alt-=` (alt + equals) -> Grow the area occupied by the current file
+- `alt-9` -> Switch to the tab on the left
+- `alt-0` -> Switch to the tab on the right
+
+### Other Operations
+
+- Tab labels can be clicked with the mouse.
+- `ctrl-q` opens the File Manager. Pressing `ctrl-q` (or `q`) again inside the File Manager actually closes the current file.
+
+---
+
+## Theme
+
+microNeo supports a variety of color themes. Users can also customize their own.
+- In the main editor view, press `ctrl-e` to enter the InfoBar at the bottom.
+- Then type the command `theme` and press Enter to choose a different theme.
+
+<div class="image-pair" markdown>
+![s-dark](./docs/website/assets/s-dark.png)
+![s-light](./docs/website/assets/s-light.png)
+</div>
+
+
+
 ## Features
 
 - Full-featured terminal editor with syntax highlighting for 100+ languages 
