@@ -1976,7 +1976,7 @@ func (h *BufPane) QuitAll() bool {
 func (h *BufPane) AddTab() bool {
 	width, height := screen.Screen.Size()
 	iOffset := config.GetInfoBarOffset()
-	b := buffer.NewBufferFromString("", "", buffer.BTDefault)
+	b := buffer.NewBufferNoName(h.Buf.Dir)
 	tp := NewTabFromBuffer(0, 0, width, height-iOffset, b)
 	Tabs.AddTab(tp)
 	Tabs.SetActive(len(Tabs.List) - 1)
@@ -2023,14 +2023,14 @@ func (h *BufPane) LastTab() bool {
 
 // VSplitAction opens an empty vertical split
 func (h *BufPane) VSplitAction() bool {
-	h.VSplitBuf(buffer.NewBufferFromString("", "", buffer.BTDefault))
+	h.VSplitBuf(buffer.NewBufferNoName(h.Buf.Dir))
 
 	return true
 }
 
 // HSplitAction opens an empty horizontal split
 func (h *BufPane) HSplitAction() bool {
-	h.HSplitBuf(buffer.NewBufferFromString("", "", buffer.BTDefault))
+	h.HSplitBuf(buffer.NewBufferNoName(h.Buf.Dir))
 
 	return true
 }

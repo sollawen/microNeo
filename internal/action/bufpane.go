@@ -341,7 +341,7 @@ func (h *BufPane) Display() {
 	if h.pendingBirth {
 		h.pendingBirth = false
 		h.isNoName = h.Buf != nil &&
-			h.Buf.AbsPath == "" &&
+			!h.Buf.HasFilename() &&
 			h.Buf.Type == buffer.BTDefault &&
 			h.Buf.Size() == 0
 		if h.isNoName {

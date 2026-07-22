@@ -1,7 +1,6 @@
 package action
 
 import (
-	"os"
 	"path/filepath"
 
 	"github.com/micro-editor/micro/v2/internal/finder"
@@ -20,11 +19,9 @@ import (
 //   - birth hook：finishInitialize 在首次 Resize 末尾触发，此时 BWindow 已填真值）。
 func (h *BufPane) OpenFinder(isQuit bool) {
 	var dir, file string
-	if abs := h.Buf.AbsPath; abs != "" {
-		dir = filepath.Dir(abs)   // 当前文件所在目录，全路径、不含文件名
-		file = filepath.Base(abs) // 纯文件名（不含路径）
-	} else {
-		dir, _ = os.Getwd() // noName / 启动段：回退到 micro 的 cwd
+	dir = h.Buf.Dir // 已维护：命名 = filepath.Dir(AbsPath)，noName = 继承/cwd
+	if h.Buf.HasFilename() {
+		file = filepath.Base(h.Buf.AbsPath) // 仅命名 buffer 预选当前文件
 	}
 	v := h.BWindow.GetView()
 	ok := h.finder.Open(finder.Rect{X: v.X, Y: v.Y, W: v.Width, H: v.Height}, dir, file, isQuit, h.onFinderClose)

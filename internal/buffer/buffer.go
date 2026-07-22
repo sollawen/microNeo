@@ -77,6 +77,12 @@ type SharedBuffer struct {
 	Path string
 	// Absolute path to the file on disk
 	AbsPath string
+	// Dir 是 buffer 的「当前目录」。命名 buffer 由 NewBuffer 创建时和 save.go
+	// 保存时维护成 filepath.Dir(AbsPath)，随文件走；noName 由 NewBufferNoName
+	// 传入 dir，不传则 NewBuffer 给 cwd（承重墙）。所有 buffer 的 Dir 都被维护
+	// 成正确值，消费点（OpenFinder / lastWorkingDir）一律直接读
+	// b.Dir，无需按 HasFilename 分支。
+	Dir string
 	// Name of the buffer on the status line
 	name string
 
@@ -366,6 +372,17 @@ func NewBufferFromString(text, path string, btype BufType) *Buffer {
 	return NewBuffer(strings.NewReader(text), int64(len(text)), path, btype, emptyCommand)
 }
 
+// NewBufferNoName 创建一个位于 dir 目录的 noName buffer（空内容、BTDefault、
+// 无文件）。dir 非空时覆盖来源目录；dir 为空则保留 NewBuffer 承重墙设的 cwd。
+// 它只负责「在某个目录造一个 noName」，不关心 dir 是继承来的、还是别处指定的。
+func NewBufferNoName(dir string) *Buffer {
+	b := NewBuffer(strings.NewReader(""), 0, "", BTDefault, emptyCommand)
+	if dir != "" {
+		b.Dir = dir
+	}
+	return b
+}
+
 // NewBuffer creates a new buffer from a given reader with a given path
 // Ensure that ReadSettings and InitGlobalSettings have been called before creating
 // a new buffer
@@ -397,6 +414,12 @@ func NewBuffer(r io.Reader, size int64, path string, btype BufType, cmd Command)
 
 		b.AbsPath = absPath
 		b.Path = path
+		if btype == BTDefault && path != "" {
+			b.Dir = filepath.Dir(absPath) // 命名文件：文件所在目录
+		} else {
+			wd, _ := os.Getwd() // noName / Help / Log / Raw / Scratch：cwd（承重墙）
+			b.Dir = wd
+		}
 
 		b.Settings = config.DefaultCommonSettings()
 		b.LocalSettings = make(map[string]bool)
@@ -577,6 +600,11 @@ func (b *Buffer) GetName() string {
 func (b *Buffer) SetName(s string) {
 	b.name = s
 }
+
+// HasFilename 报告 buffer 是否绑定磁盘文件；noName 恒为 false。
+// 判据用 Path 而非 AbsPath：「有没有文件」与「路径是否解析过」是两件事，
+// 前者才是 noName 的本质。全代码库判 noName 应统一走这里。
+func (b *Buffer) HasFilename() bool { return b.Path != "" }
 
 // Insert inserts the given string of text at the start location
 func (b *Buffer) Insert(start Loc, text string) {

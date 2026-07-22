@@ -565,7 +565,7 @@ func (h *BufPane) NewTabCmd(args []string) {
 			Tabs.SetActive(len(Tabs.List) - 1)
 		}
 	} else {
-		b := buffer.NewBufferFromString("", "", buffer.BTDefault)
+		b := buffer.NewBufferNoName(h.Buf.Dir)
 		tp := NewTabFromBuffer(0, 0, width, height-iOffset, b)
 		Tabs.AddTab(tp)
 		Tabs.SetActive(len(Tabs.List) - 1)

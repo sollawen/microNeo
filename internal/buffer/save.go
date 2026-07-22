@@ -332,6 +332,7 @@ func (b *Buffer) saveToFile(filename string, withSudo bool, autoSave bool) error
 
 	b.Path = filename
 	b.AbsPath = absFilename
+	b.Dir = filepath.Dir(absFilename) // ← 新增：AbsPath 变了，Dir 同步
 	b.isModified = false
 	b.UpdateModTime()
 

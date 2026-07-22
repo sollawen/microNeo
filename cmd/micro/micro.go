@@ -289,9 +289,7 @@ func lastWorkingDir() string {
 	}
 	if t := action.MainTab(); t != nil {
 		if pane := t.CurPane(); pane != nil && pane.Buf != nil {
-			if ap := pane.Buf.AbsPath; ap != "" {
-				return filepath.Dir(ap)
-			}
+			return pane.Buf.Dir // 已维护：命名 = Dir(AbsPath)，noName = 继承/cwd
 		}
 	}
 	return ""
