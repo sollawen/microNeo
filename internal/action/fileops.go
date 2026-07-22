@@ -43,6 +43,13 @@ func (h *BufPane) OpenFinder(isQuit bool) {
 // 三个 caller 的 h 是不同的 *BufPane 实例；OpenFinder 传 h.onFinderClose（方法值）
 // 会把当次的 h 绑定带走。
 func (h *BufPane) onFinderClose(r finder.Result) {
+	// noName buffer 跟着 finder 走：关闭时把最后停留目录同步到 buffer.Dir，
+	// 下次再开 finder 就停在这里。命名 buffer 不动（Dir 在创建/保存时
+	// 维护成 filepath.Dir(AbsPath)，手动改会偏离真相）。
+	if !h.Buf.HasFilename() && r.Cwd != "" {
+		h.Buf.Dir = r.Cwd
+	}
+
 	switch r.Reason {
 	case finder.Picked:
 		if filepath.Join(r.Cwd, r.File) == h.Buf.AbsPath {

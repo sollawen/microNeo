@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Added**
 
-- NoName buffer 现在会记住来源目录：在 `bbb/file.txt` 按 F7 (Ctrl-T/VSplit/HSplit) 创建的 noName buffer，其 birth hook 弹出的 finder 起始目录为 `bbb`（而非之前的行为：使用 micro 进程启动时的 cwd）。Ctrl-T 从 noName buffer 创建新 tab，或 Ctrl-q 退出程序，都会使用这个继承的目录。
+- NoName buffer now remembers its source directory. Finder (birth hook), Ctrl-T (new tab), and Ctrl-Q (quit) use the inherited directory instead of micro's startup cwd.
 
 ## [1.1.22] - 2026-07-21
 
