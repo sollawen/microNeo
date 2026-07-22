@@ -9,10 +9,14 @@ description: microNeo release workflow. Use when user asks to release a version 
 # 1. Check CHANGELOG.md: if top section is [Unreleased], update it to [X.Y.Z] - YYYY-MM-DD
 #    Format: ## [X.Y.Z] - YYYY-MM-DD (方括号、无 v 前缀、ISO 日期)
 
-# 2. Lightweight tag (no -a, no -m). Format: vX.Y.Z
+# 2. Commit the CHANGELOG.md update
+git add CHANGELOG.md
+git commit -m "Release X.Y.Z"
+
+# 3. Lightweight tag (no -a, no -m). Format: vX.Y.Z
 git tag vX.Y.Z
 
-# 3. Push — tag push triggers .github/workflows/release.yaml
+# 4. Push — tag push triggers .github/workflows/release.yaml
 git push origin master
 git push origin vX.Y.Z
 ```
