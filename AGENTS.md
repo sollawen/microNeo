@@ -18,28 +18,6 @@
 
 ---
 
-## 项目结构
-
-```
-internal/
-├── action/bufpane.go + bufpane_md.go   # 主控 + ⭐ MD 配置/editMode
-├── buffer/buffer.go                    # IsMD / MDSegments（86, 93 行）
-├── config/settings.go + settings_md.go # 全局 + ⭐ MD 专用设置
-├── display/
-│   ├── bufwindow.go                    # Display() 入口（932 行），分流 938-940
-│   ├── bufwindow_md.go                 # ⭐ displayBufferMD()（700 行起，926 行）
-│   └── softwrap.go
-└── md/                                 # ⭐ 渲染管线
-    ├── md.go / detect.go / config.go   # 数据结构 / 分类器 / 开关
-    ├── inline.go / wrap.go             # 行内元素 / 软换行
-    └── render_*.go                     # heading/blockquote/list/codeblock/table/hr/normal
-
-runtime/syntax/markdown.yaml  # ⭐ 需完整版（含 codeblock region）
-Makefile                      # ⭐ 编译入口
-```
-
-
----
 
 ## 核心概念
 
