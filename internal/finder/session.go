@@ -109,7 +109,7 @@ func (fm *Session) Open(rect Rect, cwd, file string, isQuit bool, onClose func(R
 
 	// —— history 条件构造 ——
 	// 读取在判定之前，确保 dirs 为空也能正确不构造。
-	dirs := readDirHistory()
+	dirs := readHistory()
 	var histRect Rect
 	var listRect Rect
 	if rect.H >= historyMinHeight && len(dirs) > 0 {

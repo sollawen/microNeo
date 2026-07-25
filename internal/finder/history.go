@@ -31,9 +31,9 @@ func writeDirHistory(dirs []string) {
 	_ = os.WriteFile(historyPath(), data, 0o644)
 }
 
-// readDirHistory 读取访问历史。文件不存在 → 空；空文件或损坏 JSON → 删文件返回空；
+// readHistory 读取访问历史。文件不存在 → 空；空文件或损坏 JSON → 删文件返回空；
 // 其他读取错误 → 返回空不删文件。返回新 slice，调用方可自由修改。
-func readDirHistory() []string {
+func readHistory() []string {
 	path := historyPath()
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -54,14 +54,14 @@ func readDirHistory() []string {
 	return dirs
 }
 
-// recordDirHistory 把 dir 推到队首，去重并截断到 historyMaxEntries 后整体写回。
+// writeHistory 把 dir 推到队首，去重并截断到 historyMaxEntries 后整体写回。
 // 空路径或 I/O 失败均静默降级，不得阻断文件选择主流程。
-func recordDirHistory(dir string) {
+func writeHistory(dir string) {
 	if dir == "" {
 		return
 	}
 	dir = filepath.Clean(dir)
-	dirs := readDirHistory()
+	dirs := readHistory()
 
 	out := make([]string, 0, len(dirs)+1)
 	out = append(out, dir)

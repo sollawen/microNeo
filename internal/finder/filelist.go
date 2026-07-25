@@ -472,7 +472,7 @@ func (l *fileList) activate() {
 		if info, err := os.Stat(l.currentDir); err != nil || !info.IsDir() {
 			return
 		}
-		recordDirHistory(l.currentDir)
+		writeHistory(l.currentDir)
 		l.pick()
 	}
 }

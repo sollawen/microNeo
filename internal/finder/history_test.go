@@ -37,9 +37,9 @@ func readBackFile(t *testing.T) []byte {
 
 func TestHistoryRead_NotExist(t *testing.T) {
 	withTempConfigDir(t)
-	got := readDirHistory()
+	got := readHistory()
 	if len(got) != 0 {
-		t.Errorf("readDirHistory when file missing: got %v, want empty", got)
+		t.Errorf("readHistory when file missing: got %v, want empty", got)
 	}
 }
 
@@ -48,9 +48,9 @@ func TestHistoryRead_EmptyFileTreatedAsCorrupt(t *testing.T) {
 	if err := os.WriteFile(historyPath(), []byte{}, 0o644); err != nil {
 		t.Fatalf("write empty file: %v", err)
 	}
-	got := readDirHistory()
+	got := readHistory()
 	if len(got) != 0 {
-		t.Errorf("readDirHistory empty file: got %v, want empty", got)
+		t.Errorf("readHistory empty file: got %v, want empty", got)
 	}
 	if _, err := os.Stat(historyPath()); !os.IsNotExist(err) {
 		t.Errorf("expected history.json removed after empty read; stat err = %v", err)
@@ -62,9 +62,9 @@ func TestHistoryRead_CorruptJSONRemoved(t *testing.T) {
 	if err := os.WriteFile(historyPath(), []byte("{broken"), 0o644); err != nil {
 		t.Fatalf("write corrupt: %v", err)
 	}
-	got := readDirHistory()
+	got := readHistory()
 	if len(got) != 0 {
-		t.Errorf("readDirHistory corrupt: got %v, want empty", got)
+		t.Errorf("readHistory corrupt: got %v, want empty", got)
 	}
 	if _, err := os.Stat(historyPath()); !os.IsNotExist(err) {
 		t.Errorf("expected history.json removed after corrupt read; stat err = %v", err)
@@ -78,9 +78,9 @@ func TestHistoryRead_ValidFile(t *testing.T) {
 	if err := os.WriteFile(historyPath(), data, 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	got := readDirHistory()
+	got := readHistory()
 	if len(got) != 2 || got[0] != "/a" || got[1] != "/b" {
-		t.Errorf("readDirHistory: got %v, want %v", got, want)
+		t.Errorf("readHistory: got %v, want %v", got, want)
 	}
 }
 
@@ -91,9 +91,9 @@ func TestHistoryRead_ReturnsIndependentSlice(t *testing.T) {
 	if err := os.WriteFile(historyPath(), data, 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	out := readDirHistory()
+	out := readHistory()
 	out[0] = "/mutated"
-	out2 := readDirHistory()
+	out2 := readHistory()
 	if out2[0] != "/a" {
 		t.Errorf("mutating returned slice leaked into next read: %v", out2)
 	}
@@ -102,7 +102,7 @@ func TestHistoryRead_ReturnsIndependentSlice(t *testing.T) {
 func TestRecord_FirstWritesDirectory(t *testing.T) {
 	withTempConfigDir(t)
 	dir := t.TempDir()
-	recordDirHistory(dir)
+	writeHistory(dir)
 
 	raw, err := os.ReadFile(historyPath())
 	if err != nil {
@@ -123,12 +123,12 @@ func TestRecord_DedupesAndMovesToHead(t *testing.T) {
 	b := t.TempDir()
 	c := t.TempDir()
 
-	recordDirHistory(a)
-	recordDirHistory(b)
-	recordDirHistory(a) // a 已被记录，应去重并移到队首
-	recordDirHistory(c)
+	writeHistory(a)
+	writeHistory(b)
+	writeHistory(a) // a 已被记录，应去重并移到队首
+	writeHistory(c)
 
-	dirs := readDirHistory()
+	dirs := readHistory()
 	want := []string{c, a, b}
 	if len(dirs) != len(want) {
 		t.Fatalf("len: got %d, want %d (%v)", len(dirs), len(want), dirs)
@@ -149,9 +149,9 @@ func TestRecord_TruncatesToMaxEntries(t *testing.T) {
 	}
 	// 按从老到新写入
 	for _, d := range dirs {
-		recordDirHistory(d)
+		writeHistory(d)
 	}
-	got := readDirHistory()
+	got := readHistory()
 	if len(got) != historyMaxEntries {
 		t.Errorf("len after %d records: got %d, want %d", len(dirs), len(got), historyMaxEntries)
 	}
@@ -168,7 +168,7 @@ func TestRecord_TruncatesToMaxEntries(t *testing.T) {
 
 func TestRecord_EmptyPathDoesNothing(t *testing.T) {
 	withTempConfigDir(t)
-	recordDirHistory("")
+	writeHistory("")
 	if _, err := os.Stat(historyPath()); !os.IsNotExist(err) {
 		t.Errorf("history.json should not be created for empty path; stat err = %v", err)
 	}
@@ -178,7 +178,7 @@ func TestRecord_DoesNotPolluteUserConfig(t *testing.T) {
 	// 双重保险：withTempConfigDir 已经隔离；这里再次确认写到 historyPath() 这个路径
 	withTempConfigDir(t)
 	d := t.TempDir()
-	recordDirHistory(d)
+	writeHistory(d)
 	got, err := os.ReadFile(historyPath())
 	if err != nil {
 		t.Fatalf("read: %v", err)
@@ -212,8 +212,8 @@ func contains(haystack, needle []byte) bool {
 func TestRecord_CleansCleanDirPath(t *testing.T) {
 	withTempConfigDir(t)
 	d := t.TempDir()
-	recordDirHistory(d + string(filepath.Separator) + "." + string(filepath.Separator))
-	got := readDirHistory()
+	writeHistory(d + string(filepath.Separator) + "." + string(filepath.Separator))
+	got := readHistory()
 	want, _ := filepath.Abs(d)
 	if len(got) != 1 || got[0] != want {
 		t.Errorf("after Clean + Abs: got %v, want [%s]", got, want)
