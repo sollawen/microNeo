@@ -39,7 +39,7 @@ const (
 	// historyMinHeight 是 history region 出现的最低 finder 高度门槛（按 Open 收到的原始 rect.H）。
 	historyMinHeight = 15
 	// historyContentH 是 history region 内容可见行数；上方的横分隔线占额外 1 行由 session 画。
-	historyContentH = 3
+	historyContentH = 5
 )
 
 // ---- Session ----
