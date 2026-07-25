@@ -36,21 +36,27 @@ type Result struct {
 const (
 	fsMinWidth  = 20
 	fsMinHeight = 10
+	// historyMinHeight 是 history region 出现的最低 finder 高度门槛（按 Open 收到的原始 rect.H）。
+	historyMinHeight = 15
+	// historyContentH 是 history region 内容可见行数；上方的横分隔线占额外 1 行由 session 画。
+	historyContentH = 3
 )
 
 // ---- Session ----
 
-// Session 是文件选择器的一次会话实例。Step 1 退化为纯调度器：外框 + 全局键 + close + focus 路由。
+// Session 是文件选择器的一次会话实例。
 type Session struct {
-	rect Rect // 整个 finder 的外框（含标题行、底边、所有面板）
-	divX int  // 左/右分栏竖线 X 坐标（分隔符列 │ 画在此列）
+	rect     Rect // 整个 finder 的外框（含标题行、底边、所有面板）
+	previewX int  // 左右栏竖分隔线列（│ 画在此列），preview 区从该位置开始
+	historyY int  // history 上方横分隔线的 Y 坐标；仅 fm.history != nil 时有效
 
-	list *fileList // 恒构造
-	prev *preview  // 右栏宽 >= previewMinWidth 时构造；否则 nil
+	list    *fileList    // 恒构造
+	prev    *preview     // 右栏宽 >= previewMinWidth 时构造；否则 nil
+	history *historyList // 高度门槛满足且 dirs 非空时构造；否则 nil
 
 	regions         []NoKeyboardRegion // 所有 region
 	keyboardRegions []KeyboardRegion   // 仅接键盘的 region
-	focus           int                // 索引 keyboardRegions；Step 1 恒 0
+	focus           int                // 索引 keyboardRegions；Step 1 恒 0，Step 2 起 0=fileList / 1=history
 
 	isOpen  bool
 	onClose func(Result)
@@ -87,28 +93,55 @@ func (fm *Session) Open(rect Rect, cwd, file string, isQuit bool, onClose func(R
 	if pickerW > rect.W {
 		pickerW = rect.W
 	}
-	fm.divX = rect.X + pickerW - 1 // 分隔符列
+	fm.previewX = rect.X + pickerW - 1 // 分隔符列
 
-	// fileList：内容区让出标题行 + 右分隔符列 + 底边
-	listRect := Rect{
+	// fileList 内容区原始尺寸（让出标题行 + 右分隔符列 + 底边）
+	fullListRect := Rect{
 		X: fm.rect.X,
 		Y: fm.rect.Y + 1,
 		W: pickerW - 1,
 		H: fm.rect.H - 2,
 	}
-	fm.list = newFileList(fm, listRect, cwd, file, pickerW)
 
 	// 双 slice 构造
-	fm.regions = make([]NoKeyboardRegion, 0, 2)
-	fm.keyboardRegions = make([]KeyboardRegion, 0, 1)
+	fm.regions = make([]NoKeyboardRegion, 0, 3)
+	fm.keyboardRegions = make([]KeyboardRegion, 0, 2)
 
+	// —— history 条件构造 ——
+	// 读取在判定之前，确保 dirs 为空也能正确不构造。
+	dirs := readDirHistory()
+	var histRect Rect
+	var listRect Rect
+	if rect.H >= historyMinHeight && len(dirs) > 0 {
+		historyBlockH := 1 + historyContentH
+		histRect = Rect{
+			X: fullListRect.X,
+			Y: fullListRect.Y + fullListRect.H - historyContentH,
+			W: fullListRect.W,
+			H: historyContentH,
+		}
+		fm.historyY = histRect.Y - 1
+		listRect = fullListRect
+		listRect.H -= historyBlockH
+	} else {
+		listRect = fullListRect
+		fm.historyY = 0
+	}
+
+	fm.list = newFileList(fm, listRect, cwd, file, pickerW)
 	fm.regions = append(fm.regions, fm.list)
 	fm.keyboardRegions = append(fm.keyboardRegions, fm.list)
+
+	if fm.history == nil && histRect.W > 0 && histRect.H > 0 && len(dirs) > 0 {
+		fm.history = newHistoryList(fm, histRect, dirs)
+		fm.regions = append(fm.regions, fm.history)
+		fm.keyboardRegions = append(fm.keyboardRegions, fm.history)
+	}
 
 	// preview：仅右栏宽 >= previewMinWidth 时构造
 	pvW := fm.rect.W - pickerW
 	if pvW >= previewMinWidth {
-		pvRect := Rect{X: fm.divX + 1, Y: fm.rect.Y, W: pvW, H: fm.rect.H}
+		pvRect := Rect{X: fm.previewX + 1, Y: fm.rect.Y, W: pvW, H: fm.rect.H}
 		fm.prev = newPreview(pvRect)
 		fm.regions = append(fm.regions, fm.prev)
 	}
@@ -116,7 +149,24 @@ func (fm *Session) Open(rect Rect, cwd, file string, isQuit bool, onClose func(R
 
 	fm.isOpen = true
 	fm.syncPreview()
+	// 明确初始化焦点视觉（fm.list.FocusOn 写 focused=true 并 Redraw）
+	fm.list.FocusOn()
 	return true
+}
+
+// ActivateFromHistory 由 historyList 选中目录后调用：复用 fileList.chdirTo 切目录并把焦点切回 fileList。
+// 通过类型断言定位 fileList 在 keyboardRegions 中的索引，不依赖构造顺序或新增其他 region。
+func (fm *Session) ActivateFromHistory(dir string) {
+	if fm.list == nil {
+		return
+	}
+	fm.list.chdirTo(dir, "")
+	for i, kr := range fm.keyboardRegions {
+		if _, ok := kr.(*fileList); ok {
+			fm.switchFocus(i)
+			return
+		}
+	}
 }
 
 // ---- 关闭路径 ----
@@ -152,9 +202,20 @@ func (fm *Session) finishClose(r Result) {
 	}
 }
 
+// reset 完整清理 Session 所有 region 与几何字段，避免被误复用时残留。
 func (fm *Session) reset() {
+	fm.list = nil
+	fm.prev = nil
+	fm.history = nil
+	fm.regions = nil
+	fm.keyboardRegions = nil
+	fm.focus = 0
+	fm.previewX = 0
+	fm.historyY = 0
+	fm.rect = Rect{}
 	fm.isOpen = false
 	fm.onClose = nil
+	fm.isQuit = false
 }
 
 // ---- 事件处理 ----
@@ -187,9 +248,12 @@ func (fm *Session) HandleEvent(event tcell.Event) {
 		fm.handleGlobalKey(e)
 
 	case *tcell.EventMouse:
-		// mouse→switchFocus（FFM）：先切焦点，再 dispatch
-		if kbIdx := hitTest(fm.keyboardRegions, e); kbIdx >= 0 && kbIdx != fm.focus {
-			fm.switchFocus(kbIdx)
+		// mouse→switchFocus（FFM）：命中 keyboardRegions 才切；命中 preview 不切。
+		// 纯 mouse move（Buttons()==0）不触发 FFM——避免滑过 history 时误改焦点。
+		if e.Buttons() != 0 {
+			if kbIdx := hitTest(fm.keyboardRegions, e); kbIdx >= 0 && kbIdx != fm.focus {
+				fm.switchFocus(kbIdx)
+			}
 		}
 		// 一般 mouse dispatch
 		if idx := hitTest(fm.regions, e); idx >= 0 {
@@ -291,7 +355,7 @@ func hitTest[T interface{ Rect() Rect }](items []T, ev *tcell.EventMouse) int {
 
 func (fm *Session) drawBorder() {
 	x, y, w, h := fm.rect.X, fm.rect.Y, fm.rect.W, fm.rect.H
-	sep := fm.divX
+	sep := fm.previewX
 	color := config.DefStyle
 
 	// 1. clear 整个区域
@@ -340,5 +404,33 @@ func (fm *Session) drawBorder() {
 			screen.Screen.SetContent(col, y, '─', nil, color)
 		}
 		col++
+	}
+
+	// 5. history 上分隔线（仅当 history 存在）：
+	//    跨左栏 [x, sep) 在 fm.historyY 行画 ─，与预览列交点用 ┤ 表示横线终止于左栏。
+	//    嵌入式标签 " Recent Paths " 与顶部 title 同风格：2 dashes + 空格 + 标签 + 空格 + 2 dashes。
+	if fm.history != nil {
+		labelRunes := []rune(" Recent Paths ")
+		sepX := sep
+		col := x
+		writeR := func(r rune) {
+			if col >= sepX {
+				return
+			}
+			screen.Screen.SetContent(col, fm.historyY, r, nil, color)
+			col++
+		}
+		writeR('─')
+		writeR('─')
+		for _, r := range labelRunes {
+			writeR(r)
+		}
+		writeR('─')
+		writeR('─')
+		for col < sepX {
+			screen.Screen.SetContent(col, fm.historyY, '─', nil, color)
+			col++
+		}
+		screen.Screen.SetContent(sepX, fm.historyY, '┤', nil, color)
 	}
 }

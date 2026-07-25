@@ -53,8 +53,9 @@ type fileList struct {
 	sortDesc   bool
 	rightMode  rightMode
 	showHidden bool
-	pickerW    int // 内容区宽（截断用），存着省得各处写 rect.W
-	listH      int // 文件列表可见行数（去面包屑行 + hint 行），clamp 滚动时需要
+	focused    bool // 当前 keyboardRegions focus（Step 2 起生效）
+	pickerW    int  // 内容区宽（截断用），存着省得各处写 rect.W
+	listH      int  // 文件列表可见行数（去面包屑行 + hint 行），clamp 滚动时需要
 }
 
 // newFileList 构造 fileList region。
@@ -129,8 +130,15 @@ func (l *fileList) HandleMouse(ev *tcell.EventMouse) bool {
 
 // —— KeyboardRegion ——
 
-func (l *fileList) FocusOn()  {}
-func (l *fileList) FocusLost() {}
+func (l *fileList) FocusOn() {
+	l.focused = true
+	screen.Redraw()
+}
+
+func (l *fileList) FocusLost() {
+	l.focused = false
+	screen.Redraw()
+}
 
 func (l *fileList) HandleKey(ev *tcell.EventKey) bool {
 	switch ev.Key() {
@@ -206,14 +214,14 @@ func (l *fileList) drawContent() {
 
 	// 行 0：面包屑
 	bcStyle := config.GetColor("type")
-	if cursorOnBc {
+	if l.focused && cursorOnBc {
 		bcStyle = revStyle
 	}
 	l.drawBreadcrumb(x, y, w, bcStyle)
 
 	// —— 锁外：逐行画 ——
 	for vi := 0; vi < visibleH; vi++ {
-		l.drawEntry(x, listTop+vi, w, vis[vi], gitOn, topIdx+vi+1 == cursor, revStyle)
+		l.drawEntry(x, listTop+vi, w, vis[vi], gitOn, l.focused && topIdx+vi+1 == cursor, revStyle)
 	}
 
 	// 滚动指示符
@@ -223,11 +231,11 @@ func (l *fileList) drawContent() {
 	}
 	if total > visibleH && visibleH > 0 {
 		topStyle := config.DefStyle
-		if topIdx+1 == cursor {
+		if l.focused && topIdx+1 == cursor {
 			topStyle = revStyle
 		}
 		botStyle := config.DefStyle
-		if topIdx+visibleH == cursor {
+		if l.focused && topIdx+visibleH == cursor {
 			botStyle = revStyle
 		}
 		if topIdx > 0 {
@@ -460,6 +468,11 @@ func (l *fileList) activate() {
 			l.chdir(l.showEntries[l.cursor-1].name)
 		}
 	case rowFile:
+		// 选文件分支：先校验当前目录依然存在且是目录，否则直接返回不记录也不关闭
+		if info, err := os.Stat(l.currentDir); err != nil || !info.IsDir() {
+			return
+		}
+		recordDirHistory(l.currentDir)
 		l.pick()
 	}
 }
