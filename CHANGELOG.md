@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Changed**
 
 - Internal chassis refactor of the file finder: `session.go` is slimmed to a scheduler (~360 lines) and file-list logic is extracted into a dedicated `filelist.go` region implementing a new `KeyboardRegion` interface. `preview.go` now implements `NoKeyboardRegion` only, keeping it structurally absent from keyboard routing and focus. No user-visible behavior changes.
+- Directory paths in the history list now consistently show a trailing `/`, matching the breadcrumb style. Entries without a trailing separator (from older versions or manual edits) are silently ignored on read.
+- Stale-entry detection is now stricter: any entry that cannot be stat'd as a directory (deleted, replaced with a file, permissions error) is removed immediately instead of being kept on transient errors.
 
 ## [1.1.23] - 2025-01-21
 

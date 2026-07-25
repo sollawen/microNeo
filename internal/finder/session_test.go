@@ -224,7 +224,14 @@ func openTestSession(t *testing.T, w, h int, dirs []string) *Session {
 	t.Cleanup(func() { config.ConfigDir = saved })
 
 	if len(dirs) > 0 {
-		writeDirHistory(dirs)
+		normalized := make([]string, 0, len(dirs))
+		for _, d := range dirs {
+			if len(d) == 0 || d[len(d)-1] != os.PathSeparator {
+				d += string(os.PathSeparator)
+			}
+			normalized = append(normalized, d)
+		}
+		writeDirHistory(normalized)
 	}
 
 	cwd := t.TempDir()

@@ -43,24 +43,26 @@ func readHistory() []string {
 		_ = os.Remove(path)
 		return []string{}
 	}
-	var dirs []string
-	if err := json.Unmarshal(data, &dirs); err != nil {
+	var raw []string
+	if err := json.Unmarshal(data, &raw); err != nil {
 		_ = os.Remove(path)
 		return []string{}
 	}
-	if dirs == nil {
-		dirs = []string{}
+	dirs := make([]string, 0, len(raw))
+	for _, d := range raw {
+		if len(d) > 0 && d[len(d)-1] == filepath.Separator {
+			dirs = append(dirs, d)
+		}
 	}
 	return dirs
 }
 
-// writeHistory 把 dir 推到队首，去重并截断到 historyMaxEntries 后整体写回。
-// 空路径或 I/O 失败均静默降级，不得阻断文件选择主流程。
+// writeHistory 把原始字符串推到队首，去重并截断到 historyMaxEntries 后整体写回。
+// 本函数不区分目录与文件；目录的尾分隔符由调用方保证。空路径或 I/O 失败静默降级。
 func writeHistory(dir string) {
 	if dir == "" {
 		return
 	}
-	dir = filepath.Clean(dir)
 	dirs := readHistory()
 
 	out := make([]string, 0, len(dirs)+1)
@@ -282,23 +284,18 @@ func (h *historyList) ensureVisible() {
 }
 
 // activate 对当前 cursor 路径 stat。有效目录 → Session.ActivateFromHistory；
-// 不存在或已不是目录 → 从列表与 history.json 中移除；其它错误保留。
+// 其余（不存在 / 已不是目录 / stat 失败）一律从列表与 history.json 中移除。
 func (h *historyList) activate() {
 	if h.cursor < 0 || h.cursor >= len(h.dirs) {
 		return
 	}
 	dir := h.dirs[h.cursor]
 	info, err := os.Stat(dir)
-	switch {
-	case err == nil && info.IsDir():
+	if err == nil && info.IsDir() {
 		h.fm.ActivateFromHistory(dir)
-	case os.IsNotExist(err):
-		h.removeCurrent()
-	case err == nil: // 路径存在但不是目录（变成文件等）
-		h.removeCurrent()
-	default:
-		// 权限 / I/O 临时错误：保留条目，不切目录
+		return
 	}
+	h.removeCurrent()
 }
 
 // removeCurrent 删除 cursor 处条目并持久化，调整 cursor/topIdx 防越界。

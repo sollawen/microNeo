@@ -472,7 +472,12 @@ func (l *fileList) activate() {
 		if info, err := os.Stat(l.currentDir); err != nil || !info.IsDir() {
 			return
 		}
-		writeHistory(l.currentDir)
+		sep := string(filepath.Separator)
+		dir := l.currentDir
+		if !strings.HasSuffix(dir, sep) {
+			dir += sep
+		}
+		writeHistory(dir)
 		l.pick()
 	}
 }

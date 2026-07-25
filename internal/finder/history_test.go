@@ -73,20 +73,20 @@ func TestHistoryRead_CorruptJSONRemoved(t *testing.T) {
 
 func TestHistoryRead_ValidFile(t *testing.T) {
 	withTempConfigDir(t)
-	want := []string{"/a", "/b"}
+	want := []string{"/a/", "/b/"}
 	data, _ := json.Marshal(want)
 	if err := os.WriteFile(historyPath(), data, 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	got := readHistory()
-	if len(got) != 2 || got[0] != "/a" || got[1] != "/b" {
+	if len(got) != 2 || got[0] != "/a/" || got[1] != "/b/" {
 		t.Errorf("readHistory: got %v, want %v", got, want)
 	}
 }
 
 func TestHistoryRead_ReturnsIndependentSlice(t *testing.T) {
 	withTempConfigDir(t)
-	in := []string{"/a", "/b"}
+	in := []string{"/a/", "/b/"}
 	data, _ := json.Marshal(in)
 	if err := os.WriteFile(historyPath(), data, 0o644); err != nil {
 		t.Fatalf("write: %v", err)
@@ -94,7 +94,7 @@ func TestHistoryRead_ReturnsIndependentSlice(t *testing.T) {
 	out := readHistory()
 	out[0] = "/mutated"
 	out2 := readHistory()
-	if out2[0] != "/a" {
+	if out2[0] != "/a/" {
 		t.Errorf("mutating returned slice leaked into next read: %v", out2)
 	}
 }
@@ -102,7 +102,8 @@ func TestHistoryRead_ReturnsIndependentSlice(t *testing.T) {
 func TestRecord_FirstWritesDirectory(t *testing.T) {
 	withTempConfigDir(t)
 	dir := t.TempDir()
-	writeHistory(dir)
+	sep := string(filepath.Separator)
+	writeHistory(dir + sep)
 
 	raw, err := os.ReadFile(historyPath())
 	if err != nil {
@@ -112,8 +113,8 @@ func TestRecord_FirstWritesDirectory(t *testing.T) {
 	if err := json.Unmarshal(raw, &dirs); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if len(dirs) != 1 || dirs[0] != dir {
-		t.Errorf("after first record: got %v, want [%s]", dirs, dir)
+	if len(dirs) != 1 || dirs[0] != dir+sep {
+		t.Errorf("after first record: got %v, want [%s]", dirs, dir+sep)
 	}
 }
 
@@ -123,13 +124,14 @@ func TestRecord_DedupesAndMovesToHead(t *testing.T) {
 	b := t.TempDir()
 	c := t.TempDir()
 
-	writeHistory(a)
-	writeHistory(b)
-	writeHistory(a) // a 已被记录，应去重并移到队首
-	writeHistory(c)
+	sep := string(filepath.Separator)
+	writeHistory(a + sep)
+	writeHistory(b + sep)
+	writeHistory(a + sep) // a 已被记录，应去重并移到队首
+	writeHistory(c + sep)
 
 	dirs := readHistory()
-	want := []string{c, a, b}
+	want := []string{c + sep, a + sep, b + sep}
 	if len(dirs) != len(want) {
 		t.Fatalf("len: got %d, want %d (%v)", len(dirs), len(want), dirs)
 	}
@@ -147,20 +149,21 @@ func TestRecord_TruncatesToMaxEntries(t *testing.T) {
 		d := t.TempDir()
 		dirs = append(dirs, d)
 	}
+	sep := string(filepath.Separator)
 	// 按从老到新写入
 	for _, d := range dirs {
-		writeHistory(d)
+		writeHistory(d + sep)
 	}
 	got := readHistory()
 	if len(got) != historyMaxEntries {
 		t.Errorf("len after %d records: got %d, want %d", len(dirs), len(got), historyMaxEntries)
 	}
 	// 队首应为最新 (最后写入)，队尾应为最早但被丢弃
-	if got[0] != dirs[len(dirs)-1] {
-		t.Errorf("head: got %s, want %s", got[0], dirs[len(dirs)-1])
+	if got[0] != dirs[len(dirs)-1]+sep {
+		t.Errorf("head: got %s, want %s", got[0], dirs[len(dirs)-1]+sep)
 	}
 	// 第 historyMaxEntries 条 应为 dirs[len(dirs)-historyMaxEntries]，即 dirs[10]
-	expTail := dirs[len(dirs)-historyMaxEntries]
+	expTail := dirs[len(dirs)-historyMaxEntries] + sep
 	if got[historyMaxEntries-1] != expTail {
 		t.Errorf("tail: got %s, want %s", got[historyMaxEntries-1], expTail)
 	}
@@ -189,6 +192,33 @@ func TestRecord_DoesNotPolluteUserConfig(t *testing.T) {
 	}
 }
 
+func TestHistoryRead_FiltersEntriesWithoutTrailingSeparator(t *testing.T) {
+	withTempConfigDir(t)
+	writeDirHistory([]string{"/a", "/b/"})
+	got := readHistory()
+	if len(got) != 1 || got[0] != "/b/" {
+		t.Errorf("readHistory: got %v, want [/b/]", got)
+	}
+}
+
+func TestHistoryRead_FiltersEmptyString(t *testing.T) {
+	withTempConfigDir(t)
+	writeDirHistory([]string{"/a/", "", "/b/"})
+	got := readHistory()
+	if len(got) != 2 || got[0] != "/a/" || got[1] != "/b/" {
+		t.Errorf("readHistory: got %v, want [/a/ /b/]", got)
+	}
+}
+
+func TestHistoryRead_MixedOldAndNewFormat(t *testing.T) {
+	withTempConfigDir(t)
+	writeDirHistory([]string{"/old_no_sep", "/new_with_sep/"})
+	got := readHistory()
+	if len(got) != 1 || got[0] != "/new_with_sep/" {
+		t.Errorf("readHistory: got %v, want [/new_with_sep/]", got)
+	}
+}
+
 // contains 子串判断，bytes.Contains 的小包装（让测试代码读起来自然一点）。
 func contains(haystack, needle []byte) bool {
 	if len(needle) == 0 || len(haystack) < len(needle) {
@@ -207,17 +237,6 @@ func contains(haystack, needle []byte) bool {
 		}
 	}
 	return false
-}
-
-func TestRecord_CleansCleanDirPath(t *testing.T) {
-	withTempConfigDir(t)
-	d := t.TempDir()
-	writeHistory(d + string(filepath.Separator) + "." + string(filepath.Separator))
-	got := readHistory()
-	want, _ := filepath.Abs(d)
-	if len(got) != 1 || got[0] != want {
-		t.Errorf("after Clean + Abs: got %v, want [%s]", got, want)
-	}
 }
 
 // ---- historyList 区域测试 ----
@@ -406,12 +425,51 @@ func TestHistoryList_Activate_ValidDirCallsSession(t *testing.T) {
 }
 func TestHistoryList_Activate_NonexistentRemoved(t *testing.T) {
 	withTempConfigDir(t)
-	realDir := t.TempDir() // 留作 dirs 第一条，便于触发 IsNotExist 来移除第二条
+	realDir := t.TempDir() // 留作 dirs 第一条，验证 removeCurrent 删除第二条后的状态
 	dirs := []string{"/path/that/does/not/exist/xyz", realDir}
 	h, _ := newTestHistory(t, Rect{W: 10, H: 3}, dirs)
 	h.cursor = 0
-	h.removeCurrent() // 等价于「激活后发现不存在」后的清理路径，验证 removeCurrent 写得对
+	h.removeCurrent() // 直接验证 removeCurrent 的切片与持久化清理路径
 	if len(h.dirs) != 1 || h.dirs[0] != realDir {
 		t.Errorf("after removing non-existent: dirs=%v, want [%s]", h.dirs, realDir)
+	}
+}
+
+func TestHistoryList_Activate_DirWithTrailingSeparator(t *testing.T) {
+	sep := string(filepath.Separator)
+	target := t.TempDir()
+	fm := openTestSession(t, 60, 15, []string{target + sep})
+	if fm.history == nil {
+		t.Fatal("history not built")
+	}
+
+	fm.history.activate()
+	if fm.list.currentDir != target {
+		t.Errorf("activate: currentDir=%q, want %q", fm.list.currentDir, target)
+	}
+}
+
+func TestHistoryList_Activate_RemovesWhenPathBecameFile(t *testing.T) {
+	withTempConfigDir(t)
+	path := filepath.Join(t.TempDir(), "was-directory")
+	if err := os.WriteFile(path, []byte("file"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	h, _ := newTestHistory(t, Rect{W: 10, H: 3}, []string{path + string(filepath.Separator)})
+
+	h.activate()
+	if len(h.dirs) != 0 {
+		t.Errorf("activate file path: dirs=%v, want empty", h.dirs)
+	}
+}
+
+func TestHistoryList_Activate_RemovesOnStatError(t *testing.T) {
+	withTempConfigDir(t)
+	invalid := string([]byte{0}) + string(filepath.Separator)
+	h, _ := newTestHistory(t, Rect{W: 10, H: 3}, []string{invalid})
+
+	h.activate()
+	if len(h.dirs) != 0 {
+		t.Errorf("activate path with stat error: dirs=%v, want empty", h.dirs)
 	}
 }
