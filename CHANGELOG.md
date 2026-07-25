@@ -14,13 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Added**
 
 - Finder now remembers directories you've opened files from, persisting the 50 most-recent paths (newest first, deduplicated) to `history.json` in the configuration directory.
-- When the finder window is tall enough (15+ rows), a "Recent Paths" pane appears at the bottom of the file list showing the three most-recent directories. `Tab` cycles focus between the file list and recent paths; arrow-keys, `Enter`, and clicking select one to jump straight there.
+- When the finder window is tall enough (20+ rows), a "Recent Paths" pane appears at the bottom of the file list showing the five most-recent directories. `Tab` cycles focus between the file list and recent paths; arrow-keys, `Enter`, and clicking select one to jump straight there.
 - Stale entries (a directory that was deleted or replaced with a file) are cleaned up automatically the next time you try to open them.
 
 **Changed**
 
 - Finder breadcrumb and history list now shorten home-directory paths to `~/...` for a cleaner display when browsing under `$HOME`.
-
 - Internal chassis refactor of the file finder: `session.go` is slimmed to a scheduler (~360 lines) and file-list logic is extracted into a dedicated `filelist.go` region implementing a new `KeyboardRegion` interface. `preview.go` now implements `NoKeyboardRegion` only, keeping it structurally absent from keyboard routing and focus. No user-visible behavior changes.
 - Directory paths in the history list now consistently show a trailing `/`, matching the breadcrumb style. Entries without a trailing separator (from older versions or manual edits) are silently ignored on read.
 - Stale-entry detection is now stricter: any entry that cannot be stat'd as a directory (deleted, replaced with a file, permissions error) is removed immediately instead of being kept on transient errors.
