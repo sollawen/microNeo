@@ -303,6 +303,8 @@ func (h *BufPane) absorbPaneIntoTab(srcPane *BufPane, srcTab *Tab) bool {
 
 	// step 5: Resize 补刀
 	h.tab.Resize()
+	// 重置激活状态：srcPane 从旧 tab 带过来时 active=true，必须纠正
+	h.tab.SetActive(h.tab.GetPane(h.splitID))
 	Tabs.Resize()
 	return true
 }

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Fixed**
+
+- Status line no longer shows active colors on both panes after shrinking a pane with `Alt--`.
+
 **Added**
 
 - Finder now remembers directories you've opened files from, persisting the 50 most-recent paths (newest first, deduplicated) to `history.json` in the configuration directory.
