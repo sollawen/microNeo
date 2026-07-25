@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/mattn/go-runewidth"
+	"github.com/micro-editor/micro/v2/internal/screen"
+	"github.com/micro-editor/tcell/v2"
 )
 
 // 显示宽度工具（CJK/全角字符占 2 列，rune-safe）
@@ -241,6 +243,33 @@ func formatMtime(t time.Time) string {
 		return t.Format("01-02 15:04") // 11 列
 	}
 	return t.Format("2006-01-02") // 10 列（跨年省略时分）
+}
+
+// drawString 在 (x,y) 起、限宽 w 列内写文本，尾部填 style。
+// 按 CJK 显示列宽推进（中文占 2 列），放不下完整双宽字符则停。
+func drawString(x, y, w int, text string, style tcell.Style) {
+	col := x
+	for _, r := range text {
+		rw := runeWidth(r)
+		if col+rw > x+w {
+			break
+		}
+		screen.Screen.SetContent(col, y, r, nil, style)
+		col += rw
+	}
+	for col < x+w {
+		screen.Screen.SetContent(col, y, ' ', nil, style)
+		col++
+	}
+}
+
+// clearRect 在 [x,y,w,h] 矩形内填 style（覆盖底层编辑区内容）。
+func clearRect(x, y, w, h int, style tcell.Style) {
+	for row := 0; row < h; row++ {
+		for col := 0; col < w; col++ {
+			screen.Screen.SetContent(x+col, y+row, ' ', nil, style)
+		}
+	}
 }
 
 // fitMeta 按 w 宽挑能放下的组合；砍字段优先级 权限→size，mtime 保底。

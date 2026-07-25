@@ -11,28 +11,24 @@ import (
 )
 
 // startRename 在光标行下方打开 InputDialog 预填当前条目名，供用户编辑改名。
-// 光标在面包屑或越界时静默 no-op。目录名带 "/" 后缀传入，回调里再去掉。
-func (fm *Session) startRename() {
-	s := fm.state
-	if s.cursor == 0 {
-		return // 面包屑行：不响应 rename
+func (l *fileList) startRename() {
+	if l.cursor == 0 {
+		return
 	}
-	idx := s.cursor - 1
-	if idx < 0 || idx >= len(s.showEntries) {
-		return // 越界防御
+	idx := l.cursor - 1
+	if idx < 0 || idx >= len(l.showEntries) {
+		return
 	}
-	e := s.showEntries[idx]
+	e := l.showEntries[idx]
 
-	// initial：目录带 "/" 后缀（与 drawEntry 显示一致）
 	initial := e.name
 	if e.isDir {
 		initial += string(filepath.Separator)
 	}
 
-	// anchor：当前行下方一行，左对齐 finder 内容区
-	anchorY := fm.rect.Y + 2 + s.cursor - s.topIdx
+	anchorY := l.fm.rect.Y + 2 + l.cursor - l.topIdx
 	anchor := dialog.Pos{
-		X: fm.rect.X,
+		X: l.fm.rect.X,
 		Y: anchorY,
 	}
 
@@ -43,7 +39,7 @@ func (fm *Session) startRename() {
 		initial,
 		"Rename",
 		anchor,
-		fm.state.pickerW-2, // 内容区宽：比 finder 内容区左右各窄 1 格
+		l.pickerW-2,
 		config.DefStyle,
 		func(result string, canceled bool) {
 			if canceled {
@@ -51,40 +47,38 @@ func (fm *Session) startRename() {
 			}
 			newName := strings.TrimSuffix(result, string(filepath.Separator))
 			if newName == "" || newName == oldName {
-				return // 空名或同名：no-op
-			}
-			oldPath := filepath.Join(s.currentDir, oldName)
-			newPath := filepath.Join(s.currentDir, newName)
-			if err := os.Rename(oldPath, newPath); err != nil {
-				fm.showError("rename: " + err.Error())
 				return
 			}
-			// 刷新：重读目录 + 光标落到新名字上 + 异步 git
-			fm.chdirTo(s.currentDir, newName)
+			oldPath := filepath.Join(l.currentDir, oldName)
+			newPath := filepath.Join(l.currentDir, newName)
+			if err := os.Rename(oldPath, newPath); err != nil {
+				l.showError("rename: " + err.Error())
+				return
+			}
+			l.chdirTo(l.currentDir, newName)
 		},
 	)
 }
 
-// showError 显示错误消息弹窗（rename 失败时调用）。
-func (fm *Session) showError(msg string) {
+// showError 显示错误消息弹窗。
+func (l *fileList) showError(msg string) {
 	if msg == "" {
 		msg = "Unknown error"
 	}
 	dlg := dialog.NewMsgDialog()
-	// anchor：左对齐 finder 内容区，用 AlignCenter 居中文本
-	anchorY := fm.rect.Y + (fm.rect.H / 2)
+	anchorY := l.fm.rect.Y + (l.fm.rect.H / 2)
 	anchor := dialog.Pos{
-		X: fm.rect.X,
+		X: l.fm.rect.X,
 		Y: anchorY,
 	}
 	dlg.Open(
 		msg,
 		"Error",
 		anchor,
-		50, // 合理宽度
+		50,
 		dialog.AlignCenter,
-		0, // 不限行数
+		0,
 		tcell.StyleDefault,
-		func() {}, // 关闭后无需特殊处理
+		func() {},
 	)
 }

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+**Changed**
+
+- Internal chassis refactor of the file finder: `session.go` is slimmed to a scheduler (~360 lines) and file-list logic is extracted into a dedicated `filelist.go` region implementing a new `KeyboardRegion` interface. `preview.go` now implements `NoKeyboardRegion` only, keeping it structurally absent from keyboard routing and focus. No user-visible behavior changes.
+
 ## [1.1.23] - 2025-01-21
 
 **Added**
