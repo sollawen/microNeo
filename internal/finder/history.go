@@ -137,6 +137,7 @@ func (h *historyList) Display() {
 	for vi := 0; vi < lh; vi++ {
 		idx := h.topIdx + vi
 		path := h.dirs[idx]
+		path = shortenHomePath(path)
 		selected := h.focused && idx == h.cursor
 
 		style := defStyle

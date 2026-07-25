@@ -264,6 +264,7 @@ func (l *fileList) drawBreadcrumb(x, y, w int, style tcell.Style) {
 			path += string(filepath.Separator)
 		}
 	}
+	path = shortenHomePath(path)
 	disp := truncateLeftPath(path, w)
 	col := x
 	for _, r := range disp {

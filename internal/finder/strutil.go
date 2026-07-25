@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	homedir "github.com/mitchellh/go-homedir"
 	"github.com/mattn/go-runewidth"
 	"github.com/micro-editor/micro/v2/internal/screen"
 	"github.com/micro-editor/tcell/v2"
@@ -72,6 +73,20 @@ func headByWidth(s string, maxW int) string {
 		end = i + 1
 	}
 	return string(runes[:end])
+}
+
+// shortenHomePath 把 $HOME 前缀替换为 ~/，非 $HOME 下路径保留原样。
+// 获取 home 目录失败时返回原 path。
+func shortenHomePath(path string) string {
+	home, err := homedir.Dir()
+	if err != nil {
+		return path
+	}
+	if strings.HasPrefix(path, home) {
+		suffix := strings.TrimPrefix(path, home)
+		return "~" + suffix
+	}
+	return path
 }
 
 // isHiddenName 判断 Unix dotfile（以 . 开头的名字视为隐藏）。
