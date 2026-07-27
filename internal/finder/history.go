@@ -284,7 +284,7 @@ func (h *historyList) ensureVisible() {
 	}
 }
 
-// activate 对当前 cursor 路径 stat。有效目录 → Session.ActivateFromHistory；
+// activate 对当前 cursor 路径 stat。有效目录 → 写入历史、刷新显示、再切目录与焦点；
 // 其余（不存在 / 已不是目录 / stat 失败）一律从列表与 history.json 中移除。
 func (h *historyList) activate() {
 	if h.cursor < 0 || h.cursor >= len(h.dirs) {
@@ -293,6 +293,11 @@ func (h *historyList) activate() {
 	dir := h.dirs[h.cursor]
 	info, err := os.Stat(dir)
 	if err == nil && info.IsDir() {
+		writeHistory(dir)
+		h.dirs = readHistory()
+		h.cursor = 0
+		h.topIdx = 0
+		screen.Redraw()
 		h.fm.ActivateFromHistory(dir)
 		return
 	}

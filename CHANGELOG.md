@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Fixed**
 
 - Status line no longer shows active colors on both panes after shrinking a pane with `Alt--`.
+- Finder history list now refreshes immediately to show the latest order when you select a recent directory, before the focus switches to the file list.
 
 **Added**
 
