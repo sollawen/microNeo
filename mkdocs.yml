@@ -67,10 +67,10 @@ plugins:
         - locale: en
           name: English
           build: true
+          default: true
         - locale: zh
           name: 中文
           build: true
-          default: true
           nav_translations:
             Introduction: 简介
             Quick Start: 快速开始
