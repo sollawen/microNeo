@@ -1,6 +1,8 @@
 package finder
 
 import (
+	"path/filepath"
+
 	"github.com/micro-editor/micro/v2/internal/config"
 	"github.com/micro-editor/micro/v2/internal/screen"
 	"github.com/micro-editor/tcell/v2"
@@ -181,6 +183,12 @@ func (fm *Session) close(reason CloseReason) {
 		if idx >= 0 && idx < len(fm.list.showEntries) {
 			r.File = fm.list.showEntries[idx].name
 		}
+	} else if reason == Quit {
+		dir := fm.list.currentDir
+		if dir != "" && dir[len(dir)-1] != filepath.Separator {
+			dir += string(filepath.Separator)
+		}
+		writeHistory(dir)
 	}
 	fm.finishClose(r)
 }
