@@ -16,7 +16,7 @@ So here comes **microNeo, an AI Partner**.
 - Press `alt-enter` to open the input box, and write down your thoughts
 - Press `alt-enter` again to send it to the AI. The AI will then receive your comment.
 
-<video src="/microNeo/assets/aibp-opencode.mp4" controls autoplay muted loop playsinline style="width:100%;max-width:880px;border-radius:8px"></video>
+<video src="/microNeo/assets/opencode-en.mp4" controls autoplay muted loop playsinline style="width:100%;max-width:880px;border-radius:8px"></video>
 
 Currently supports `pi` and `opencode`; support for `claude cli` is under development.
 
@@ -44,7 +44,9 @@ For users in China, if you hit `raw.githubusercontent.com` rate limiting (HTTP 4
 - Communicate with AI agents to send your thoughts to the AI. Supports multiple AI agents.
 - Markdown real-time rendering in the same window — comfortable for reading AI-written plan documents.
 - Mouse support. Shortcuts are similar to VS Code.
+- Multiple themes, including dark and light mode.
 - Small and fast — only 13 MB.
+
 
 
 ---
