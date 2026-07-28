@@ -35,6 +35,11 @@
   .md-sidebar--primary {
     width: 10.5rem;
   }
+
+  /* 去掉右栏 TOC，内容区自动占满剩余空间 */
+  .md-sidebar--secondary {
+    display: none;
+  }
 }
 
 /* 压缩 list 行间距（Material 默认 list-item 垂直间距偏松，
