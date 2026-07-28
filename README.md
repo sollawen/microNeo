@@ -7,7 +7,6 @@
 [![awesome-tuis](https://awesome.re/mentioned-badge.svg)](https://github.com/rothgar/awesome-tuis)
 [![中文说明](https://img.shields.io/badge/📖-中文说明-red)](https://sollawen.github.io/microNeo/)
 
-https://raw.githubusercontent.com/sollawen/microNeo/main/docs/website/assets/opencode-en.mp4
 
 ## The terminal editor that can discuss with AI agents
 
@@ -19,7 +18,7 @@ So here comes **microNeo, an AI Partner**.
 - Press `alt-enter` to open the input box, and write down your thoughts
 - Press `alt-enter` again to send it to the AI. The AI will then receive your comment.
 
-[![demo](./docs/website/assets/aibp-opencode.gif)](https://sollawen.github.io/microNeo/)
+https://github.com/user-attachments/assets/95fa3c8f-fd3c-49f7-aa14-06cb12dca2bb
 
 Currently supports `pi`, `opencode`, and `claude cli`. However, since `claude cli` is not open source, it works but isn't perfect.
 
