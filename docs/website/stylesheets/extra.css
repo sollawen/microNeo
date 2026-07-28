@@ -37,7 +37,7 @@
   }
 
   /* 去掉右栏 TOC，内容区自动占满剩余空间 */
-  .md-sidebar--secondary {
+  .md-sidebar--secondary:not([hidden]) {
     display: none;
   }
 }
