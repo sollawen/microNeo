@@ -7,6 +7,8 @@
 [![awesome-tuis](https://awesome.re/mentioned-badge.svg)](https://github.com/rothgar/awesome-tuis)
 [![中文说明](https://img.shields.io/badge/📖-中文说明-red)](https://sollawen.github.io/microNeo/)
 
+https://raw.githubusercontent.com/sollawen/microNeo/main/docs/website/assets/opencode-en.mp4
+
 ## The terminal editor that can discuss with AI agents
 
 Since vibe coding, I write code by hand less and less, and spend more and more time discussing with the AI. I always need to tell the AI exactly which part of a document I have thoughts about. I have to ctrl-c/ctrl-v all day long — it's given my fingers tendonitis.
