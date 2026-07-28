@@ -30,11 +30,12 @@ Currently supports `pi`, `opencode`, and `claude cli`. However, since `claude cl
 curl -fsSL https://raw.githubusercontent.com/sollawen/microNeo/master/tools/install.sh | sh
 ```
 
-- Fully supported on Linux/Mac. Windows requires a terminal command-line environment; not tested yet.
-- See [Quick Start](https://sollawen.github.io/microNeo/quick-start/) for how to use microNeo.
-- 具体使用说明见 [Quick Start](https://sollawen.github.io/microNeo/zh/quick-start/) 
+- Fully supported on Linux/Mac. 
+- Windows requires a terminal command-line environment; not fullly-tested yet.
+- More infomation in [Quick Start](https://sollawen.github.io/microNeo/quick-start/) 
 
-**国内用户**, 如果出现 `raw.githubusercontent.com` is rate-limited (HTTP 429) or unreachable 的问题，可以使用下面的这个镜像来一句话下载。这个问题通常是由于VPN使用的IP地址被GitHub限流了。
+
+**国内用户**, 如果出现 `raw.githubusercontent.com` is rate-limited (HTTP 429) or unreachable 的问题，可以使用下面的这个镜像来一句话下载。这个问题通常是由于VPN使用的IP地址被GitHub限流了。中文使用说明见 [Quick Start](https://sollawen.github.io/microNeo/zh/quick-start/) 
 
 ```bash
 curl -fsSL https://cdn.jsdelivr.net/gh/sollawen/microNeo@master/tools/install.sh | sh
@@ -51,8 +52,6 @@ curl -fsSL https://cdn.jsdelivr.net/gh/sollawen/microNeo@master/tools/install.sh
 - Multiple themes, including dark and light mode.
 - Small and fast — only 13 MB.
 
-
-## Configuration
 
 For more configuration options, see https://sollawen.github.io/microNeo/
 
