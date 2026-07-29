@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Changed**
+
+- Finder history now keeps the 10 most-recent paths in `history.json` (was 50), so stale entries fall off faster.
+
 **Fixed**
 
 - Finder now records the last navigated directory to `history.json` when quitting via `Ctrl-q` / `q`, so it appears in the Recent Paths list on the next session.

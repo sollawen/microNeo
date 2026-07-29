@@ -12,7 +12,7 @@ import (
 
 // ---- 持久化 ----
 
-const historyMaxEntries = 50
+const historyMaxEntries = 10
 
 // historyPath 返回 $ConfigDir/history.json 的绝对路径。
 func historyPath() string {
