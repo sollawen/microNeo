@@ -4,7 +4,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.19+-00ADD8.svg)](https://golang.org/)
 [![Single Binary](https://img.shields.io/badge/single%20binary-yes-green.svg)]()
 [![awesome-tuis](https://awesome.re/mentioned-badge.svg)](https://github.com/rothgar/awesome-tuis)
-[![中文](https://img.shields.io/badge/📖-中文-red)](https://sollawen.github.io/microNeo/)
+[![中文](https://img.shields.io/badge/📖-中文-red)](https://sollawen.github.io/microNeo/zh)
 
 ## The terminal editor that can discuss with AI agents
 
