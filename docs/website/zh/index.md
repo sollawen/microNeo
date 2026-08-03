@@ -4,7 +4,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.19+-00ADD8.svg)](https://golang.org/)
 [![Single Binary](https://img.shields.io/badge/single%20binary-yes-green.svg)]()
 [![awesome-tuis](https://awesome.re/mentioned-badge.svg)](https://github.com/rothgar/awesome-tuis)
-[![English](https://img.shields.io/badge/📖-English-red)](https://sollawen.github.io/microNeo/en/)
+[![English](https://img.shields.io/badge/📖-English-red)](https://sollawen.github.io/microNeo/)
 
 ## 可以和AI一起讨论方案的终端编辑器
 
