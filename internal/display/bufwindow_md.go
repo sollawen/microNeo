@@ -613,6 +613,14 @@ func (w *BufWindow) renderSegmentNative(
 				totalwidth += ts
 			default:
 				width = runewidth.RuneWidth(r)
+				// Only U+FE0F (VS16, emoji style) forces the base symbol to render as a 2-column emoji.
+				// U+FE0E (VS15, text style) and other variation selectors keep the base width.
+				for _, c := range combc {
+					if c == 0xFE0F {
+						width = 2
+						break
+					}
+				}
 				totalwidth += width
 			}
 
