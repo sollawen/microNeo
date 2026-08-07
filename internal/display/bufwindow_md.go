@@ -613,6 +613,14 @@ func (w *BufWindow) renderSegmentNative(
 				totalwidth += ts
 			default:
 				width = runewidth.RuneWidth(r)
+				// Emoji variation selector (U+FE00-U+FE0F) makes the base symbol render as a wide emoji
+				// (e.g. U+26A0 U+FE0F -> ⚠️). Force width 2 so it does not overlap the next character.
+				for _, c := range combc {
+					if c >= 0xFE00 && c <= 0xFE0F {
+						width = 2
+						break
+					}
+				}
 				totalwidth += width
 			}
 
