@@ -756,7 +756,8 @@ func (l *fileList) fetchGitSync(dir string) {
 	l.mu.Unlock()
 }
 
-// applyGitFlags 把 chars / state 写回 allEntries[i].gitChar：chars 优先于 dir 级标志。
+// applyGitFlags 把 chars / state 写回 allEntries[i].gitChar：chars 优先于 dir 级标志；
+// dirNormal 且 chars 未命中的条目视为 clean，清除旧标志（文件从 untracked 变 clean 后 U 必须消失）。
 // 提取出来供测试直接驱动，不用拉起 git。
 func (l *fileList) applyGitFlags(chars map[string]rune, state dirState) {
 	for i := range l.allEntries {
@@ -771,6 +772,8 @@ func (l *fileList) applyGitFlags(chars map[string]rune, state dirState) {
 			l.allEntries[i].gitChar = 'I'
 		case dirAllUntracked:
 			l.allEntries[i].gitChar = 'U'
+		default: // dirNormal：chars 未命中 = clean，清旧标志（commit 后 untracked → clean 必须消失）
+			l.allEntries[i].gitChar = 0
 		}
 	}
 }

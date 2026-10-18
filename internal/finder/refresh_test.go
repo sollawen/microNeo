@@ -158,7 +158,7 @@ func TestApplyGitFlags_CharsPriorityOverDirState(t *testing.T) {
 }
 
 // TestApplyGitFlags_DirAllIgnoredFallback 验证 state=dirAllIgnored 兌底打 'I'、
-// state=dirNormal 不改 gitChar（保留干净 / 非仓库语义）。
+// state=dirNormal 且 chars 未命中时清除旧标志（clean / 非仓库语义）。
 func TestApplyGitFlags_DirAllIgnoredFallback(t *testing.T) {
 	l := &fileList{
 		allEntries: []entry{
@@ -173,11 +173,31 @@ func TestApplyGitFlags_DirAllIgnoredFallback(t *testing.T) {
 	}
 
 	l2 := &fileList{
-		allEntries: []entry{{name: "a", isDir: false}},
+		allEntries: []entry{{name: "a", isDir: false, gitChar: 'U'}},
 	}
 	l2.applyGitFlags(nil, dirNormal)
 	if got := l2.allEntries[0].gitChar; got != 0 {
-		t.Errorf("a gitChar: got %q, want 0 (dirNormal keeps clean)", got)
+		t.Errorf("a gitChar: got %q, want 0 (dirNormal clears old flags)", got)
+	}
+}
+
+// TestApplyGitFlags_DirNormalClearsOldFlags 验证 dirNormal 混合状态下，chars 未命中的
+// 条目清除旧标志：文件从 untracked 变 clean（如 commit 后）必须消失 U，否则残留误导用户。
+func TestApplyGitFlags_DirNormalClearsOldFlags(t *testing.T) {
+	l := &fileList{
+		allEntries: []entry{
+			{name: "committed.txt", isDir: false, gitChar: 'U'}, // 旧 untracked 标志，commit 后应清
+			{name: "modified.txt", isDir: false},
+		},
+	}
+	chars := map[string]rune{"modified.txt": 'M'}
+	l.applyGitFlags(chars, dirNormal)
+
+	if got := l.allEntries[0].gitChar; got != 0 {
+		t.Errorf("committed.txt gitChar: got %q, want 0 (clean after commit)", got)
+	}
+	if got := l.allEntries[1].gitChar; got != 'M' {
+		t.Errorf("modified.txt gitChar: got %q, want 'M' (chars hit)", got)
 	}
 }
 

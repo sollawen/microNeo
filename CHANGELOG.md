@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Fixed**
 
+- Finder's git status column now clears stale flags: files that become clean (e.g. after committing an untracked file) no longer keep showing `U` when the surrounding directory still has other untracked/ignored files.
 - Fix a deadlock that froze the file picker after it had been open briefly: keyboard and mouse input stopped responding. The picker's background list refresher no longer holds the list lock while fetching git status.
 - Finder no longer marks ignored files inside an untracked directory as `U` (untracked); files matched by `.gitignore` (e.g. `__pycache__/`, `test_*.py`) now correctly show `I` in the git status column.
 
