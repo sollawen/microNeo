@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Added**
+
+- The file picker refreshes its file list and git status column when you interact with it (keyboard or mouse), so external file changes and commits show up within about a second without reopening the picker.
+
 **Fixed**
 
+- Fix a deadlock that froze the file picker after it had been open briefly: keyboard and mouse input stopped responding. The picker's background list refresher no longer holds the list lock while fetching git status.
 - Finder no longer marks ignored files inside an untracked directory as `U` (untracked); files matched by `.gitignore` (e.g. `__pycache__/`, `test_*.py`) now correctly show `I` in the git status column.
 
 ## [1.1.27] - 2026-08-17

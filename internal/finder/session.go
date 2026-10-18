@@ -2,6 +2,8 @@ package finder
 
 import (
 	"path/filepath"
+	"sync/atomic"
+	"time"
 
 	"github.com/micro-editor/micro/v2/internal/config"
 	"github.com/micro-editor/micro/v2/internal/screen"
@@ -42,6 +44,9 @@ const (
 	historyMinHeight = 20
 	// historyContentH 是 history region 内容可见行数；上方的横分隔线占额外 1 行由 session 画。
 	historyContentH = 5
+	// refreshThreshold 是操作触发的最小读取间隔：以「上次刷新完成」为基准冷却，
+	// 防背靠背连续刷新导致 git 几乎永远在跑。1 秒是手感与开销的折中，可调。
+	refreshThreshold = time.Second
 )
 
 // ---- Session ----
@@ -63,6 +68,11 @@ type Session struct {
 	isOpen  bool
 	onClose func(Result)
 	isQuit  bool
+
+	// —— filelistReader 生命周期 ——
+	refreshStop chan struct{}  // 关闭信号：reset 里 close，filelistReader 从 select 退出
+	refreshKick chan struct{}  // 踢一下：构造期 / chdir / 操作超阈值发，缓冲 1 合并多次
+	previewPending atomic.Bool // 列表被后台刷新改过：主线程 Display 消费一次，补 preview
 }
 
 // NewSession 返回一个未打开的 Session。
@@ -153,6 +163,7 @@ func (fm *Session) Open(rect Rect, cwd, file string, isQuit bool, onClose func(R
 	fm.syncPreview()
 	// 明确初始化焦点视觉（fm.list.FocusOn 写 focused=true 并 Redraw）
 	fm.list.FocusOn()
+	fm.startFilelistReader() // 所有初始化完成后才起 reader，首个 kick 补 git 标志
 	return true
 }
 
@@ -212,6 +223,13 @@ func (fm *Session) finishClose(r Result) {
 
 // reset 完整清理 Session 所有 region 与几何字段，避免被误复用时残留。
 func (fm *Session) reset() {
+	// refreshStop 必须 close：filelistReader 从 select 退出，防止关闭后还刷。
+	if fm.refreshStop != nil {
+		close(fm.refreshStop)
+		fm.refreshStop = nil
+	}
+	// refreshKick 永远不能 close，只能 nil 化——sendKick 的 select 里 send 到 closed chan 会 panic，default 救不回来。
+	fm.refreshKick = nil
 	fm.list = nil
 	fm.prev = nil
 	fm.history = nil
@@ -233,6 +251,7 @@ func (fm *Session) HandleEvent(event tcell.Event) {
 	if !fm.isOpen {
 		return
 	}
+	fm.maybeKickRefresh(event) // 操作驱动：距上次读取超阈值则 kick
 	if _, ok := event.(*tcell.EventResize); ok {
 		fm.close(Resize)
 		return
@@ -291,6 +310,82 @@ func (fm *Session) handleGlobalKey(ev *tcell.EventKey) {
 	}
 }
 
+// isCloseKey 判定是否为关闭 finder 的全局键（Esc / Ctrl-Q / q）。handleGlobalKey 与
+// maybeKickRefresh 共用同一判断，避免 kick 一个随即将被 close 作废的刷新。
+func isCloseKey(ev *tcell.EventKey) bool {
+	switch ev.Key() {
+	case tcell.KeyEscape, tcell.KeyCtrlQ:
+		return true
+	}
+	return ev.Key() == tcell.KeyRune && ev.Rune() == 'q'
+}
+
+// ---- 后台 filelistReader：kick / 冷却 / 预览同步 ----
+
+// startFilelistReader 启动后台小帮手。Open 末尾调用，reset 关 stop 停止。
+// 构造期首轮由 reader 跑：此刻无人消费，缓冲 1 保证不丢。
+func (fm *Session) startFilelistReader() {
+	stop := make(chan struct{})
+	kick := make(chan struct{}, 1)
+	fm.refreshStop = stop
+	fm.refreshKick = kick
+	list := fm.list // 捕获引用，reader 不碰 fm.list 字段，避免与 reset 的 nil 写入竞争
+	kick <- struct{}{}
+	go filelistReader(stop, kick, list)
+}
+
+// filelistReader 后台小帮手：一直待命，收到 kick 就全量刷新一次。单执行者
+// ——同一时刻最多一个 git 进程在跑，天然串行。
+func filelistReader(stop <-chan struct{}, kick <-chan struct{}, list *fileList) {
+	for {
+		select {
+		case <-stop:
+			return
+		case <-kick:
+			list.refreshNow()
+		}
+	}
+}
+
+// sendKick 通知 filelistReader 立即干活。主线程调，非阻塞；通道已 buffered 时合并掉。
+// refreshKick 为 nil（reset 后）走 default，不阻塞、不 panic。
+func (fm *Session) sendKick() {
+	select {
+	case fm.refreshKick <- struct{}{}:
+	default:
+	}
+}
+
+// maybeKickRefresh 操作驱动刷新：距上次刷新完成超过阈值就 kick 一次。主线程调。
+// 三类事件不 kick，避免发完就作废的浪费：Resize、关闭键、纯 mouse motion（Buttons()==0）。
+func (fm *Session) maybeKickRefresh(event tcell.Event) {
+	if fm.list == nil {
+		return // 防御：未来挪调用点时 list 可能为 nil
+	}
+	switch e := event.(type) {
+	case *tcell.EventResize:
+		return // 紧接 close(Resize)，kick 必然作废
+	case *tcell.EventKey:
+		if isCloseKey(e) {
+			return // 紧接 close(Esc/Quit)，kick 必然作废
+		}
+	case *tcell.EventMouse:
+		if e.Buttons() == 0 {
+			return // 纯 mouse motion，不触发刷新
+		}
+	}
+	if time.Now().UnixNano()-atomic.LoadInt64(&fm.list.lastReadUnix) >= int64(refreshThreshold) {
+		fm.sendKick()
+	}
+}
+
+// maybeSyncPreview 若上次后台刷新改了列表，则补一次 syncPreview。主线程调。
+func (fm *Session) maybeSyncPreview() {
+	if fm.previewPending.CompareAndSwap(true, false) {
+		fm.syncPreview()
+	}
+}
+
 // ---- Focus 路由 ----
 
 func (fm *Session) cycleFocus(delta int) {
@@ -338,6 +433,7 @@ func (fm *Session) Display() {
 	if !fm.isOpen {
 		return
 	}
+	fm.maybeSyncPreview() // 消费 previewPending：列表刚被后台刷新改过，补一次 preview 同步
 	screen.Screen.HideCursor()
 	fm.drawBorder()
 	for _, r := range fm.regions {

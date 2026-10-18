@@ -5,8 +5,11 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/micro-editor/micro/v2/internal/config"
+	"github.com/micro-editor/micro/v2/internal/display"
 	"github.com/micro-editor/micro/v2/internal/screen"
 	"github.com/micro-editor/tcell/v2"
 )
@@ -31,7 +34,7 @@ const (
 
 // fileList 是左侧文件列表 region，实现 KeyboardRegion。
 // 并发模型：allEntries（含各 gitChar）、showEntries（指针）、isRepo/gitBranch 都是
-// fetchGit（后台写）与 display（UI 读）的共享结构，mu（RWMutex）全保护。
+// fetchGitSync（后台写）与 display（UI 读）的共享结构，mu（RWMutex）全保护。
 type fileList struct {
 	fm   *Session // 回引用：syncPreview、close、dialog anchor
 	rect Rect     // 内容区矩形（去外框上边框 + 去右分隔符列）；Open 注入，生命周期内不变
@@ -45,6 +48,10 @@ type fileList struct {
 	isRepo    bool
 	gitBranch string
 	mu        sync.RWMutex
+
+	// —— 刷新节奏（filelistReader 读、主线程读；atomic 读写）——
+	lastReadUnix int64        // 上次「刷新流程走完」时间戳（fetchGitSync 完结时刻）；操作触发判断冷却
+	firstRefresh atomic.Bool  // 首轮特判：startFilelistReader 的首个 kick 不重读、只补 git
 
 	// —— 视图状态 ——
 	cursor     int
@@ -74,7 +81,7 @@ func newFileList(fm *Session, rect Rect, cwd, file string, pickerW int) *fileLis
 		showHidden: false,
 	}
 	l.loadDir(cwd, file)
-	go l.fetchGit(cwd)
+	// 构造期不主动 go fetchGitSync：首轮由 startFilelistReader 的首个 kick 覆盖。
 	return l
 }
 
@@ -533,7 +540,8 @@ func (l *fileList) chdirTo(target, focusName string) {
 
 	l.fm.syncPreview()
 	screen.Redraw()
-	go l.fetchGit(target)
+	// 上面两步已让界面显示新目录列表（git 标志暂空）。sendKick 只塞命令不阻塞，git 标志由后台 reader 跑完再补。
+	l.fm.sendKick()
 }
 
 func (l *fileList) toggleHidden() {
@@ -545,6 +553,15 @@ func (l *fileList) toggleHidden() {
 	}
 	l.showHidden = !l.showHidden
 	l.rebuildShow()
+	l.restoreCursor(oldName, oldIdx)
+	l.mu.Unlock()
+
+	l.fm.syncPreview()
+	screen.Redraw()
+}
+
+// restoreCursor 列表重建后恢复光标：先按名找，找不到按索引 clamp，最后 ensureVisible。调用方须持锁。
+func (l *fileList) restoreCursor(oldName string, oldIdx int) {
 	found := false
 	if oldName != "" {
 		for i, e := range l.showEntries {
@@ -570,10 +587,106 @@ func (l *fileList) toggleHidden() {
 		}
 	}
 	l.ensureVisible()
-	l.mu.Unlock()
+}
 
-	l.fm.syncPreview()
-	screen.Redraw()
+// entriesEqual 对比两组目录条目是否结构相同：name / isDir / size / mtime。gitChar 不参与，
+// 因为 fetchGitSync 才会回写。短接 name 不同的场景尽早退出，常见于排序重洗。
+func entriesEqual(a, b []entry) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].name != b[i].name || a[i].isDir != b[i].isDir {
+			return false
+		}
+		if a[i].info.Size() != b[i].info.Size() || !a[i].info.ModTime().Equal(b[i].info.ModTime()) {
+			return false
+		}
+	}
+	return true
+}
+
+// updateEntries 锁内更新列表：dir 守卫 + 变更判断 + 旧 git 标志按名拷贝 + 重建 +
+// 恢复光标 + 列表变更时置 previewPending。锁内任何 panic 由 defer Unlock 兜底
+// 解锁，不泄漏 mu；panic 会冒到调用方处理。调用方必须在锁外调用，调用返回即已
+// 解锁。返回 changed 表示列表是否真的有变化。
+func (l *fileList) updateEntries(dir string, entries []entry) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.currentDir != dir {
+		return false // chdir 抢跑了，本次读取作废，列表保持不变
+	}
+
+	// 列表变了才更新：旧 git 标志按名拷贝，保住现有标志
+	changed := !entriesEqual(l.allEntries, entries)
+	if !changed {
+		return false
+	}
+	oldChars := make(map[string]rune, len(l.allEntries))
+	for _, e := range l.allEntries {
+		oldChars[e.name] = e.gitChar
+	}
+	for i := range entries {
+		entries[i].gitChar = oldChars[entries[i].name]
+	}
+
+	// 记录光标、重建列表、恢复光标
+	curName := ""
+	if l.cursor >= 1 && l.cursor-1 < len(l.showEntries) {
+		curName = l.showEntries[l.cursor-1].name
+	}
+	curIdx := l.cursor - 1
+	l.allEntries = entries
+	l.rebuildShow()
+	l.restoreCursor(curName, curIdx)
+
+	// 列表变了 → 置 preview 待同步标记，主线程 Display 消费（后台不碰 preview）
+	l.fm.previewPending.Store(true)
+	return true
+}
+
+// refreshNow 全量刷新一次：读目录 + 更新列表 + 拉 git。调用者只有 filelistReader。
+// 红线：跑在 filelistReader 里，禁止调 preview（无锁、主线程专属）；列表变更只置 previewPending。
+//
+// 锁边界：锁内段（dir 守卫、列表更新、光标恢复、previewPending 写入）走 updateEntries，
+// 该方法内部 Lock + defer Unlock，调用返回即解锁；fetchGitSync 必须在锁外调用，否
+// 则与 fetchGitSync 内部 Lock 自锁，filelistReader 永久卡死、finder 无响应。
+func (l *fileList) refreshNow() {
+	var dir string
+	defer func() {
+		if r := recover(); r != nil {
+			// 防锁内逻辑意外 panic 静默杀死 reader 或泄露 mu。
+			// 死锁由 updateEntries 的 defer Unlock 兜底，这里只记日志，reader 继续等下一个 kick。
+			display.DbgLog("finder refreshNow panic dir=%s: %v", dir, r)
+		}
+	}()
+
+	// 0. 首轮特判：newFileList 已同步 loadDir 建好首帧，跳过重读，只补 git。
+	if l.firstRefresh.CompareAndSwap(false, true) {
+		l.mu.RLock()
+		dir = l.currentDir
+		l.mu.RUnlock()
+		l.fetchGitSync(dir)
+		atomic.StoreInt64(&l.lastReadUnix, time.Now().UnixNano())
+		screen.Redraw()
+		return
+	}
+
+	// 1. 快照：锁内读目录状态，锁外干耗时活
+	l.mu.RLock()
+	dir, sm, desc := l.currentDir, l.sortMode, l.sortDesc
+	l.mu.RUnlock()
+
+	// 2. 锁外重读目录（读盘慢，不占锁）
+	entries := readDirEntries(dir, sm, desc)
+
+	// 3. 锁内更新列表：updateEntries 内部 Lock + defer Unlock，返回即已解锁
+	l.updateEntries(dir, entries)
+
+	// 4. 锁外同步拉 git：此刻锁已放，fetchGitSync 内部 Lock 不会自锁
+	l.fetchGitSync(dir)
+	atomic.StoreInt64(&l.lastReadUnix, time.Now().UnixNano()) // 刷新完成时间戳：以 fetchGit 跑完为准
+	screen.Redraw() // 收尾重绘统一在此，fetchGitSync 不再各自 Redraw
 }
 
 func (l *fileList) cursorRowKind() rowKind {
@@ -629,7 +742,8 @@ func (l *fileList) selectedFilePath() string {
 
 // ---- git ----
 
-func (l *fileList) fetchGit(dir string) {
+// fetchGitSync 同步版：锁外 fork git，写回前过 dir 守卫。收尾 Redraw 由调用方负责，避免重复推 drawChan。
+func (l *fileList) fetchGitSync(dir string) {
 	isRepo, branch, chars, state := getGitStatus(dir)
 	l.mu.Lock()
 	if l.currentDir != dir {
@@ -638,6 +752,13 @@ func (l *fileList) fetchGit(dir string) {
 	}
 	l.isRepo = isRepo
 	l.gitBranch = branch
+	l.applyGitFlags(chars, state)
+	l.mu.Unlock()
+}
+
+// applyGitFlags 把 chars / state 写回 allEntries[i].gitChar：chars 优先于 dir 级标志。
+// 提取出来供测试直接驱动，不用拉起 git。
+func (l *fileList) applyGitFlags(chars map[string]rune, state dirState) {
 	for i := range l.allEntries {
 		// chars 优先于 dir 级标志：untracked 目录内仍可能有个别 ignored 条目
 		// （--ignored=traditional 会逐个列出 ?? 目录里的 !! 文件），须显示 I 而非 U。
@@ -652,8 +773,6 @@ func (l *fileList) fetchGit(dir string) {
 			l.allEntries[i].gitChar = 'U'
 		}
 	}
-	l.mu.Unlock()
-	screen.Redraw()
 }
 
 // gitCharStyle 把 git 状态字符映射成 colorscheme 颜色。
