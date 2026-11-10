@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Changed**
 
 - Closing a pane with unsaved changes now asks in a centered dialog window (`y` save and close / `n` close without saving / `esc` cancel) instead of a one-line prompt at the bottom of the screen, so the question appears right where you're working. When the dialog can't open (e.g. the window is too small), it falls back to the original bottom prompt.
+- Pressing `Enter` on the file that is already open in the file picker now refreshes its diff baseline and clears stale diff markers instead of doing nothing. The file is not reopened, so the cursor and the view stay put, and uncommitted edits still show as modified against the last commit. In Markdown files the markers currently redraw only after the next cursor move.
 
 ## [1.1.28] - 2026-10-18
 

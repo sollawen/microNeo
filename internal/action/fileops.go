@@ -3,7 +3,11 @@ package action
 import (
 	"path/filepath"
 
+	luar "layeh.com/gopher-luar"
+
+	"github.com/micro-editor/micro/v2/internal/config"
 	"github.com/micro-editor/micro/v2/internal/finder"
+	ulua "github.com/micro-editor/micro/v2/internal/lua"
 )
 
 // ---- finder 接线层（owner 与 internal/finder.Session 之间的胶水）----
@@ -35,7 +39,8 @@ func (h *BufPane) OpenFinder(isQuit bool) {
 }
 
 // onFinderClose 是 finder 会话关闭时的统一回调，按 Result.Reason 一维分发。
-//   - Picked：选中的文件若与当前 buffer 同路径则 no-op（避免重入），否则 OpenCmd 换入；
+//   - Picked：选中的文件若与当前 buffer 同路径则重跑 onBufferOpen 重新对齐 diff 基线
+//     （已跟踪取 git HEAD、未跟踪取当前内容），清掉陈旧标志，不重开 buffer，无 Save 弹窗、光标不动；否则 OpenCmd 换入；
 //   - Quit：先暂存导航目录（供退出时上报 shell），再调原生 Quit（自带存盘提示）；
 //   - Esc / Resize：no-op（取消，回编辑态）。
 //
@@ -53,7 +58,9 @@ func (h *BufPane) onFinderClose(r finder.Result) {
 	switch r.Reason {
 	case finder.Picked:
 		if filepath.Join(r.Cwd, r.File) == h.Buf.AbsPath {
-			return // 同文件 no-op
+			// 同文件：重跑 onBufferOpen 重对齐 diff 基线，清陈旧标志；不重开 buffer
+			config.RunPluginFn("onBufferOpen", luar.New(ulua.L, h.Buf))
+			return
 		}
 		h.OpenCmd([]string{filepath.Join(r.Cwd, r.File)})
 	case finder.Quit:

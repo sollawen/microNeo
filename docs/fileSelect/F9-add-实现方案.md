@@ -270,7 +270,7 @@ make build
 | 新建 `.hidden` 目录且 showHidden=false | `chdirTo(dir, name)` 的 locate 找不到 → 光标落首条目（复用 locate 现有行为），不崩溃；用户按 `.` 可显示 | 复用 chdirTo |
 | 输入含中间 `/`（如 `a/b`） | `os.Mkdir` / `os.Create` 报错 → showError | 不特殊处理（同 rename） |
 | 权限不足 / 只读文件系统 | `os.Mkdir` / `os.Create` 返回 error → showError，列表不变 | err 分支 |
-| 新建文件后 onFinderClose 的同文件 no-op | 新建空文件 AbsPath 不会等于当前 buffer，正常走 `OpenCmd` | `fileops.go:50-52` 不触发 |
+| 新建文件后 onFinderClose 的同文件路径 | 新建空文件 AbsPath 不会等于当前 buffer，正常走 `OpenCmd`；同路径分支改为重跑 onBufferOpen 刷新 diff 基线而不重开，本场景不触发 | `onFinderClose` 同路径分支 |
 | resize 期间 InputDialog 和 finder 同时关 | InputDialog onResult("",true) → 回调 return；finder 由主循环 resize 分支 `close(Resize)` 收尾，互不踩状态 | F4 已论证 |
 | 输入含路径分隔符（如 `a/b`） | 回调检查命中 → showError 提示「Name must be a plain file or directory name」、列表不变 | §4.3 决策 |
 | InputDialog 开着时按 `q` / `Ctrl-q` | FloatFrame 拦截 Quit → 先关 InputDialog → 回调 canceled=true → return；磁盘无残留 | 模态路由保证 |
