@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+**Changed**
+
+- Closing a pane with unsaved changes now asks in a centered dialog window (`y` save and close / `n` close without saving / `esc` cancel) instead of a one-line prompt at the bottom of the screen, so the question appears right where you're working. When the dialog can't open (e.g. the window is too small), it falls back to the original bottom prompt.
+
 ## [1.1.28] - 2026-10-18
 
 **Added**

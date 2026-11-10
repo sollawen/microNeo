@@ -46,7 +46,7 @@ type Size struct {
 
 // FloatOpenSpec bundles all parameters for opening a floating window.
 type FloatOpenSpec struct {
-	Anchor      Pos                     // AutoExpand=true: expansion center; false: top-left of outer rect
+	Anchor      Pos                     // AutoExpand=true: expansion hinge; false: top-left of outer rect
 	ContentSize Size                    // Pure content size (excludes border)
 	Title       string                  // Label embedded in top border; empty = plain horizontal line
 	FrameColor  tcell.Style             // Frame color; zero = config.DefStyle

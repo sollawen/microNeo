@@ -152,7 +152,7 @@ func drawButton(rect Rect, text string, style tcell.Style) {
 //
 //	text       多行文本（\n 分隔）；空串按 1 行空文本处理
 //	title      上边框标签（如 "Info"）；空串=纯横线
-//	anchor     锚点屏坐标；AutoExpand=true 时为展开中心
+//	anchor     锚点屏坐标；AutoExpand=true 时为展开铰点
 //	width      内容区宽度（字符列，不含边框）
 //	align      文本对齐方式（Left/Center/Right）
 //	maxH       最大显示行数（0=不限制，超出行截断）

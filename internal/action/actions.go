@@ -14,6 +14,7 @@ import (
 	"github.com/micro-editor/micro/v2/internal/buffer"
 	"github.com/micro-editor/micro/v2/internal/clipboard"
 	"github.com/micro-editor/micro/v2/internal/config"
+	"github.com/micro-editor/micro/v2/internal/dialog"
 	"github.com/micro-editor/micro/v2/internal/display"
 	"github.com/micro-editor/micro/v2/internal/screen"
 	"github.com/micro-editor/micro/v2/internal/shell"
@@ -1913,14 +1914,55 @@ func (h *BufPane) ForceQuit() bool {
 
 // closePrompt displays a prompt to save the buffer before closing it to proceed
 // with a different action or command
+//
+// 优先用 ConfirmDialog 浮窗提问（三态：y 存盘 / n 不存盘 / esc 取消）；
+// 弹窗打不开时退回 micro 原装 InfoBar 提示。
 func (h *BufPane) closePrompt(action string, callback func()) {
-	InfoBar.YNPrompt("Save changes to "+h.Buf.GetName()+" before closing? (y,n,esc)", func(yes, canceled bool) {
-		if !canceled && !yes {
-			callback()
-		} else if !canceled && yes {
-			h.SaveCB(action, callback)
-		}
-	})
+	view := h.GetView()
+	width := view.Width - 4
+	if width > 40 {
+		width = 40
+	}
+	if width < 12 {
+		width = 12
+	}
+	// 锚点取 pane 中心，横向减半个外框宽让弹窗居中，纵向落在 pane 中线
+	anchor := dialog.Pos{
+		X: view.X + view.Width/2 - (width+2)/2,
+		Y: view.Y + view.Height/2,
+	}
+
+	dlg := dialog.NewConfirmDialog()
+	if !dlg.Open(
+		"Save changes to "+h.Buf.GetName()+" before closing?",
+		action,
+		anchor,
+		width,
+		dialog.AlignLeft,
+		0,
+		config.DefStyle,
+		dialog.KindYesNo,
+		dialog.FocusOK,
+		func(result dialog.ConfirmResult) {
+			switch result {
+			case dialog.ConfirmYes:
+				h.SaveCB(action, callback)
+			case dialog.ConfirmNo:
+				callback()
+			case dialog.ConfirmEsc:
+				// 取消，保持 pane 打开
+			}
+		},
+	) {
+		// 兜底：弹窗打不开（屏幕放不下 / 已有弹窗），退回 micro 原装 InfoBar 提示
+		InfoBar.YNPrompt("Save changes to "+h.Buf.GetName()+" before closing? (y,n,esc)", func(yes, canceled bool) {
+			if !canceled && !yes {
+				callback()
+			} else if !canceled && yes {
+				h.SaveCB(action, callback)
+			}
+		})
+	}
 }
 
 // Quit this will close the current tab or view that is open

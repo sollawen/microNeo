@@ -30,6 +30,15 @@ const (
 	btnCancel
 )
 
+// ConfirmResult 是确认框的结果三值，具体含义由调用方解释。
+type ConfirmResult int
+
+const (
+	ConfirmYes ConfirmResult = iota // 确认
+	ConfirmNo                       // 明确否定
+	ConfirmEsc                      // 取消 / Esc / resize 打断
+)
+
 // yesNoHint 在 Open 阶段拼到 text 末尾，跟 text 一起走 softwrap，
 // 短行末尾拼接 / 长行自动换行——无需任何坐标或样式特殊处理。
 const yesNoHint = " [y/n/esc]"
@@ -46,7 +55,7 @@ type ConfirmDialog struct {
 	title    string
 	kind     Kind  // 交互模式：OkCancel 或 YesNo
 	focus    Focus // 当前焦点（仅 OkCancel 有意义）
-	onResult func(confirmed bool)
+	onResult func(result ConfirmResult)
 
 	lastArea Rect    // 最近一次 display 收到的 contentArea
 	btnRects [2]Rect // [btnOK, btnCancel] 的屏坐标命中矩形（H 恒为 1）
@@ -61,14 +70,17 @@ func NewConfirmDialog() *ConfirmDialog {
 //
 //	text          多行文本（\n 分隔）
 //	title         上边框标签；空串=纯横线
-//	anchor        锚点屏坐标；AutoExpand=true 时为展开中心
+//	anchor        锚点屏坐标；AutoExpand=true 时为展开铰点
 //	width         内容区宽度（字符列，不含边框），OkCancel 需 >= 18
 //	align         文本对齐方式（Left/Center/Right）
 //	maxH          最大显示行数（0=不限制）
 //	frameColor    边框色；零值 = config.DefStyle
 //	kind          交互模式：KindOkCancel（默认）/ KindYesNo
 //	defaultFocus  OkCancel 初始焦点（YesNo 忽略）
-//	onResult      结果回调：true = 确认，false = 取消/Esc/Resize/Open失败
+//	onResult      结果回调：Yes=确认 / No=否定 / Esc=取消或 resize 打断
+//
+// 返回 false 表示弹窗没打开（屏幕放不下 / 已有弹窗），此时不触发 onResult，
+// 调用方需要自己准备兜底方案。
 func (d *ConfirmDialog) Open(
 	text string,
 	title string,
@@ -79,8 +91,8 @@ func (d *ConfirmDialog) Open(
 	frameColor tcell.Style,
 	kind Kind,
 	defaultFocus Focus,
-	onResult func(confirmed bool),
-) {
+	onResult func(result ConfirmResult),
+) bool {
 	d.title = title
 	// YesNo 模式强制左对齐：text+hint 是一行操作提示，对齐右/居中不自然
 	if kind == KindYesNo {
@@ -128,10 +140,9 @@ func (d *ConfirmDialog) Open(
 	if !TheFloatFrame.Open(spec) {
 		d.lines = nil
 		d.onResult = nil
-		if onResult != nil {
-			onResult(false)
-		}
+		return false
 	}
+	return true
 }
 
 // display 画文本行；OkCancel 模式下追加空行 + 双按钮行。
@@ -198,15 +209,15 @@ func (d *ConfirmDialog) handleEventOkCancel(event tcell.Event) {
 			if d.focus == FocusNone {
 				return
 			}
-			d.close(d.focus == FocusOK)
+			d.close(d.focusResult())
 		case tcell.KeyEscape:
-			d.close(false)
+			d.close(ConfirmEsc)
 		default:
 			if ev.Key() == tcell.KeyRune && ev.Rune() == ' ' {
 				if d.focus == FocusNone {
 					return
 				}
-				d.close(d.focus == FocusOK)
+				d.close(d.focusResult())
 			}
 		}
 	case *tcell.EventMouse:
@@ -214,7 +225,11 @@ func (d *ConfirmDialog) handleEventOkCancel(event tcell.Event) {
 		if ev.Buttons()&tcell.Button1 != 0 {
 			for i, r := range d.btnRects {
 				if mx >= r.X && mx < r.X+r.W && my == r.Y {
-					d.close(i == btnOK)
+					if i == btnOK {
+						d.close(ConfirmYes)
+					} else {
+						d.close(ConfirmEsc)
+					}
 					return
 				}
 			}
@@ -230,15 +245,23 @@ func (d *ConfirmDialog) handleEventYesNo(event tcell.Event) {
 	}
 	switch ev.Key() {
 	case tcell.KeyEscape:
-		d.close(false)
+		d.close(ConfirmEsc)
 	case tcell.KeyRune:
 		switch ev.Rune() {
 		case 'y', 'Y':
-			d.close(true)
+			d.close(ConfirmYes)
 		case 'n', 'N':
-			d.close(false)
+			d.close(ConfirmNo)
 		}
 	}
+}
+
+// focusResult 把当前焦点映射成结果：OK 按钮=确认，Cancel 按钮=取消。
+func (d *ConfirmDialog) focusResult() ConfirmResult {
+	if d.focus == FocusOK {
+		return ConfirmYes
+	}
+	return ConfirmEsc
 }
 
 // cycleFocus 在 OK ↔ Cancel 之间切换；FocusNone 首次切换落到 Cancel。
@@ -252,12 +275,12 @@ func (d *ConfirmDialog) cycleFocus() {
 }
 
 // close 关闭浮窗并触发回调。
-func (d *ConfirmDialog) close(confirmed bool) {
+func (d *ConfirmDialog) close(result ConfirmResult) {
 	cb := d.onResult
 	d.onResult = nil
 	TheFloatFrame.Close()
 	if cb != nil {
-		cb(confirmed)
+		cb(result)
 	}
 }
 
@@ -266,6 +289,6 @@ func (d *ConfirmDialog) onResize() {
 	cb := d.onResult
 	d.onResult = nil
 	if cb != nil {
-		cb(false)
+		cb(ConfirmEsc)
 	}
 }

@@ -35,7 +35,7 @@ func (l *fileList) startDelete() {
 	}
 
 	dlg := dialog.NewConfirmDialog()
-	dlg.Open(
+	if !dlg.Open(
 		message,
 		"Delete",
 		anchor,
@@ -45,8 +45,8 @@ func (l *fileList) startDelete() {
 		config.DefStyle,
 		dialog.KindYesNo,
 		dialog.FocusOK,
-		func(confirmed bool) {
-			if !confirmed {
+		func(result dialog.ConfirmResult) {
+			if result != dialog.ConfirmYes {
 				return
 			}
 
@@ -64,5 +64,7 @@ func (l *fileList) startDelete() {
 
 			l.chdirTo(dir, "")
 		},
-	)
+	) {
+		return
+	}
 }
