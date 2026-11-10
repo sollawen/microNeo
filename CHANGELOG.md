@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Added**
+
+- New `dialog-border` colorscheme key controls the dialog window frame, title and background color, so dialogs follow your theme instead of the default text color. Falls back to the default color when the key is missing.
+
 **Changed**
 
 - Closing a pane with unsaved changes now asks in a centered dialog window (`y` save and close / `n` close without saving / `esc` cancel) instead of a one-line prompt at the bottom of the screen, so the question appears right where you're working. When the dialog can't open (e.g. the window is too small), it falls back to the original bottom prompt.

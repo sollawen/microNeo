@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/micro-editor/micro/v2/internal/config"
 	"github.com/micro-editor/micro/v2/internal/dialog"
+	"github.com/micro-editor/tcell/v2"
 )
 
 // startAdd 打开 InputDialog 让用户输入新名字。
@@ -22,7 +22,7 @@ func (l *fileList) startAdd() {
 		"Add",
 		anchor,
 		l.pickerW-2,
-		config.DefStyle,
+		tcell.Style{},
 		func(result string, canceled bool) {
 			if canceled {
 				return

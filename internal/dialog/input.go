@@ -35,7 +35,7 @@ func NewInputDialog() *InputDialog {
 //	title       上边框标签（如 "Rename"）；空串=纯横线
 //	anchor      锚点屏坐标；AutoExpand=false 时为外矩形左上角
 //	width       内容区宽度（字符列，不含边框）；<=0 时给安全下限
-//	frameColor  边框色；零值 = config.DefStyle
+//	frameColor  边框色；零值 = config.DialogBorderColor()
 //	onResult    关闭回调：Enter → onResult(edited, false)；ESC/Resize/失败 → onResult("", true)
 //
 // 回调顺序：先 TheFloatFrame.Close()，再触发 onResult。

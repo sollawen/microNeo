@@ -156,7 +156,7 @@ func drawButton(rect Rect, text string, style tcell.Style) {
 //	width      内容区宽度（字符列，不含边框）
 //	align      文本对齐方式（Left/Center/Right）
 //	maxH       最大显示行数（0=不限制，超出行截断）
-//	frameColor 边框色；零值 = config.DefStyle
+//	frameColor 边框色；零值 = config.DialogBorderColor()
 //	onClose    关闭回调（恒触发一次）
 func (d *MsgDialog) Open(
 	text string,

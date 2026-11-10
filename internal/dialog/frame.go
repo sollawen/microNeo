@@ -49,7 +49,7 @@ type FloatOpenSpec struct {
 	Anchor      Pos                     // AutoExpand=true: expansion hinge; false: top-left of outer rect
 	ContentSize Size                    // Pure content size (excludes border)
 	Title       string                  // Label embedded in top border; empty = plain horizontal line
-	FrameColor  tcell.Style             // Frame color; zero = config.DefStyle
+	FrameColor  tcell.Style             // Frame color; zero = config.DialogBorderColor()
 	Display     func(contentArea Rect)  // Draw content (area already excludes border)
 	HandleEvent func(event tcell.Event) // Handle key events (resize is intercepted by FloatFrame)
 	OnResize    func()                  // Called only when container closes due to resize (ESC/Cancel/Close don't trigger it)
@@ -64,7 +64,7 @@ type FloatFrame struct {
 	anchor      Pos         // Anchor in screen coordinates
 	contentSize Size        // Pure content size
 	title       string      // Label embedded in top border
-	frameColor  tcell.Style // Frame drawing color; zero = config.DefStyle
+	frameColor  tcell.Style // Frame drawing color; zero = config.DialogBorderColor()
 	display     func(contentArea Rect)
 	handleEvent func(event tcell.Event)
 	onResize    func() // Only triggered on resize; Close() clears to prevent stale callbacks
@@ -116,7 +116,7 @@ func (f *FloatFrame) Open(spec FloatOpenSpec) bool {
 	}
 	fc := spec.FrameColor
 	if fc == (tcell.Style{}) {
-		fc = config.DefStyle
+		fc = config.DialogBorderColor()
 	}
 	f.anchor = Pos{X: ax, Y: ay}
 	f.contentSize = spec.ContentSize

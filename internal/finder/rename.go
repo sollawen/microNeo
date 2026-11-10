@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/micro-editor/micro/v2/internal/config"
 	"github.com/micro-editor/micro/v2/internal/dialog"
 	"github.com/micro-editor/tcell/v2"
 )
@@ -40,7 +39,7 @@ func (l *fileList) startRename() {
 		"Rename",
 		anchor,
 		l.pickerW-2,
-		config.DefStyle,
+		tcell.Style{},
 		func(result string, canceled bool) {
 			if canceled {
 				return

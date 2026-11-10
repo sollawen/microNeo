@@ -4,8 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/micro-editor/micro/v2/internal/config"
 	"github.com/micro-editor/micro/v2/internal/dialog"
+	"github.com/micro-editor/tcell/v2"
 )
 
 // startDelete 确认后删除光标所在文件或目录，并刷新当前目录。
@@ -42,7 +42,7 @@ func (l *fileList) startDelete() {
 		l.pickerW-2,
 		dialog.AlignCenter,
 		0,
-		config.DefStyle,
+		tcell.Style{},
 		dialog.KindYesNo,
 		dialog.FocusOK,
 		func(result dialog.ConfirmResult) {

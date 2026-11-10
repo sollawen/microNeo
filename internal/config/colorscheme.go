@@ -42,6 +42,15 @@ func GetColor(color string) tcell.Style {
 	return st
 }
 
+// DialogBorderColor returns the dialog frame color: prefers the dialog-border
+// key, falls back to DefStyle when the key is missing.
+func DialogBorderColor() tcell.Style {
+	if s, ok := Colorscheme["dialog-border"]; ok {
+		return s
+	}
+	return DefStyle
+}
+
 // ColorschemeExists checks if a given colorscheme exists
 func ColorschemeExists(colorschemeName string) bool {
 	return FindRuntimeFile(RTColorscheme, colorschemeName) != nil

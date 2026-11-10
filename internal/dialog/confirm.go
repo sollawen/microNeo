@@ -74,7 +74,7 @@ func NewConfirmDialog() *ConfirmDialog {
 //	width         内容区宽度（字符列，不含边框），OkCancel 需 >= 18
 //	align         文本对齐方式（Left/Center/Right）
 //	maxH          最大显示行数（0=不限制）
-//	frameColor    边框色；零值 = config.DefStyle
+//	frameColor    边框色；零值 = config.DialogBorderColor()
 //	kind          交互模式：KindOkCancel（默认）/ KindYesNo
 //	defaultFocus  OkCancel 初始焦点（YesNo 忽略）
 //	onResult      结果回调：Yes=确认 / No=否定 / Esc=取消或 resize 打断

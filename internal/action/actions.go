@@ -1940,7 +1940,7 @@ func (h *BufPane) closePrompt(action string, callback func()) {
 		width,
 		dialog.AlignLeft,
 		0,
-		config.DefStyle,
+		tcell.Style{},
 		dialog.KindYesNo,
 		dialog.FocusOK,
 		func(result dialog.ConfirmResult) {

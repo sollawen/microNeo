@@ -38,7 +38,7 @@ func NewSelectDialog() *SelectDialog {
 //	items       list of options
 //	title       top border label (e.g. "Receiver")
 //	anchor      trigger anchor in screen coordinates (usually from cursor position)
-//	frameColor  frame color; tcell.Style{} zero = config.DefStyle
+//	frameColor  frame color; tcell.Style{} zero = config.DialogBorderColor()
 //	maxVisible  viewport height; <=0 falls back to len(items) (no scrolling)
 //	wrap        true: wrap around (default); false: stop at ends
 //	onSelect    callback: Enter → onSelect(&items[selected]); Esc/resize → onSelect(nil)
