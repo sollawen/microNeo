@@ -26,6 +26,7 @@ func InitNeoCommands() {
 	MakeCommand("theme", (*BufPane).ThemeCmd, nil)
 	MakeCommand("file", (*BufPane).FileCmd, nil)
 	MakeCommand("quit", (*BufPane).QuitNeoCmd, nil) // QuitNeoCmd 已存在，包 QuitNeo，不改
+	MakeCommand("outline", (*BufPane).OutlineCmd, nil)
 
 	// :inputtest 是 InputDialog 测试命令，验证完成后删除
 	MakeCommand("inputtest", (*BufPane).InputTestCmd, nil)

@@ -40,6 +40,7 @@ var bufdefaults = map[string]string{
 	"Tab":            "Autocomplete|IndentSelection|InsertTab",
 	"Backtab":        "CycleAutocompleteBack|OutdentSelection|OutdentLine",
 	"Ctrl-o":         "command:file",
+	"Alt-o":          "command:outline",
 	"Ctrl-s":         "Save",
 	"Ctrl-f":         "Find",
 	"Alt-F":          "FindLiteral",

@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+**Added**
+
+- Markdown outline: press `Alt-o` (or run `:outline`) in a Markdown file to open an outline dialog docked to the right edge of the pane. It lists all headings with line numbers, and `Enter` jumps to the selected heading. Non-Markdown files ignore the key. The default binding can be changed in `bindings.json`.
+
+**Fixed**
+
+- Dialog borders are no longer hidden by CJK text: when a wide character in the underlying pane content straddles a floating dialog's border column, it now yields to the border instead of overwriting it.
+
 ## [1.1.29] - 2026-11-10
 
 **Added**
