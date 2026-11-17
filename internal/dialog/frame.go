@@ -216,6 +216,26 @@ func (f *FloatFrame) Display() {
 
 	// 5. Delegate content drawing (contentArea = fx+1, fy+1, contentSize.W, contentSize.H)
 	f.display(Rect{X: f.fx + 1, Y: f.fy + 1, W: f.contentSize.W, H: f.contentSize.H})
+
+	// 6. 修复横跨边框的宽字符：tcell 刷屏时画出宽字符后会直接跳过其占位格，
+	// 写在占位格上的边框字符就被吞掉（边框列看上去被汉字盖住）。
+	// 终端画不出半个汉字，只能把横跨边框的宽字符清成空格让它让位。
+	if x > 0 {
+		for row := y; row < y+h; row++ {
+			fixWideChar(x-1, row)
+		}
+	}
+	for row := y; row < y+h; row++ {
+		fixWideChar(x+w-2, row)
+	}
+}
+
+// fixWideChar 把 (col,row) 上的宽字符清成空格，保留原样式；仅该格确实承载宽字符时才动。
+func fixWideChar(col, row int) {
+	_, _, st, w := screen.Screen.GetContent(col, row)
+	if w > 1 {
+		screen.Screen.SetContent(col, row, ' ', nil, st)
+	}
 }
 
 // HandleEvent forwards events to concrete dialog. Resize is intercepted (closes + calls OnResize),
