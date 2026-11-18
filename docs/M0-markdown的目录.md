@@ -142,8 +142,8 @@ MD 文件内按 Alt-o（或 `:outline` 命令）弹出 `OutlineDialog`，Enter �
 
 | 文件 | 动作 | 内容 |
 |---|---|---|
-| internal/md/collect.go | 新增 | `CollectHeadings`（返回等宽条目串） |
-| internal/md/collect_test.go | 新增 | CollectHeadings 单测 |
+| internal/md/collect_headings.go | 新增 | `CollectHeadings`（返回等宽条目串） |
+| internal/md/collect_headings_test.go | 新增 | CollectHeadings 单测 |
 | internal/dialog/outline.go | 新增 | `OutlineDialog`（锚点+尺寸列表弹窗） |
 | internal/action/outline_neo.go | 新增 | `OutlineCmd`（算锚点尺寸、开弹窗、解析行号跳转） |
 | internal/action/command_neo.go | 加一行 | 注册 `:outline` 命令 |
@@ -222,7 +222,7 @@ func buildEntry(text string, line, width int) string:
 - 行号右对齐靠「所有条目串同宽」自然实现，每条串都以行号结尾，最右一列对齐
 - codeblock 免疫靠 DetectSegments 的 fence 跟踪，md 内部解决，调用方不用操心
 
-单测放在 collect_test.go（同包引用 detect_test.go 里的 mockBuffer 即可），覆盖这些情况：
+单测放在 collect_headings_test.go（同包引用 detect_test.go 里的 mockBuffer 即可），覆盖这些情况：
 - codeblock 内的 `#` 行不计入
 - 多级标题的条目串正确（`#` 号原样带出）
 - 条目串尾部数字就是行号，可直接解析出来

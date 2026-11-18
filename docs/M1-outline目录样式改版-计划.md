@@ -45,14 +45,14 @@ M0 上线的 OutlineDialog，条目直接显示标题原文（含 `#` 号）。M
 
 | 文件 | 动作 | 内容 |
 |---|---|---|
-| internal/md/collect.go | 修改 | `CollectHeadings` 生成 `◇` 前缀与缩进，`heading.text` 注释同步改 |
-| internal/md/collect_test.go | 修改 | 更新既有断言 + 新增层级缩进用例 |
+| internal/md/collect_headings.go | 修改 | `CollectHeadings` 生成 `◇` 前缀与缩进，`heading.text` 注释同步改 |
+| internal/md/collect_headings_test.go | 修改 | 更新既有断言 + 新增层级缩进用例 |
 
 行数估计：
-- collect.go 约 10 行
-- collect_test.go 约 20 行
+- collect_headings.go 约 10 行
+- collect_headings_test.go 约 20 行
 
-## 任务 1：collect.go 生成前缀
+## 任务 1：collect_headings.go 生成前缀
 
 现状：`CollectHeadings` 把标题原文（含 `#`）直接存进 `heading.text`，`buildEntry` 只负责截断 + 引导线 + 行号。
 
@@ -121,7 +121,7 @@ func CollectHeadings(buf BufferReader, width int) []string {
 
 ## 任务 2：更新单测
 
-collect_test.go 的改动明细：
+collect_headings_test.go 的改动明细：
 - TestCollectHeadingsBasic：前缀断言逐条改
     - `# Title` → `◇ Title`
     - `## Section` → ` ◇ Section`
