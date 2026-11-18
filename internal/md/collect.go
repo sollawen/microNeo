@@ -10,11 +10,11 @@ import (
 // heading 是 CollectHeadings 的中间产物，不导出。
 type heading struct {
 	line int    // buffer 内 0 基行号
-	text string // 去首尾空白后的标题原文（含 # 号）
+	text string // 条目文本：缩进 + ◇ 前缀 + 标题原文
 }
 
 // CollectHeadings 扫描 buffer，返回可直接显示的 Outline 条目串。
-// 每条 = 标题原文 + 引导线填充 + 右对齐行号，行号在串的最右端。
+// 每条 = 缩进与 ◇ 前缀 + 标题原文 + 引导线填充 + 右对齐行号，行号在串的最右端。
 // width = 调用方算好的条目文本可用宽（= 内容区宽 - 1，指示器那列已扣掉），
 // CollectHeadings 不再自己扣指示器列，直接按 width 拼装，
 // 所有条目串的显示宽度都等于 width。
@@ -31,7 +31,13 @@ func CollectHeadings(buf BufferReader, width int) []string {
 		}
 		// tab 一律换成空格：runewidth 记 0 宽而 tcell 实画 1 格，口径不一
 		line = strings.ReplaceAll(line, "\t", " ")
-		hits = append(hits, heading{line: seg.BufStartLine, text: line})
+		// 前导 '#' 串换成「缩进 + ◇」：n 个 '#' → n-1 个空格 + ◇，标题原文其余部分不动
+		level := 0
+		for level < len(line) && line[level] == '#' {
+			level++
+		}
+		text := strings.Repeat(" ", level-1) + "◇" + line[level:]
+		hits = append(hits, heading{line: seg.BufStartLine, text: text})
 	}
 	if len(hits) == 0 {
 		return nil

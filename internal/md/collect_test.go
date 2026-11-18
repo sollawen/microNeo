@@ -30,7 +30,7 @@ func TestCollectHeadingsBasic(t *testing.T) {
 		t.Fatalf("want 3 items, got %d: %v", len(items), items)
 	}
 	wantLine := []string{"1", "3", "5"}
-	wantPrefix := []string{"# Title", "## Section", "### Sub"}
+	wantPrefix := []string{"◇ Title", " ◇ Section", "  ◇ Sub"}
 	for i, item := range items {
 		if !strings.HasPrefix(item, wantPrefix[i]) {
 			t.Errorf("item %d: want prefix %q, got %q", i, wantPrefix[i], item)
@@ -52,8 +52,8 @@ func TestCollectHeadingsCodeblockSkip(t *testing.T) {
 	if len(items) != 1 {
 		t.Fatalf("want 1 item (codeblock # excluded), got %d: %v", len(items), items)
 	}
-	if !strings.HasPrefix(items[0], "# Real") {
-		t.Errorf("want # Real item, got %q", items[0])
+	if !strings.HasPrefix(items[0], "◇ Real") {
+		t.Errorf("want ◇ Real item, got %q", items[0])
 	}
 }
 
@@ -82,7 +82,7 @@ func TestCollectHeadingsTruncate(t *testing.T) {
 	if runewidth.StringWidth(item) != 20 {
 		t.Errorf("display width want 20, got %d: %q", runewidth.StringWidth(item), item)
 	}
-	if !strings.HasPrefix(item, "# ") {
+	if !strings.HasPrefix(item, "◇ ") {
 		t.Errorf("truncated item should keep left side, got %q", item)
 	}
 	// 至少 1 个分隔符 + 行号仍在串尾
@@ -133,8 +133,8 @@ func TestCollectHeadingsCJK(t *testing.T) {
 	if runewidth.StringWidth(item) != 10 {
 		t.Errorf("display width want 10, got %d: %q", runewidth.StringWidth(item), item)
 	}
-	// avail = 10-1-1 = 8：# + 空格 + 3 个中文（各 2 列）恰好 8，第 4 个中文放不下
-	if item != "# 中文中･1" {
+	// avail = 10-1-1 = 8：◇ + 空格 + 3 个中文（各 2 列）恰好 8，第 4 个中文放不下
+	if item != "◇ 中文中･1" {
 		t.Errorf("want complete wide chars, got %q", item)
 	}
 }
@@ -164,6 +164,28 @@ func TestCollectHeadingsMidBuffer(t *testing.T) {
 	items := CollectHeadings(buf, 30)
 	if len(items) != 1 || trailingDigits(items[0]) != "3" {
 		t.Fatalf("want heading at line 3, got %v", items)
+	}
+}
+
+func TestCollectHeadingsIndent(t *testing.T) {
+	// 层级缩进：一级顶格，二级缩进 1 格，三级缩进 2 格
+	buf := &mockBuffer{lines: []string{
+		"# One",
+		"## Two",
+		"### Three",
+	}}
+	items := CollectHeadings(buf, 30)
+	if len(items) != 3 {
+		t.Fatalf("want 3 items, got %d: %v", len(items), items)
+	}
+	wantPrefix := []string{"◇ ", " ◇ ", "  ◇ "}
+	for i, item := range items {
+		if !strings.HasPrefix(item, wantPrefix[i]) {
+			t.Errorf("item %d: want prefix %q, got %q", i, wantPrefix[i], item)
+		}
+		if strings.Contains(item, "#") {
+			t.Errorf("item %d: should not contain #, got %q", i, item)
+		}
 	}
 }
 
