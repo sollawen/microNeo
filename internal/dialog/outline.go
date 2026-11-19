@@ -14,12 +14,13 @@ import (
 // 文本无左侧 padding、逐 rune 按显示宽度推进列数、回传整条串。
 type OutlineDialog struct {
 	items     []string
-	selected  int    // 绝对选中下标（0..len-1）
-	topIdx    int    // 视口顶部下标
-	size      Size   // 纯内容区尺寸（不含边框）
+	selected  int  // 绝对选中下标（0..len-1）
+	topIdx    int  // 视口顶部下标
+	size      Size // 纯内容区尺寸（不含边框）
 	title     string
 	itemStyle tcell.Style
 	onSelect  func(*string)
+	area      Rect // 最近一次绘制的内容区（屏幕坐标），鼠标命中判定用
 }
 
 // NewOutlineDialog returns an empty OutlineDialog (closed state).
@@ -87,6 +88,7 @@ func (o *OutlineDialog) Open(
 // which is reserved for the ▲▼ indicators. Each rune advances the column by its
 // display width so wide characters never overwrite the next cell.
 func (o *OutlineDialog) display(area Rect) {
+	o.area = area // 命中判定与绘制共用同一矩形，不会错位
 	revStyle := o.itemStyle.Reverse(true)
 	visibleH := min(len(o.items), o.size.H)
 
@@ -136,22 +138,19 @@ func (o *OutlineDialog) display(area Rect) {
 	}
 }
 
-// handleEvent processes keyboard events. Up/Down move the selection with wrap-around
-// and scroll the viewport; Enter/Esc close the container first then callback;
-// other keys are swallowed (modal).
+// handleEvent processes keyboard and mouse events. Up/Down and wheel move the
+// selection with wrap-around; left click moves the selection to the row under
+// the pointer (dialog stays open, Enter still confirms); Enter/Esc close the
+// container first then callback; other events are swallowed (modal).
 func (o *OutlineDialog) handleEvent(event tcell.Event) {
 	switch ev := event.(type) {
 	case *tcell.EventKey:
 		switch ev.Key() {
 		case tcell.KeyDown:
-			o.selected = (o.selected + 1) % len(o.items)
-			o.ensureVisible()
-			screen.Redraw()
+			o.moveSelection(+1)
 			return
 		case tcell.KeyUp:
-			o.selected = (o.selected - 1 + len(o.items)) % len(o.items)
-			o.ensureVisible()
-			screen.Redraw()
+			o.moveSelection(-1)
 			return
 		case tcell.KeyEnter:
 			picked := o.items[o.selected]
@@ -169,7 +168,54 @@ func (o *OutlineDialog) handleEvent(event tcell.Event) {
 			}
 			return
 		}
+	case *tcell.EventMouse:
+		mx, my := ev.Position()
+		btns := ev.Buttons()
+		inArea := o.area.W > 0 &&
+			mx >= o.area.X && mx < o.area.X+o.area.W &&
+			my >= o.area.Y && my < o.area.Y+o.area.H
+		switch {
+		case btns&tcell.Button1 != 0:
+			idx, ok := o.rowAt(mx, my)
+			if !ok {
+				return
+			}
+			o.selected = idx
+			o.ensureVisible()
+			screen.Redraw()
+		case btns&tcell.WheelUp != 0 && inArea:
+			o.moveSelection(-1)
+		case btns&tcell.WheelDown != 0 && inArea:
+			o.moveSelection(+1)
+		}
 	}
+}
+
+// rowAt 把屏幕坐标映射成条目下标；落在条目区外返回 false。
+func (o *OutlineDialog) rowAt(mx, my int) (idx int, ok bool) {
+	if o.area.W == 0 {
+		return 0, false // 还没绘制过，无有效内容区
+	}
+	// 横向：条目文本只占前 W-1 列，最后一列是 ▲▼ 指示器列
+	if mx < o.area.X || mx >= o.area.X+o.area.W-1 {
+		return 0, false
+	}
+	// 纵向：条目只占前 visibleH 行，下方是空白区
+	visibleH := min(len(o.items), o.size.H)
+	if my < o.area.Y || my >= o.area.Y+visibleH {
+		return 0, false
+	}
+	return o.topIdx + (my - o.area.Y), true
+}
+
+// moveSelection 上下移动选中项（首尾环绕），并保证选中项可见。
+func (o *OutlineDialog) moveSelection(delta int) {
+	if len(o.items) == 0 {
+		return
+	}
+	o.selected = (o.selected + delta + len(o.items)) % len(o.items)
+	o.ensureVisible()
+	screen.Redraw()
 }
 
 // ensureVisible scrolls the viewport to include the selected index.
